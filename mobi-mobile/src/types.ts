@@ -161,21 +161,11 @@ export type ActivityFormData = {
   activity_image_url?: string;
 };
 
-// export type RootStackParamList = {
-//   LearnerList: undefined;
-//   Main: undefined;
-//   EnrollLearner: undefined;
-//   LearnerDetail: { learner: Learner };
-//   EditLearner: { learner: Learner };
-//   LearnerActivity: undefined;
-//   ActivityDetail: { activity: Activity };
-//   EditActivity: { activity: Activity };
-//   CreateActivity: undefined;
-// };
+
+
 export type RootStackParamList = {
   Dashboard: undefined;
   Materials: undefined;
-  Notifications: undefined;
   Collaboration: undefined;
   Schedule: undefined;
   LearnerList: undefined;
@@ -192,8 +182,26 @@ export type RootStackParamList = {
 
   CreateActivity: undefined;
   
+  // Log in
+  LogIn: undefined;
+
+  // ChilD-Mode
+  ChildDashboard: undefined;
+  ActivitySession: {
+    activity: Activity;
+  }
+
+  // Adult-Mode
+  AdultDashboard: undefined;
+  Notifications: undefined;
+  Settings: undefined;
   CenterProfile: undefined;
+  LearnerProfile: undefined;
+
+
 };
+
+
 
 // export type MainTabParamList = {
 //   Dashboard: undefined;

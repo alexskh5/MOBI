@@ -85,7 +85,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import DashboardScreen from './src/screens/DashboardScreen';
 import MaterialsScreen from './src/screens/MaterialsScreen';
-import NotificationsScreen from './src/screens/NotificationsScreen';
 import CollaborationScreen from './src/screens/CollaborationScreen';
 import ScheduleScreen from './src/screens/ScheduleScreen';
 
@@ -97,7 +96,19 @@ import ActivityDetailScreen from './src/screens/ActivityDetailScreen';
 import EditActivityScreen from './src/screens/EditActivityScreen';
 import CreateActivityScreen from './src/screens/CreateActivityScreen';
 
-import CenterProfileScreen from './src/screens/CenterProfileScreen';
+// Log In
+import LogInScreen from './src/screens/LogInScreen';
+
+// Child-Mode
+import ChildDashboardScreen from './src/screens/Child-Mode/ChildDashboardScreen';
+import ActivitySessionScreen from './src/screens/Child-Mode/ActivitySessionScreen';
+
+// Adult-Mode
+import AdultDashboardScreen from './src/screens/Adult-Mode/AdultDashboardScreen';
+import NotificationsScreen from './src/screens/Adult-Mode/NotificationsScreen';
+import SettingsScreen from './src/screens/Adult-Mode/SettingsScreen';
+import CenterProfileScreen from './src/screens/Adult-Mode/CenterProfileScreen';
+import LearnerProfileScreen from './src/screens/Adult-Mode/LearnerProfileScreen';
 
 import { RootStackParamList } from './src/types';
 
@@ -108,14 +119,13 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Dashboard"
+          initialRouteName="LogIn"
           screenOptions={{
             headerShown: false,
           }}
         >
           <Stack.Screen name="Dashboard" component={DashboardScreen} />
           <Stack.Screen name="Materials" component={MaterialsScreen} />
-          <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="Collaboration" component={CollaborationScreen} />
           <Stack.Screen name="Schedule" component={ScheduleScreen} />
 
@@ -150,9 +160,46 @@ export default function App() {
           />
 
           <Stack.Screen
+            name="LogIn"
+            component={LogInScreen}
+          />
+
+          <Stack.Screen
+            name="ChildDashboard"
+            component={ChildDashboardScreen}
+          />
+
+          <Stack.Screen
+            name="ActivitySession"
+            component={ActivitySessionScreen}
+          />
+
+          <Stack.Screen
+            name="AdultDashboard"
+            component={AdultDashboardScreen}
+          />
+
+          <Stack.Screen
+            name="Notifications"
+            component={NotificationsScreen}
+          />
+
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+          />
+
+          <Stack.Screen
             name="CenterProfile"
             component={CenterProfileScreen}
           />
+
+          <Stack.Screen
+            name="LearnerProfile"
+            component={LearnerProfileScreen}
+          />
+
+
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
