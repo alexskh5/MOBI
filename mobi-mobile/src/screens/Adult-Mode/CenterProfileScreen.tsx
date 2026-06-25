@@ -55,7 +55,7 @@ export default function CenterProfileScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.name}>Jane Villa, OT</Text>
             <Text style={styles.role}>Occupational Therapist</Text>
-            <Text style={styles.badge}>MOBI Administrator</Text>
+            <Text style={styles.badge}>MOBI Staff</Text>
           </View>
 
           <View style={styles.profileIcon}>
@@ -64,33 +64,11 @@ export default function CenterProfileScreen() {
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.sectionLabel}>Admin Information</Text>
+          <Text style={styles.sectionLabel}>Staff Information</Text>
 
           <Field icon="business-outline" label="Center Name" value="Jane Villa, OT" />
           <Field icon="mail-outline" label="Email" value="ableminds@gmail.com" />
           <Field icon="call-outline" label="Contact" value="+63 900 000 0000" />
-        </View>
-
-        <Pressable
-          style={styles.cancelButton}
-          onPress={() =>
-            Alert.alert(
-              'Cancel MOBI Plan',
-              'This action will be connected to backend later.'
-            )
-          }
-        >
-          <Text style={styles.cancelText}>Cancel MOBI Plan</Text>
-        </Pressable>
-
-        <View style={styles.enrollCurve}>
-          <Pressable
-            style={styles.enrollButton}
-            onPress={() => navigation.navigate('EnrollLearner')}
-          >
-            <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.enrollText}>Enroll Child</Text>
-          </Pressable>
         </View>
       </SafeAreaView>
     </ImageBackground>
@@ -269,55 +247,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#111',
-  },
-
-  cancelButton: {
-    alignSelf: 'center',
-    marginTop: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-
-  cancelText: {
-    color: '#D9534F',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
-  enrollCurve: {
-    position: 'absolute',
-    left: -25,
-    right: -25,
-    bottom: -80,
-    height: 180,
-    borderTopLeftRadius: 170,
-    borderTopRightRadius: 170,
-    backgroundColor: '#F2DDF2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderTopWidth: 2,
-    borderTopColor: '#E3CBE3',
-  },
-
-  enrollButton: {
-    marginTop: -42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#B48BC7',
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 30,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-
-  enrollText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-    marginLeft: 8,
   },
 });
