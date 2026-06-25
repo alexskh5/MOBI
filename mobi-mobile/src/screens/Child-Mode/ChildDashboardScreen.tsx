@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ScrollView,
   Modal,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -138,6 +139,14 @@ const categories = [
   'Daily routines',
 ];
 
+const filterOptions = [
+  { id: 'all', label: 'All options', value: 'all' },
+  { id: 'option1', label: 'Option 1', value: 'option1' },
+  { id: 'option2', label: 'Option 2', value: 'option2' },
+  { id: 'option3', label: 'Option 3', value: 'option3' },
+  { id: 'option4', label: 'Option 4', value: 'option4' },
+];
+
 const getLocalImage = (id: number) => {
   if (id === 1) return sample1;
   if (id === 2) return sample2;
@@ -147,9 +156,47 @@ const getLocalImage = (id: number) => {
 
 export default function ChildDashboardScreen() {
   const navigation = useNavigation<NavigationProp<'ChildDashboard'>>();
+  const { width } = useWindowDimensions();
+
+  const isTablet = width >= 768;
+  const isSmallPhone = width < 380;
 
   const [showAdultModal, setShowAdultModal] = useState(false);
   const [magicCode, setMagicCode] = useState('');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState(filterOptions[0]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  const cardWidth = isTablet ? 220 : isSmallPhone ? 150 : 165;
+  const cardHeight = isTablet ? 230 : 190;
+
+  const filteredActivities = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return activities.filter((activity) => {
+      const matchesSearch =
+        query === '' ||
+        activity.title.toLowerCase().includes(query) ||
+        activity.category.toLowerCase().includes(query) ||
+        activity.level.toLowerCase().includes(query) ||
+        activity.difficulty.toLowerCase().includes(query) ||
+        activity.teach_prompt.toLowerCase().includes(query);
+
+      // BACKEND READY:
+      // Replace this with real filter logic later.
+      // Example: selectedFilter.value === activity.difficulty
+      const matchesFilter =
+        selectedFilter.value === 'all' ||
+        selectedFilter.value === 'option1' ||
+        selectedFilter.value === 'option2' ||
+        selectedFilter.value === 'option3' ||
+        selectedFilter.value === 'option4';
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [searchQuery, selectedFilter]);
 
   const handleOpenAdultMode = () => {
     if (magicCode === ADULT_MAGIC_CODE) {
@@ -163,7 +210,13 @@ export default function ChildDashboardScreen() {
 
   const renderActivityCard = ({ item }: { item: Activity }) => (
     <Pressable
-      style={styles.card}
+      style={[
+        styles.card,
+        {
+          width: cardWidth,
+          height: cardHeight,
+        },
+      ]}
       onPress={() =>
         navigation.navigate('ActivitySession', {
           activity: item,
@@ -176,15 +229,15 @@ export default function ChildDashboardScreen() {
             ? { uri: item.activity_image_url }
             : getLocalImage(item.id)
         }
-        style={styles.cardImage}
+        style={[styles.cardImage, { height: isTablet ? 120 : 96 }]}
       />
 
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
+        <Text style={[styles.cardTitle, isTablet && styles.tabletCardTitle]} numberOfLines={1}>
           {item.title}
         </Text>
 
-        <Text style={styles.cardDescription} numberOfLines={3}>
+        <Text style={[styles.cardDescription, isTablet && styles.tabletCardDescription]} numberOfLines={3}>
           {item.teach_prompt}
         </Text>
 
@@ -197,58 +250,162 @@ export default function ChildDashboardScreen() {
     </Pressable>
   );
 
+  const renderCategorySection = (category: string) => {
+    const data =
+      category === "Recommended for Lexi’s needs"
+        ? filteredActivities
+        : filteredActivities.filter((item) => item.category === category);
+
+    if (data.length === 0) return null;
+
+    return (
+      <View key={category} style={styles.categorySection}>
+        <Text style={[styles.categoryTitle, isTablet && styles.tabletCategoryTitle]}>
+          {category}
+        </Text>
+
+        <FlatList
+          data={data}
+          horizontal
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderActivityCard}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+        />
+      </View>
+    );
+  };
+
   return (
     <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, isSmallPhone && styles.smallHeader]}>
           <View style={styles.leftHeader}>
-            <Image source={logo} style={styles.logo} />
+            <Image source={logo} style={[styles.logo, isSmallPhone && styles.smallLogo]} />
 
-            <View>
-              <Text style={styles.greeting}>Hi, Lexi!</Text>
-              <Text style={styles.subGreeting}>We are happy to see you.</Text>
+            <View style={styles.greetingGroup}>
+              <Text style={[styles.greeting, isSmallPhone && styles.smallGreeting]}>
+                Hi, Lexi!
+              </Text>
+              <Text style={[styles.subGreeting, isSmallPhone && styles.smallSubGreeting]}>
+                We are happy to see you.
+              </Text>
             </View>
           </View>
 
-          <View style={styles.rightHeader}>
-            <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={15} color="#333" />
-              <TextInput
-                placeholder="Search"
-                placeholderTextColor="#111"
-                style={styles.searchInput}
-              />
-              <Text style={styles.filterText}>Filter</Text>
-            </View>
+          <Pressable
+            style={styles.lockButton}
+            onPress={() => setShowAdultModal(true)}
+          >
+            <Image source={locked} style={styles.lockIcon} />
+          </Pressable>
+        </View>
 
-            <Pressable
-              style={styles.lockButton}
-              onPress={() => setShowAdultModal(true)}
-            >
-              <Image source={locked} style={styles.lockIcon} />
-            </Pressable>
+        <View style={styles.controlsRow}>
+          <View style={[
+              styles.searchBox,
+              isSearchFocused && styles.searchBoxFocused,
+            ]}>
+            <Ionicons name="search-outline" size={17} />
+
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search activities"
+              //placeholderTextColor="#777"
+              style={[
+                styles.searchInput,
+                {
+                  outlineWidth: 0,
+                } as any,
+              ]}
+              autoCorrect={false}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+            />
+
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={17} color="#999" />
+              </Pressable>
+            )}
           </View>
+
+          <Pressable
+            style={styles.filterButton}
+            onPress={() => setShowFilterModal(true)}
+          >
+            <Text style={styles.filterText}>{selectedFilter.label}</Text>
+            <Ionicons name="chevron-down" size={14} color="#777" />
+          </Pressable>
         </View>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.pageContent}
+          contentContainerStyle={[
+            styles.pageContent,
+            isTablet && styles.tabletPageContent,
+          ]}
         >
-          {categories.map((category) => (
-            <View key={category} style={styles.categorySection}>
-              <Text style={styles.categoryTitle}>{category}</Text>
+          {categories.map(renderCategorySection)}
 
-              <FlatList
-                data={activities}
-                horizontal
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={renderActivityCard}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalList}
-              />
+          {filteredActivities.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={34} color="#B48BC7" />
+              <Text style={styles.emptyTitle}>No activities found</Text>
+              <Text style={styles.emptyText}>
+                Try searching another activity or changing the filter.
+              </Text>
             </View>
-          ))}
+          )}
         </ScrollView>
+
+        <Modal
+          visible={showFilterModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowFilterModal(false)}
+        >
+          <Pressable
+            style={styles.filterOverlay}
+            onPress={() => setShowFilterModal(false)}
+          >
+            <View style={styles.filterModalCard}>
+              <Text style={styles.filterModalTitle}>Filter Activities</Text>
+
+              {filterOptions.map((option) => {
+                const isSelected = selectedFilter.value === option.value;
+
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[
+                      styles.filterOption,
+                      isSelected && styles.selectedFilterOption,
+                    ]}
+                    onPress={() => {
+                      setSelectedFilter(option);
+                      setShowFilterModal(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.filterOptionText,
+                        isSelected && styles.selectedFilterOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={18} color="#B48BC7" />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Modal>
 
         <Modal
           visible={showAdultModal}
@@ -258,10 +415,15 @@ export default function ChildDashboardScreen() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.magicCard}>
+              <Text style={styles.magicTitle}>Adult Mode</Text>
+              <Text style={styles.magicSubtitle}>
+                Enter the magic code to continue.
+              </Text>
+
               <TextInput
                 value={magicCode}
                 onChangeText={setMagicCode}
-                placeholder="Please enter magic code"
+                placeholder="Magic code"
                 placeholderTextColor="#777"
                 style={styles.magicInput}
                 secureTextEntry
@@ -304,162 +466,303 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    height: 58,
-    paddingHorizontal: 31,
-    paddingTop: 6,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
 
+  smallHeader: {
+    paddingHorizontal: 14,
+  },
+
   leftHeader: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
   },
 
   logo: {
-    width: 72,
-    height: 42,
+    width: 74,
+    height: 45,
     resizeMode: 'contain',
     marginRight: 8,
   },
 
+  smallLogo: {
+    width: 60,
+    height: 38,
+  },
+
+  greetingGroup: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   greeting: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#111',
-    lineHeight: 25,
+  },
+
+  smallGreeting: {
+    fontSize: 19,
   },
 
   subGreeting: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#111',
-    marginTop: -1,
+    marginTop: 1,
   },
 
-  rightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  searchBox: {
-    width: 240,
-    height: 30,
-    borderRadius: 6,
-    backgroundColor: 'rgba(246, 216, 244, 0.82)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-
-  searchInput: {
-    flex: 1,
-    height: 30,
-    paddingVertical: 0,
-    paddingHorizontal: 5,
-    fontSize: 12,
-    color: '#111',
-  },
-
-  filterText: {
+  smallSubGreeting: {
     fontSize: 10,
-    color: '#777',
   },
 
   lockButton: {
-    width: 32,
-    height: 32,
+    width: 42,
+    height: 42,
     marginLeft: 10,
-    borderRadius: 10,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowRadius: 5,
     elevation: 4,
   },
 
   lockIcon: {
-    width: 18,
-    height: 18,
+    width: 22,
+    height: 22,
     resizeMode: 'contain',
   },
 
-  pageContent: {
-    paddingBottom: 30,
+  controlsRow: {
+    paddingHorizontal: 18,
+    marginTop: 8,
+    marginBottom: 18,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
   },
 
-  categorySection: {
-    marginBottom: 16,
+  searchBox: {
+    flex: 1,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 3,
   },
 
-  categoryTitle: {
-    marginLeft: 32,
-    marginBottom: 8,
-    fontSize: 15,
-    fontWeight: '800',
+  searchBoxFocused: {
+    borderWidth: 2,
+    borderColor: '#C69AD9',
+    backgroundColor: '#FFFFFF',
+
+    shadowColor: '#C69AD9',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: 42,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
+    fontSize: 13,
     color: '#111',
   },
 
+  filterButton: {
+    height: 42,
+    maxWidth: 125,
+    borderRadius: 14,
+    backgroundColor: '#F2DDF2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  filterText: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#7B5B88',
+    marginRight: 4,
+  },
+
+  pageContent: {
+    paddingTop: 4,
+    paddingBottom: 34,
+  },
+
+  tabletPageContent: {
+    paddingTop: 10,
+  },
+
+  categorySection: {
+    marginBottom: 22,
+  },
+
+  categoryTitle: {
+    marginLeft: 20,
+    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111',
+  },
+
+  tabletCategoryTitle: {
+    fontSize: 20,
+  },
+
   horizontalList: {
-    paddingLeft: 31,
-    paddingRight: 24,
+    paddingLeft: 18,
+    paddingRight: 18,
   },
 
   card: {
-    width: 162,
-    height: 184,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    marginRight: 12,
+    borderRadius: 18,
+    marginRight: 14,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
     elevation: 5,
   },
 
   cardImage: {
     width: '100%',
-    height: 93,
     resizeMode: 'cover',
   },
 
   cardBody: {
-    paddingHorizontal: 10,
-    paddingTop: 7,
+    flex: 1,
+    paddingHorizontal: 11,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
 
   cardTitle: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '900',
     color: '#111',
-    marginBottom: 4,
+    marginBottom: 5,
+  },
+
+  tabletCardTitle: {
+    fontSize: 15,
   },
 
   cardDescription: {
-    fontSize: 9,
+    fontSize: 10,
     color: '#333',
-    lineHeight: 11,
+    lineHeight: 13,
+  },
+
+  tabletCardDescription: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   uploadedBy: {
     fontSize: 8,
     fontWeight: '800',
     color: '#111',
-    marginTop: 7,
+    marginTop: 'auto',
   },
 
   timeText: {
     fontSize: 8,
-    color: '#333',
-    marginTop: 1,
+    color: '#666',
+    marginTop: 2,
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 80,
+    paddingHorizontal: 24,
+  },
+
+  emptyTitle: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#111',
+  },
+
+  emptyText: {
+    marginTop: 5,
+    fontSize: 12,
+    color: '#777',
+    textAlign: 'center',
+  },
+
+  filterOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+
+  filterModalCard: {
+    width: '100%',
+    maxWidth: 330,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+  },
+
+  filterModalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111',
+    marginBottom: 12,
+  },
+
+  filterOption: {
+    height: 44,
+    borderRadius: 13,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: '#FAF4FA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  selectedFilterOption: {
+    backgroundColor: '#F2DDF2',
+  },
+
+  filterOptionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#555',
+  },
+
+  selectedFilterOptionText: {
+    color: '#7B5B88',
+    fontWeight: '900',
   },
 
   modalOverlay: {
@@ -467,45 +770,66 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.42)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
 
   magicCard: {
-    width: 195,
+    width: '100%',
+    maxWidth: 290,
     backgroundColor: '#FFFFFF',
-    borderRadius: 7,
-    paddingTop: 12,
-    paddingHorizontal: 10,
-    paddingBottom: 8,
+    borderRadius: 18,
+    padding: 20,
     alignItems: 'center',
+  },
+
+  magicTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#111',
+  },
+
+  magicSubtitle: {
+    marginTop: 5,
+    marginBottom: 15,
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
   },
 
   magicInput: {
     width: '100%',
-    height: 37,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
+    height: 44,
+    backgroundColor: '#F2DDF2',
+    borderRadius: 14,
     paddingHorizontal: 12,
-    fontSize: 12,
+    fontSize: 14,
     textAlign: 'center',
     color: '#111',
   },
 
   openAdultButton: {
-    marginTop: 7,
+    width: '100%',
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#B48BC7',
+    marginTop: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   openAdultText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#555',
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
 
   cancelButton: {
-    marginTop: 8,
+    marginTop: 12,
   },
 
   cancelText: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#777',
+    fontWeight: '700',
   },
 });
