@@ -64,7 +64,14 @@ const Sidebar = ({
           </li>
 
           <li>
-            <NavLink to="#" className="hover:text-[#965deb] transition">
+            <NavLink
+              to="/center/materials"
+              className={({ isActive }) =>
+                isActive
+                    ? "text-[#965deb] font-semibold"
+                    : "hover:text-[#965deb] transition"
+              }
+            >
               Materials
             </NavLink>
           </li>
