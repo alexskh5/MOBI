@@ -7,10 +7,22 @@ const AddLearner = () => {
   const navigate = useNavigate();
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState("Firstname Lastname");
-  const [editingAge, setEditingAge] = useState(false);
+  const [birthDate, setBirthDate] = useState("");
+  const [age, setAge] = useState("");
+  const [doctor, setDoctor] = useState("Select Doctor");
   const [editingDoctor, setEditingDoctor] = useState(false);
-  const [age, setAge] = useState("Age");
-  const [doctor, setDoctor] = useState("Doctor");
+
+  // placeholder change kanang fetch sa db
+  const doctorList = [
+    "Andres Lou Mulach",
+    "Maria Santos",
+    "John Reyes",
+    "Sophia Garcia",
+    "Other",
+  ];
+
+  const [otherDoctor, setOtherDoctor] =
+    useState("");
 
   return (
     <CenterLayout>
@@ -83,65 +95,68 @@ const AddLearner = () => {
                 )}
                 </div>
 
-                <div className="flex items-center mb-4">
-                {editingAge ? (
-                    <input
-                    type="text"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                        setEditingAge(false);
-                        }
-                    }}
-                    autoFocus
-                    className="text-2xl bg-transparent border-b outline-none"
-                    />
-                ) : (
-                    <p className="text-2xl">
-                    {age}
-                    </p>
-                )}
-
-                {!editingAge && (
-                    <button
-                    onClick={() => setEditingAge(true)}
-                    className="ml-4 hover:text-gray-600"
-                    >
-                    <Pencil size={16} />
-                    </button>
-                )}
+                <div className="mb-4">
+                  <p className="text-2xl">
+                    {age ? `${age} years old` : "Age"}
+                  </p>
                 </div>
 
-                <div className="flex items-center">
-                {editingDoctor ? (
-                    <input
-                    type="text"
-                    value={doctor}
-                    onChange={(e) => setDoctor(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                        setEditingDoctor(false);
-                        }
-                    }}
-                    autoFocus
-                    className="font-semibold text-lg bg-transparent border-b outline-none"
-                    />
-                ) : (
-                    <p className="font-semibold text-lg">
-                    {doctor}
-                    </p>
+                <div className="flex items-center gap-2">
+
+                  <p className="font-semibold text-lg">
+                    Doctor: {
+                      doctor === "Other"
+                        ? otherDoctor || "Other"
+                        : doctor
+                    }
+                  </p>
+
+                  <button
+                    onClick={() =>
+                      setEditingDoctor(!editingDoctor)
+                    }
+                    className="hover:text-gray-600"
+                  >
+                    <Pencil size={16} />
+                  </button>
+
+                </div>
+
+                {editingDoctor && (
+                  <div className="mt-2 w-72">
+
+                    <select
+                      value={doctor}
+                      onChange={(e) => {
+                        setDoctor(e.target.value);
+                      }}
+                      className="w-full bg-white rounded-xl shadow px-4 py-2 outline-none"
+                    >
+                      {doctorList.map((doc) => (
+                        <option
+                          key={doc}
+                          value={doc}
+                        >
+                          {doc}
+                        </option>
+                      ))}
+                    </select>
+
+                    {doctor === "Other" && (
+                      <input
+                        type="text"
+                        value={otherDoctor}
+                        onChange={(e) => {
+                          setOtherDoctor(e.target.value);
+                        }}
+                        placeholder="Enter doctor's name"
+                        className="mt-2 w-full bg-white rounded-xl shadow px-4 py-2 outline-none"
+                      />
+                    )}
+
+                  </div>
                 )}
 
-                {!editingDoctor && (
-                    <button
-                    onClick={() => setEditingDoctor(true)}
-                    className="ml-4 hover:text-gray-600"
-                    >
-                    <Pencil size={16} />
-                    </button>
-                )}
-                </div>
               </div>
             </div>
 
@@ -156,10 +171,37 @@ const AddLearner = () => {
                     Learner Birthday:
                   </label>
 
-                <input
-                type="date"
-                className="w-full bg-white rounded-xl shadow px-4 py-3 outline-none"
-                />
+                  <input
+                    type="date"
+                    value={birthDate}
+                    onChange={(e) => {
+                      const dob = e.target.value;
+
+                      setBirthDate(dob);
+
+                      const today = new Date();
+                      const birth = new Date(dob);
+
+                      let calculatedAge =
+                        today.getFullYear() -
+                        birth.getFullYear();
+
+                      const monthDiff =
+                        today.getMonth() -
+                        birth.getMonth();
+
+                      if (
+                        monthDiff < 0 ||
+                        (monthDiff === 0 &&
+                          today.getDate() < birth.getDate())
+                      ) {
+                        calculatedAge--;
+                      }
+
+                      setAge(calculatedAge.toString());
+                    }}
+                    className="w-full bg-white rounded-xl shadow px-4 py-3 outline-none"
+                  />
                 </div>
 
                 <div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import CenterLayout from "../../../layouts/CenterLayout";
 
 
@@ -119,18 +119,31 @@ const Doctor = () => {
                 </h1>
                 </div>
 
-                {/* insert search logic latur */}
-                <div className="flex items-center bg-[#f3e9f4] px-5 py-3 rounded-xl shadow-sm w-120">
-                <Search
-                    size={20}
-                    className="mr-3 text-gray-500"
-                />
+                <div className="flex items-center gap-3">
+                    {/* Search Bar */}
+                    <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96">
+                        <Search
+                        size={20}
+                        className="text-gray-500 mr-3"
+                        />
 
-                <input
-                    type="text"
-                    placeholder="Search"
-                    className="bg-transparent outline-none w-full text-lg"
-                />
+                        <input
+                        type="text"
+                        placeholder="Search"
+                        className="bg-transparent outline-none w-full"
+                        />
+                    </div>
+
+                    {/* Close Page Button */}
+                    <button
+                        onClick={() => navigate("/center/profile")}
+                        className="w-11 h-11 flex items-center justify-center bg-[#F5EEF6] rounded-xl shadow-md hover:bg-[#EBD7EC] transition"
+                    >
+                        <X
+                        size={20}
+                        className="text-[#7A5D7F]"
+                        />
+                    </button>
                 </div>
 
             </div>

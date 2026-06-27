@@ -24,6 +24,10 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+
+import Home from "../pages/Home";
+import About from "../pages/About";
+import Login from "../pages/Login";
 import Learner from "../pages/center/dashboard/learner";
 import AddLearner from "../pages/center/dashboard/AddLearner";
 import EditLearner from "../pages/center/dashboard/EditLearner";
@@ -34,6 +38,8 @@ import AddDoctor from "../pages/center/profile/AddDoctor";
 import AddStaff from "../pages/center/profile/AddStaff";
 import EditDoctor from "../pages/center/profile/EditDoctor";
 import EditStaff from "../pages/center/profile/EditStaff";
+import ActivityLibrary from "../pages/center/materials/ActivityLibrary";
+import CreateActivity from "../pages/center/materials/CreateActivity";
 
 const AppRoutes = () => {
   return (
@@ -45,6 +51,37 @@ const AppRoutes = () => {
           element={
             <Navigate to="/center/dashboard" />
           }
+        />
+
+        {/* ======================================
+          LANDING PAGE
+          Visit manually:
+          http://localhost:5173/home
+
+          If later you want Home to be the
+          startup page, replace the route above
+          with:
+
+          <Route
+            path="/"
+            element={<Home />}
+          />
+
+        ====================================== */}
+
+        <Route
+          path="/home"
+          element={<Home />}
+        />
+
+        <Route
+          path="/about"
+          element={<About />}
+        />
+
+        <Route
+          path="/login"
+          element={<Login />}
         />
 
         <Route
@@ -95,6 +132,16 @@ const AppRoutes = () => {
         <Route
           path="/center/profile/:id/EditStaff"
           element={<EditStaff />}
+        />
+
+        <Route
+          path="/center/materials"
+          element={<ActivityLibrary />}
+        />
+
+        <Route
+          path="/center/materials/CreateActivity"
+          element={<CreateActivity />}
         />
 
       </Routes>

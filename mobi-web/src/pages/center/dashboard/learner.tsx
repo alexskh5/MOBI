@@ -100,7 +100,7 @@ const Learner = () => {
                 </div>
 
                 {/* insert search logic latur */}
-                <div className="flex items-center bg-[#f3e9f4] px-5 py-3 rounded-xl shadow-sm w-120">
+                {/* <div className="flex items-center bg-[#f3e9f4] px-5 py-3 rounded-xl shadow-sm w-120">
                 <Search
                     size={20}
                     className="mr-3 text-gray-500"
@@ -111,6 +111,18 @@ const Learner = () => {
                     placeholder="Search"
                     className="bg-transparent outline-none w-full text-lg"
                 />
+                </div> */}
+                <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96">
+                    <Search
+                    size={20}
+                    className="text-gray-500 mr-3"
+                    />
+
+                    <input
+                    type="text"
+                    placeholder="Search"
+                    className="bg-transparent outline-none w-full"
+                    />
                 </div>
 
             </div>
