@@ -41,6 +41,11 @@ import EditStaff from "../pages/center/profile/EditStaff";
 import ActivityLibrary from "../pages/center/materials/ActivityLibrary";
 import CreateActivity from "../pages/center/materials/CreateActivity";
 
+// Super-Admin
+import SuperDashboardScreen from "../pages/superadmin/SuperDashboardScreen";
+import SuperManageScreen from "../pages/superadmin/SuperManageScreen";
+import SuperProcessScreen from "../pages/superadmin/SuperProcessScreen";
+
 const AppRoutes = () => {
   return (
     <BrowserRouter>
@@ -142,6 +147,24 @@ const AppRoutes = () => {
         <Route
           path="/center/materials/CreateActivity"
           element={<CreateActivity />}
+        />
+
+        
+
+
+        <Route
+          path="/superadmin/SuperDashboardScreen"
+          element={<SuperDashboardScreen />}
+        />
+
+        <Route
+          path="/superadmin/SuperManageScreen"
+          element={<SuperManageScreen />}
+        />
+
+        <Route
+          path="/superadmin/SuperProcessScreen"
+          element={<SuperProcessScreen />}
         />
 
       </Routes>
