@@ -1,3 +1,4 @@
+// MOBI/mobi-web/src/pages/center/materials/CreateActivity.tsx
 import { useState, useRef } from "react";
 import {
   Undo2,
@@ -28,8 +29,11 @@ import ActivitySpeechLadder from "../../../components/center/materials/ActivityS
 import ActivityAIVoice from "../../../components/center/materials/ActivityAIVoice";
 import ActivityAssignLearner from "../../../components/center/materials/ActivityAssignLearner";
 // import ActivityReadinessLadder from "../../../components/center/materials/ActivityReadinessLadder";
+// newly added
+import ActivityLimits from "../../../pages/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
 
+import { createActivity } from "../../../services/activityApi";
 
 function CreateActivity() {
   const location = useLocation();
@@ -49,6 +53,10 @@ function CreateActivity() {
 
   const [thumbnail, setThumbnail] =
     useState<string | null>(null);
+
+      // newly added 
+  const [maxAttempts, setMaxAttempts] = useState(3);
+  const [estimatedMinutes, setEstimatedMinutes] = useState(5); 
 
   const steps =
     ACTIVITY_TEMPLATES[
@@ -103,6 +111,70 @@ function CreateActivity() {
       stepType,
     ]);
   };
+
+  const handlePublish = async () => {
+  try {
+    if (!title.trim()) {
+      alert("Please add an activity title.");
+      return;
+    }
+
+    const allSteps = [...steps, ...customSteps];
+
+    const formattedSteps = allSteps.map((step) => {
+      const stepTypeMap: Record<string, string> = {
+        Teach: "teach",
+        Ask: "ask",
+        Feedback: "feedback",
+        Conversation: "conversation",
+        "Learn by Doing": "do_it",
+        "Show & Choose": "show_choose",
+      };
+
+      return {
+        step_type: stepTypeMap[step] || step.toLowerCase(),
+        instruction: `${step} step`,
+        prompt: `This is a ${step} step for ${title}.`,
+        expected_answers: step === "Ask" ? ["sample answer"] : [],
+        accepted_variations: step === "Ask" ? ["sample", "answer"] : [],
+        can_repeat: true,
+        can_give_hint: true,
+        can_skip: true,
+        ai_feedback_rules: {
+          correct: "Great job!",
+          almost: "Nice try. Let's say it again.",
+          incorrect: "That's okay. Let's try again gently.",
+          max_attempts_reached: "Good effort. Let's move on.",
+        },
+      };
+    });
+
+    const payload = {
+      title,
+      description,
+      activity_type: selectedTemplate,
+      speech_ladder_level: "word",
+      max_attempts: maxAttempts,
+      estimated_minutes: estimatedMinutes,
+      allow_skip: true,
+      success_required_count: 1,
+      thumbnail_url: thumbnail,
+      ai_voice_gender: "girl",
+      ai_voice_speed: "moderate",
+      status: "published",
+      uploaded_by: "Center Admin",
+      steps: formattedSteps,
+    };
+
+    await createActivity(payload);
+
+    alert("Activity published successfully!");
+    navigate("/center/materials");
+  } catch (error) {
+    console.error(error);
+    alert("Failed to publish activity.");
+  }
+};
 
   return (
     <div className="h-screen bg-[#F7F7F7] flex flex-col">
@@ -170,7 +242,10 @@ function CreateActivity() {
             Exit
           </button>
 
-          <button className="text-[#E37D4A]">
+          <button
+            onClick={handlePublish}
+            className="text-[#E37D4A]"
+          >
             Publish
           </button>
         </div>
@@ -442,6 +517,13 @@ function CreateActivity() {
                   thumbnail={thumbnail}
                   setThumbnail={setThumbnail}
                 />
+
+                <ActivityLimits
+  maxAttempts={maxAttempts}
+  setMaxAttempts={setMaxAttempts}
+  estimatedMinutes={estimatedMinutes}
+  setEstimatedMinutes={setEstimatedMinutes}
+/>
               </div>
 
               <div

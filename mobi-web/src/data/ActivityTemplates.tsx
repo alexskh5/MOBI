@@ -1,3 +1,4 @@
+// MOBI/mobi-web/src/data/ActivityTemplates.tsx
 export const ACTIVITY_TEMPLATES = {
   "Teach & Practice": [
     "Teach",

@@ -1,26 +1,4 @@
-# Node
-node_modules/
-
-# Expo
-.expo/
-
-# Environment
+node_modules
 .env
-
-# Python
-venv/
-__pycache__/
-
-# Uploads
-uploads/
-
-# Logs
-*.log
-
-# Mac
+dist
 .DS_Store
-
-# Build
-dist/
-build/
-

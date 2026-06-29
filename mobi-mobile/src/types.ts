@@ -1,4 +1,4 @@
-// mobi-mobile/src/types.ts
+// MOBI/mobi-mobile/src/types.ts
 
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
