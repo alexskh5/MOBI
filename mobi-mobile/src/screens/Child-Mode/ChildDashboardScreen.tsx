@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+// MOBI/mobi-backend/src/screens/Child-Mode/ChildDashboardScreen.tsx
+
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Activity, NavigationProp } from '../../types';
+import { getActivities } from '../../services/api';
 
 const logo = require('../../../assets/images/mobi_logo.png');
 const bgImage = require('../../../assets/images/background.jpg');
@@ -29,128 +32,17 @@ const sample4 = require('../../../assets/images/sample4.jpg');
 
 const ADULT_MAGIC_CODE = '1234';
 
-const activities: Activity[] = [
-  {
-    id: 1,
-    title: 'Animal Words',
-    level: 'Beginner',
-    category: 'Before words',
-    difficulty: 'Easy',
-    target_answers: 'cow',
-    acceptable_answers: 'cow,cattle',
-    next_activity: '',
-    teach_prompt: 'Learning animal names and sounds through simple picture naming.',
-    teach_tone: 'friendly',
-    ask_prompt: 'What animal is in the picture?',
-    max_attempts: 3,
-    hint1: 'It says moo.',
-    hint2: 'It gives milk.',
-    hint3: 'It lives on a farm.',
-    correct_prompt: 'Great job! That is a cow.',
-    correct_tone: 'happy',
-    reward: 'stars',
-    support_prompt: 'Let us try again together.',
-    support_tone: 'gentle',
-    failed_action: 'repeat',
-    activity_image_url: '',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    title: 'Step-by-Step Brushing',
-    level: 'Beginner',
-    category: 'Daily routines',
-    difficulty: 'Easy',
-    target_answers: 'brush teeth',
-    acceptable_answers: 'brush,teeth,toothbrush',
-    next_activity: '',
-    teach_prompt: 'Breaking down the sensory-heavy task of oral hygiene into simple steps.',
-    teach_tone: 'friendly',
-    ask_prompt: 'What are we doing?',
-    max_attempts: 3,
-    hint1: 'We use a toothbrush.',
-    hint2: 'We clean our teeth.',
-    hint3: 'We do this every morning.',
-    correct_prompt: 'Correct! We are brushing teeth.',
-    correct_tone: 'happy',
-    reward: 'stars',
-    support_prompt: 'Look at the toothbrush.',
-    support_tone: 'gentle',
-    failed_action: 'repeat',
-    activity_image_url: '',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    title: 'Turn-Taking Workshop',
-    level: 'Intermediate',
-    category: 'Getting ready to talk',
-    difficulty: 'Medium',
-    target_answers: 'my turn',
-    acceptable_answers: 'turn,my turn,your turn',
-    next_activity: '',
-    teach_prompt: 'Video tutorials that use block-building to teach the “Your Turn, My Turn” concept.',
-    teach_tone: 'friendly',
-    ask_prompt: 'Whose turn is it?',
-    max_attempts: 3,
-    hint1: 'We share turns.',
-    hint2: 'You go after your friend.',
-    hint3: 'Say “my turn”.',
-    correct_prompt: 'Nice! It is your turn.',
-    correct_tone: 'happy',
-    reward: 'stars',
-    support_prompt: 'Try saying “my turn”.',
-    support_tone: 'gentle',
-    failed_action: 'repeat',
-    activity_image_url: '',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    title: 'Friends Below the Sea',
-    level: 'Beginner',
-    category: 'Before words',
-    difficulty: 'Easy',
-    target_answers: 'fish',
-    acceptable_answers: 'fish,sea animal',
-    next_activity: '',
-    teach_prompt: 'Getting to know sea animals and practicing simple words.',
-    teach_tone: 'friendly',
-    ask_prompt: 'What sea animal do you see?',
-    max_attempts: 3,
-    hint1: 'It swims.',
-    hint2: 'It lives in the water.',
-    hint3: 'It is a fish.',
-    correct_prompt: 'Yes! That is a fish.',
-    correct_tone: 'happy',
-    reward: 'stars',
-    support_prompt: 'Let us say fish together.',
-    support_tone: 'gentle',
-    failed_action: 'repeat',
-    activity_image_url: '',
-    created_at: new Date().toISOString(),
-  },
-];
-
-const categories = [
-  "Recommended for Lexi’s needs",
-  'Getting ready to talk',
-  'Before words',
-  'Daily routines',
-];
-
 const filterOptions = [
   { id: 'all', label: 'All options', value: 'all' },
-  { id: 'option1', label: 'Option 1', value: 'option1' },
-  { id: 'option2', label: 'Option 2', value: 'option2' },
-  { id: 'option3', label: 'Option 3', value: 'option3' },
-  { id: 'option4', label: 'Option 4', value: 'option4' },
+  { id: 'beginner', label: 'Beginner', value: 'beginner' },
+  { id: 'word', label: 'Word Level', value: 'word' },
+  { id: 'conversation', label: 'Conversation', value: 'conversation' },
 ];
 
-const getLocalImage = (id: number) => {
-  if (id === 1) return sample1;
-  if (id === 2) return sample2;
-  if (id === 3) return sample3;
+const getLocalImage = (index: number) => {
+  if (index % 4 === 0) return sample1;
+  if (index % 4 === 1) return sample2;
+  if (index % 4 === 2) return sample3;
   return sample4;
 };
 
@@ -160,6 +52,9 @@ export default function ChildDashboardScreen() {
 
   const isTablet = width >= 768;
   const isSmallPhone = width < 380;
+
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [showAdultModal, setShowAdultModal] = useState(false);
   const [magicCode, setMagicCode] = useState('');
@@ -171,6 +66,57 @@ export default function ChildDashboardScreen() {
 
   const cardWidth = isTablet ? 220 : isSmallPhone ? 150 : 165;
   const cardHeight = isTablet ? 230 : 190;
+
+  useEffect(() => {
+    async function loadActivities() {
+      try {
+        const data = await getActivities();
+
+        const mappedActivities: Activity[] = data.map((item: any) => ({
+          id: item.id as any,
+          title: item.title,
+          level: item.speech_ladder_level || 'word',
+          category: item.activity_type || 'Activities',
+          difficulty: 'Custom',
+          target_answers: '',
+          acceptable_answers: '',
+          next_activity: '',
+          teach_prompt: item.description || 'No description provided.',
+          teach_tone: 'friendly',
+          ask_prompt: 'What do you see?',
+          max_attempts: item.max_attempts || 3,
+          hint1: '',
+          hint2: '',
+          hint3: '',
+          correct_prompt: 'Great job!',
+          correct_tone: 'happy',
+          reward: 'stars',
+          support_prompt: 'Let us try again together.',
+          support_tone: 'gentle',
+          failed_action: 'repeat',
+          activity_image_url: item.thumbnail_url || '',
+          created_at: item.created_at,
+        }));
+
+        setActivities(mappedActivities);
+      } catch (error) {
+        console.log('Failed to load activities:', error);
+        Alert.alert('Error', 'Failed to load activities from backend.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadActivities();
+  }, []);
+
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(
+      new Set(activities.map((item) => item.category))
+    );
+
+    return ["Recommended for Lexi’s needs", ...uniqueCategories];
+  }, [activities]);
 
   const filteredActivities = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -184,19 +130,14 @@ export default function ChildDashboardScreen() {
         activity.difficulty.toLowerCase().includes(query) ||
         activity.teach_prompt.toLowerCase().includes(query);
 
-      // BACKEND READY:
-      // Replace this with real filter logic later.
-      // Example: selectedFilter.value === activity.difficulty
       const matchesFilter =
         selectedFilter.value === 'all' ||
-        selectedFilter.value === 'option1' ||
-        selectedFilter.value === 'option2' ||
-        selectedFilter.value === 'option3' ||
-        selectedFilter.value === 'option4';
+        activity.level.toLowerCase().includes(selectedFilter.value) ||
+        activity.category.toLowerCase().includes(selectedFilter.value);
 
       return matchesSearch && matchesFilter;
     });
-  }, [searchQuery, selectedFilter]);
+  }, [activities, searchQuery, selectedFilter]);
 
   const handleOpenAdultMode = () => {
     if (magicCode === ADULT_MAGIC_CODE) {
@@ -208,7 +149,7 @@ export default function ChildDashboardScreen() {
     }
   };
 
-  const renderActivityCard = ({ item }: { item: Activity }) => (
+  const renderActivityCard = ({ item, index }: { item: Activity; index: number }) => (
     <Pressable
       style={[
         styles.card,
@@ -227,7 +168,7 @@ export default function ChildDashboardScreen() {
         source={
           item.activity_image_url
             ? { uri: item.activity_image_url }
-            : getLocalImage(item.id)
+            : getLocalImage(index)
         }
         style={[styles.cardImage, { height: isTablet ? 120 : 96 }]}
       />
@@ -293,32 +234,20 @@ export default function ChildDashboardScreen() {
             </View>
           </View>
 
-          <Pressable
-            style={styles.lockButton}
-            onPress={() => setShowAdultModal(true)}
-          >
+          <Pressable style={styles.lockButton} onPress={() => setShowAdultModal(true)}>
             <Image source={locked} style={styles.lockIcon} />
           </Pressable>
         </View>
 
         <View style={styles.controlsRow}>
-          <View style={[
-              styles.searchBox,
-              isSearchFocused && styles.searchBoxFocused,
-            ]}>
+          <View style={[styles.searchBox, isSearchFocused && styles.searchBoxFocused]}>
             <Ionicons name="search-outline" size={17} />
 
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search activities"
-              //placeholderTextColor="#777"
-              style={[
-                styles.searchInput,
-                {
-                  outlineWidth: 0,
-                } as any,
-              ]}
+              style={[styles.searchInput, { outlineWidth: 0 } as any]}
               autoCorrect={false}
               onFocus={() => setIsSearchFocused(true)}
               onBlur={() => setIsSearchFocused(false)}
@@ -331,10 +260,7 @@ export default function ChildDashboardScreen() {
             )}
           </View>
 
-          <Pressable
-            style={styles.filterButton}
-            onPress={() => setShowFilterModal(true)}
-          >
+          <Pressable style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
             <Text style={styles.filterText}>{selectedFilter.label}</Text>
             <Ionicons name="chevron-down" size={14} color="#777" />
           </Pressable>
@@ -347,16 +273,24 @@ export default function ChildDashboardScreen() {
             isTablet && styles.tabletPageContent,
           ]}
         >
-          {categories.map(renderCategorySection)}
-
-          {filteredActivities.length === 0 && (
+          {loading ? (
             <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={34} color="#B48BC7" />
-              <Text style={styles.emptyTitle}>No activities found</Text>
-              <Text style={styles.emptyText}>
-                Try searching another activity or changing the filter.
-              </Text>
+              <Text style={styles.emptyTitle}>Loading activities...</Text>
             </View>
+          ) : (
+            <>
+              {categories.map(renderCategorySection)}
+
+              {filteredActivities.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Ionicons name="search-outline" size={34} color="#B48BC7" />
+                  <Text style={styles.emptyTitle}>No activities found</Text>
+                  <Text style={styles.emptyText}>
+                    Try searching another activity or changing the filter.
+                  </Text>
+                </View>
+              )}
+            </>
           )}
         </ScrollView>
 
@@ -366,10 +300,7 @@ export default function ChildDashboardScreen() {
           animationType="fade"
           onRequestClose={() => setShowFilterModal(false)}
         >
-          <Pressable
-            style={styles.filterOverlay}
-            onPress={() => setShowFilterModal(false)}
-          >
+          <Pressable style={styles.filterOverlay} onPress={() => setShowFilterModal(false)}>
             <View style={styles.filterModalCard}>
               <Text style={styles.filterModalTitle}>Filter Activities</Text>
 
@@ -430,10 +361,7 @@ export default function ChildDashboardScreen() {
                 keyboardType="number-pad"
               />
 
-              <Pressable
-                style={styles.openAdultButton}
-                onPress={handleOpenAdultMode}
-              >
+              <Pressable style={styles.openAdultButton} onPress={handleOpenAdultMode}>
                 <Text style={styles.openAdultText}>OPEN ADULT MODE</Text>
               </Pressable>
 

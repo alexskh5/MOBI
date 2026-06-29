@@ -83,19 +83,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import DashboardScreen from './src/screens/DashboardScreen';
-import MaterialsScreen from './src/screens/MaterialsScreen';
-import CollaborationScreen from './src/screens/CollaborationScreen';
-import ScheduleScreen from './src/screens/ScheduleScreen';
-
-import LearnerDetailScreen from './src/screens/LearnerDetailScreen';
-import EditLearnerScreen from './src/screens/EditLearnerScreen';
-import EnrollLearnerScreen from './src/screens/EnrollLearnerScreen';
-
-import ActivityDetailScreen from './src/screens/ActivityDetailScreen';
-import EditActivityScreen from './src/screens/EditActivityScreen';
-import CreateActivityScreen from './src/screens/CreateActivityScreen';
-
 // Log In
 import LogInScreen from './src/screens/LogInScreen';
 
@@ -124,40 +111,6 @@ export default function App() {
             headerShown: false,
           }}
         >
-          <Stack.Screen name="Dashboard" component={DashboardScreen} />
-          <Stack.Screen name="Materials" component={MaterialsScreen} />
-          <Stack.Screen name="Collaboration" component={CollaborationScreen} />
-          <Stack.Screen name="Schedule" component={ScheduleScreen} />
-
-          <Stack.Screen
-            name="EnrollLearner"
-            component={EnrollLearnerScreen}
-          />
-
-          <Stack.Screen
-            name="LearnerDetail"
-            component={LearnerDetailScreen}
-          />
-
-          <Stack.Screen
-            name="EditLearner"
-            component={EditLearnerScreen}
-          />
-
-          <Stack.Screen
-            name="ActivityDetail"
-            component={ActivityDetailScreen}
-          />
-
-          <Stack.Screen
-            name="EditActivity"
-            component={EditActivityScreen}
-          />
-
-          <Stack.Screen
-            name="CreateActivity"
-            component={CreateActivityScreen}
-          />
 
           <Stack.Screen
             name="LogIn"

@@ -40,6 +40,8 @@ import EditDoctor from "../pages/center/profile/EditDoctor";
 import EditStaff from "../pages/center/profile/EditStaff";
 import ActivityLibrary from "../pages/center/materials/ActivityLibrary";
 import CreateActivity from "../pages/center/materials/CreateActivity";
+// import ActivityLimits from "../pages/center/materials/ActivityLimits";
+import ActivityPreview from "../pages/center/materials/ActivityPreview";
 
 // Super-Admin
 import SuperDashboardScreen from "../pages/superadmin/SuperDashboardScreen";
@@ -148,8 +150,16 @@ const AppRoutes = () => {
           path="/center/materials/CreateActivity"
           element={<CreateActivity />}
         />
+{/* 
+        <Route
+          path="/center/materials/ActivityLimits"
+          element={<CreateActivity />}
+        /> */}
 
-        
+        <Route
+          path="/center/materials/:id"
+          element={<ActivityPreview />}
+        />
 
 
         <Route
