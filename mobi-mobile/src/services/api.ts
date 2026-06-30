@@ -38,7 +38,7 @@
 
 
 
-const API_BASE_URL = "http://192.168.1.13:5050";
+const API_BASE_URL = "http://192.168.1.17:5050";
 
 export async function getActivities() {
   const response = await fetch(`${API_BASE_URL}/activities`);
