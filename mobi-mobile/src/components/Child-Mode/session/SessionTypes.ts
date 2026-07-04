@@ -1,3 +1,6 @@
+// MOBI/mobi-mobile/src/components/Child-Mode/session/SessionTypes.tsx
+
+
 export type SessionStatus = 'intro' | 'active' | 'completed';
 
 export type SpeakerStatus = 'idle' | 'appSpeaking' | 'userSpeaking';

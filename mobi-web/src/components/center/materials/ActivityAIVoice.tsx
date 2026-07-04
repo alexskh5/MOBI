@@ -1,3 +1,5 @@
+//mobi-web/src/components/center/materials/ActivityAIVoice.tsx
+
 import { useState } from "react";
 
 const speedLevels = [

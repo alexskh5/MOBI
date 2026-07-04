@@ -1,3 +1,5 @@
+// MOBI/mobi-web/src/pages/center/materials/ActivityPreview.tsx
+
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import CenterLayout from "../../../layouts/CenterLayout";
