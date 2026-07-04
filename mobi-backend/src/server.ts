@@ -112,6 +112,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import activityRoutes from "./routes/activityRoutes";
+import speechRoutes from "./routes/speechRoutes";
 
 dotenv.config();
 
@@ -133,6 +134,8 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/activities", activityRoutes);
+
+app.use("/speech", speechRoutes);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`MOBI backend running on http://localhost:${PORT}`);

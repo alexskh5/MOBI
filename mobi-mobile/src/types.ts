@@ -34,32 +34,52 @@ export type LearnerFormData = {
 };
 
 export type Activity = {
-  id: number;
+  id: number | string;
   title: string;
   level: string;
   category: string;
   difficulty: string;
+
   target_answers: string;
   acceptable_answers: string;
   next_activity: string;
+
   teach_prompt: string;
   teach_tone: string;
   teach_image_url?: string;
+
   ask_prompt: string;
   max_attempts: number;
+
   hint1: string;
   hint2: string;
   hint3: string;
+
   correct_prompt: string;
   correct_tone: string;
   correct_image_url?: string;
+
   reward: string;
+
   support_prompt: string;
   support_tone: string;
   support_image_url?: string;
+
   failed_action: string;
   activity_image_url?: string;
   created_at: string;
+
+  // backend fields
+  description?: string;
+  activity_type?: string;
+  speech_ladder_level?: string;
+  estimated_minutes?: number;
+  allow_skip?: boolean;
+  success_required_count?: number;
+  thumbnail_url?: string | null;
+
+  steps?: any[];
+  activity_steps?: any[];
 };
 
 export type ActivityFormData = {
