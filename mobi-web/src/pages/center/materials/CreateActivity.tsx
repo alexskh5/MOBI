@@ -58,6 +58,8 @@ function CreateActivity() {
   const [maxAttempts, setMaxAttempts] = useState(3);
   const [estimatedMinutes, setEstimatedMinutes] = useState(5); 
   const [stepData, setStepData] = useState<Record<string, any>>({});
+  const [aiVoiceGender, setAiVoiceGender] = useState("girl");
+  const [aiVoiceSpeed, setAiVoiceSpeed] = useState("moderate");
 
   const updateStepData = (stepKey: string, data: any) => {
   setStepData((prev) => ({
@@ -240,8 +242,8 @@ function CreateActivity() {
       allow_skip: true,
       success_required_count: 1,
       thumbnail_url: thumbnail,
-      ai_voice_gender: "girl",
-      ai_voice_speed: "moderate",
+      ai_voice_gender: aiVoiceGender,
+      ai_voice_speed: aiVoiceSpeed,
       status: "published",
       uploaded_by: "Center Admin",
       steps: formattedSteps,
@@ -648,7 +650,12 @@ function CreateActivity() {
                   }
                 `}
               >
-                <ActivityAIVoice />
+                <ActivityAIVoice
+                    selectedGender={aiVoiceGender}
+                    setSelectedGender={setAiVoiceGender}
+                    selectedSpeed={aiVoiceSpeed}
+                    setSelectedSpeed={setAiVoiceSpeed}
+                  />
               </div>
 
               <div

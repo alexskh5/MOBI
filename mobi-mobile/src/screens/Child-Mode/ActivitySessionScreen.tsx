@@ -945,7 +945,7 @@ const cleanupRecording = async () => {
 
     if (nextIndex < steps.length) {
       setCurrentStepIndex(nextIndex);
-      playAppPrompt(steps(nextIndex));
+      playAppPrompt(steps[nextIndex]);
     } else {
       setSessionStatus("completed");
     }
