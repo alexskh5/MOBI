@@ -39,8 +39,6 @@
 
 // mobi-mobile/src/services/api.ts
 
-
-
 import * as FileSystem from "expo-file-system/legacy";
 
 const API_BASE_URL = "http://192.168.1.8:5050";

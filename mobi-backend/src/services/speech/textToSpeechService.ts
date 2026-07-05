@@ -108,6 +108,14 @@ import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import {
+  VOICE_STYLE_PROMPTS,
+  VOICE_EMOTION_PROMPTS,
+} from "../../constants/voicePrompts";
+
+
+// ALWAYS UPDATE HERE INCASE A PROMPT IS BEING CHANGE
+const PROMPT_VERSION = 1;
 
 const apiKey = process.env.GOOGLE_API_KEY;
 
@@ -131,16 +139,63 @@ type GenerateSpeechInput = {
   emotion?: string;
 };
 
-function buildPrompt(text: string, style: string, emotion: string) {
+function buildPrompt(
+  text: string,
+  style: string,
+  emotion: string
+) {
+  const stylePrompt =
+    VOICE_STYLE_PROMPTS[
+      style as keyof typeof VOICE_STYLE_PROMPTS
+    ] ??
+    VOICE_STYLE_PROMPTS.Teaching;
+
+  const emotionPrompt =
+    VOICE_EMOTION_PROMPTS[
+      emotion as keyof typeof VOICE_EMOTION_PROMPTS
+    ] ??
+    VOICE_EMOTION_PROMPTS.Calm;
+
   return `
-Read this aloud exactly, but perform it in a ${emotion}, ${style} voice.
+You are MOBI's AI speech therapist.
 
-This is for MOBI, a speech therapy app for young autistic children.
-Sound natural, warm, expressive, and child-friendly.
-Use clear pronunciation and natural pauses.
-Do not sound robotic or like a narrator.
+MOBI is a speech and social readiness application designed for young autistic children.
 
-Text:
+Your speech should always feel:
+
+• calm
+• predictable
+• emotionally safe
+• warm
+• encouraging
+• easy to understand
+• never robotic
+• never sarcastic
+• never rushed
+
+General speaking rules:
+
+• Speak naturally.
+• Clearly pronounce every word.
+• Use short pauses between sentences.
+• Never exaggerate excitement.
+• Never shout.
+• Never add extra words.
+• Never remove words.
+• Read ONLY the provided text.
+• Avoid sounding like a narrator.
+• Sound like a caring therapist.
+
+Voice Style
+
+${stylePrompt}
+
+Emotion
+
+${emotionPrompt}
+
+Now read EXACTLY this text:
+
 "${text}"
 `;
 }
@@ -148,11 +203,13 @@ Text:
 function createCacheKey({
   text,
   voice,
+  speed,
   style,
   emotion,
 }: {
   text: string;
   voice: string;
+  speed: number;
   style: string;
   emotion: string;
 }) {
@@ -160,8 +217,16 @@ function createCacheKey({
     .createHash("sha256")
     .update(
       JSON.stringify({
+        provider: "gemini",
+        model: "gemini-2.5-flash-preview-tts",
+
+        promptVersion: PROMPT_VERSION,
+
         text: text.trim(),
+
         voice,
+        speed,
+
         style,
         emotion,
       })
@@ -202,6 +267,7 @@ export async function generateSpeech({
   text,
   voice = "Kore",
   style = "Teaching",
+  speed = 1.0,
   emotion = "Calm",
 }: GenerateSpeechInput) {
   if (!text.trim()) {
@@ -211,9 +277,10 @@ export async function generateSpeech({
   const cacheKey = createCacheKey({
     text,
     voice,
+    speed,
     style,
     emotion,
-  });
+});
 
   const cachePath = path.join(cacheDir, `${cacheKey}.wav`);
 
