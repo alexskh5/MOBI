@@ -48,6 +48,13 @@ import SuperDashboardScreen from "../pages/superadmin/SuperDashboardScreen";
 import SuperManageScreen from "../pages/superadmin/SuperManageScreen";
 import SuperProcessScreen from "../pages/superadmin/SuperProcessScreen";
 
+// Doctor
+import DocDashboardScreen from "../pages/doctor/DocDashboardScreen";
+import DocCollabScreen from "../pages/doctor/DocCollabScreen";
+import DocNotificationScreen from "../pages/doctor/DocNotificationScreen";
+import DocProfileScreen from "../pages/doctor/DocProfileScreen";
+import DocPatientProgressScreen from "../components/doctor/DocPatientProgressScreen";
+
 const AppRoutes = () => {
   return (
     <BrowserRouter>
@@ -176,6 +183,37 @@ const AppRoutes = () => {
           path="/superadmin/SuperProcessScreen"
           element={<SuperProcessScreen />}
         />
+
+
+        
+
+        <Route
+          path="/doctor/DocDashboardScreen"
+          element={<DocDashboardScreen />}
+        />
+
+        <Route
+          path="/doctor/patients/:patientId"
+          element={<DocPatientProgressScreen />}
+        />
+
+        <Route
+          path="/doctor/DocCollabScreen"
+          element={<DocCollabScreen />}
+        />
+
+        <Route
+          path="/doctor/DocNotificationScreen"
+          element={<DocNotificationScreen />}
+        />
+
+        <Route
+          path="/doctor/DocProfileScreen"
+          element={<DocProfileScreen />}
+        />
+
+
+
 
       </Routes>
     </BrowserRouter>
