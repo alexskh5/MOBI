@@ -1,3 +1,4 @@
+//mobi-web/src/components/center/materials/AskStep.tsx
 import { useRef, useState } from "react";
 import {
   X,
@@ -8,8 +9,21 @@ import {
 
 import VoiceStyleModal from "./VoiceStyleModal";
 import StepMenu from "./StepMenu";
+import { previewTTS } from "../../../services/activityApi";
 
-function AskStep() {
+type AskStepData = {
+  question: string;
+  expected_answers: string[];
+  accepted_variations: string[];
+  ai_voice_style: string;
+};
+
+type AskStepProps = {
+  stepKey: string;
+  onChange: (stepKey: string, data: AskStepData) => void;
+};
+
+function AskStep({ stepKey, onChange }: AskStepProps) {
   const [showVoiceModal, setShowVoiceModal] =
     useState(false);
 
@@ -34,6 +48,22 @@ function AskStep() {
   const textareaRef =
     useRef<HTMLTextAreaElement>(null);
 
+    // for tts
+    const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
+
+  const updateParent = (
+  nextQuestion = question,
+  nextAnswers = answers,
+  nextVoiceStyle = voiceStyle
+) => {
+  onChange(stepKey, {
+    question: nextQuestion,
+    expected_answers: nextAnswers,
+    accepted_variations: nextAnswers,
+    ai_voice_style: nextVoiceStyle,
+  });
+};
+
   const handleMediaUpload = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -51,14 +81,16 @@ function AskStep() {
   };
 
   const handleQuestionChange = (
-    e: React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    setQuestion(e.target.value);
+  e: React.ChangeEvent<HTMLTextAreaElement>
+) => {
+  const value = e.target.value;
 
-    e.target.style.height = "auto";
-    e.target.style.height =
-      `${e.target.scrollHeight}px`;
-  };
+  setQuestion(value);
+  updateParent(value, answers);
+
+  e.target.style.height = "auto";
+  e.target.style.height = `${e.target.scrollHeight}px`;
+};
 
   const handleAnswerKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>
@@ -74,23 +106,46 @@ function AskStep() {
 
     if (answers.includes(value)) return;
 
-    setAnswers([...answers, value]);
+    const nextAnswers = [...answers, value];
+    setAnswers(nextAnswers);
+    updateParent(question, nextAnswers);
 
     setAnswerInput("");
 
   };
 
-  const removeAnswer = (
-    answer: string
-  ) => {
+  const removeAnswer = (answer: string) => {
+  const nextAnswers = answers.filter((item) => item !== answer);
 
-    setAnswers(
-      answers.filter(
-        item => item !== answer
-      )
-    );
+  setAnswers(nextAnswers);
+  updateParent(question, nextAnswers);
+};
 
-  };
+  // tts function
+
+  const handlePreviewQuestion = async () => {
+  try {
+    if (!question.trim()) {
+      alert("Please type a question first.");
+      return;
+    }
+
+    setIsGeneratingVoice(true);
+
+    await previewTTS({
+      text: question,
+      voice: "Kore",
+      style: voiceStyle,
+      emotion: "curious and gentle",
+    });
+  } catch (error) {
+    console.error(error);
+    alert("Failed to preview voice.");
+  } finally {
+    setIsGeneratingVoice(false);
+  }
+};
+
 
   return (
     <>
@@ -248,7 +303,16 @@ function AskStep() {
 
               <button
                 type="button"
-                className="absolute right-3 text-[#6B7280] hover:text-[#5B4B8A] transition-colors"
+                disabled={isGeneratingVoice}
+                onClick={handlePreviewQuestion}
+                className={`
+                  absolute right-3 transition-all duration-300
+                  ${
+                    isGeneratingVoice
+                      ? "text-[#A85CB5] animate-pulse scale-110"
+                      : "text-[#6B7280] hover:text-[#5B4B8A]"
+                  }
+                `}
                 style={{
                   top: `${(textareaRef.current?.offsetHeight ?? 44) - 34}px`,
                 }}
@@ -316,10 +380,12 @@ function AskStep() {
         isOpen={showVoiceModal}
         onClose={() => setShowVoiceModal(false)}
         selectedStyle={voiceStyle}
-        onSelectStyle={setVoiceStyle}
+        onSelectStyle={(style) => {
+          setVoiceStyle(style);
+          updateParent(question, answers, style);
+        }}
         stepType="ask"
       />
-
     </>
 
   );

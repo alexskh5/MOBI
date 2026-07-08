@@ -20,7 +20,7 @@
 //   return response.json();
 // }
 
-
+//mobi-web/src/services/activityApi.ts
 const API_BASE_URL = "http://localhost:5050";
 
 export async function getActivities() {
@@ -58,4 +58,44 @@ export async function createActivity(payload: any) {
   }
 
   return response.json();
+}
+
+export async function previewTTS({
+  text,
+  voice = "Kore",
+  style = "friendly",
+  emotion = "warm",
+}: {
+  text: string;
+  voice?: string;
+  style?: string;
+  emotion?: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/speech/tts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+      voice,
+      style,
+      emotion,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to preview TTS");
+  }
+
+  const audioBlob = await response.blob();
+  const audioUrl = URL.createObjectURL(audioBlob);
+
+  const audio = new Audio(audioUrl);
+  await audio.play();
+
+  audio.onended = () => {
+    URL.revokeObjectURL(audioUrl);
+  };
 }
