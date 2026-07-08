@@ -57,6 +57,16 @@ function CreateActivity() {
       // newly added 
   const [maxAttempts, setMaxAttempts] = useState(3);
   const [estimatedMinutes, setEstimatedMinutes] = useState(5); 
+  const [stepData, setStepData] = useState<Record<string, any>>({});
+  const [aiVoiceGender, setAiVoiceGender] = useState("girl");
+  const [aiVoiceSpeed, setAiVoiceSpeed] = useState("moderate");
+
+  const updateStepData = (stepKey: string, data: any) => {
+  setStepData((prev) => ({
+    ...prev,
+    [stepKey]: data,
+  }));
+};
 
   const steps =
     ACTIVITY_TEMPLATES[
@@ -121,7 +131,18 @@ function CreateActivity() {
 
     const allSteps = [...steps, ...customSteps];
 
-    const formattedSteps = allSteps.map((step) => {
+    console.log("STEP DATA");
+    console.log(JSON.stringify(stepData, null, 2));
+
+    const formattedSteps = allSteps.map((step, index) => {
+    const stepKey =
+      index < steps.length
+        ? `template-${index}`
+        : `custom-${index - steps.length}`;
+
+        
+    const savedStepData = stepData[stepKey] || {};
+      
       const stepTypeMap: Record<string, string> = {
         Teach: "teach",
         Ask: "ask",
@@ -132,19 +153,81 @@ function CreateActivity() {
       };
 
       return {
+        step_order: index + 1,
         step_type: stepTypeMap[step] || step.toLowerCase(),
-        instruction: `${step} step`,
-        prompt: `This is a ${step} step for ${title}.`,
-        expected_answers: step === "Ask" ? ["sample answer"] : [],
-        accepted_variations: step === "Ask" ? ["sample", "answer"] : [],
+
+        instruction:
+          step === "Learn by Doing"
+            ? savedStepData.instruction || ""
+            : `${step} step`,
+
+        materials_needed:
+          step === "Learn by Doing"
+          ? savedStepData.materials_needed || []
+          : [],
+
+        prompt:
+          step === "Ask"
+            ? savedStepData.question || `Ask step for ${title}.`
+            : step === "Teach"
+            ? savedStepData.lesson || `Teach step for ${title}.`
+            : step === "Show & Choose"
+            ? savedStepData.question || `Show and choose step for ${title}.`
+            : step === "Learn by Doing"
+            ? savedStepData.instruction || `Learn by doing step for ${title}.`
+            : step === "Conversation"
+            ? savedStepData.topics?.[0] || `Conversation step for ${title}.`
+            : `This is a ${step} step for ${title}.`,
+   
+
+        lesson:
+          step === "Teach" ? savedStepData.lesson || "" : undefined,
+
+        question:
+          step === "Ask" || step === "Show & Choose"
+            ? savedStepData.question || ""
+            : undefined,
+
+        expected_answers:
+          step === "Ask" ? savedStepData.expected_answers || [] : [],
+
+        accepted_variations:
+          step === "Ask" ? savedStepData.accepted_variations || [] : [],
+
+        choices:
+          step === "Show & Choose" ? savedStepData.choices || [] : [],
+
+        correct_feedback:
+          step === "Feedback" ? savedStepData.correct_feedback || [] : [],
+
+        wrong_feedback:
+          step === "Feedback" ? savedStepData.wrong_feedback || [] : [],
+
+        max_attempts_feedback:
+          step === "Feedback" ? savedStepData.max_attempts_feedback || [] : [],
+
+        topics:
+          step === "Conversation" ? savedStepData.topics || [] : [],
+
         can_repeat: true,
         can_give_hint: true,
         can_skip: true,
+
+        ai_voice_style:
+          step === "Feedback"
+            ? {
+                correct: savedStepData.correct_voice_style || "Celebratory",
+                wrong: savedStepData.wrong_voice_style || "Encouraging",
+              }
+            : savedStepData.ai_voice_style || null,
+
         ai_feedback_rules: {
-          correct: "Great job!",
-          almost: "Nice try. Let's say it again.",
-          incorrect: "That's okay. Let's try again gently.",
-          max_attempts_reached: "Good effort. Let's move on.",
+          correct:
+            step === "Feedback" ? savedStepData.correct_feedback || [] : [],
+          wrong:
+            step === "Feedback" ? savedStepData.wrong_feedback || [] : [],
+          max_attempts_reached:
+            step === "Feedback" ? savedStepData.max_attempts_feedback || [] : [],
         },
       };
     });
@@ -159,12 +242,18 @@ function CreateActivity() {
       allow_skip: true,
       success_required_count: 1,
       thumbnail_url: thumbnail,
-      ai_voice_gender: "girl",
-      ai_voice_speed: "moderate",
+      ai_voice_gender: aiVoiceGender,
+      ai_voice_speed: aiVoiceSpeed,
       status: "published",
       uploaded_by: "Center Admin",
       steps: formattedSteps,
     };
+
+    console.log("Formatted steps:");
+    console.dir(formattedSteps, { depth: null });
+
+    console.log("Payload:");
+    console.dir(payload, { depth: null });
 
     await createActivity(payload);
 
@@ -374,6 +463,8 @@ function CreateActivity() {
                     return (
                       <TeachStep
                         key={index}
+                        stepKey={`template-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -381,20 +472,26 @@ function CreateActivity() {
                     return (
                       <AskStep
                         key={index}
+                        stepKey={`template-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
                   case "Feedback":
                     return (
                       <FeedbackStep
-                        key={index}
-                      />
+                      key={index}
+                      stepKey={`template-${index}`}
+                      onChange={updateStepData}
+                    />
                     );
 
                   case "Conversation":
                     return (
                       <ConversationStep
                         key={index}
+                        stepKey={`template-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -402,6 +499,8 @@ function CreateActivity() {
                     return (
                       <DoItStep
                         key={index}
+                        stepKey={`template-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -409,6 +508,8 @@ function CreateActivity() {
                     return (
                       <ShowChooseStep
                         key={index}
+                        stepKey={`template-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -424,6 +525,8 @@ function CreateActivity() {
                     return (
                       <TeachStep
                         key={index}
+                        stepKey={`custom-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -431,20 +534,26 @@ function CreateActivity() {
                     return (
                       <AskStep
                         key={index}
+                        stepKey={`custom-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
                   case "Feedback":
                     return (
                       <FeedbackStep
-                        key={index}
-                      />
+                      key={index}
+                      stepKey={`custom-${index}`}
+                      onChange={updateStepData}
+                    />
                     );
 
                   case "Conversation":
                     return (
                       <ConversationStep
                         key={index}
+                        stepKey={`custom-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -452,6 +561,8 @@ function CreateActivity() {
                     return (
                       <DoItStep
                         key={index}
+                        stepKey={`custom-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -459,6 +570,8 @@ function CreateActivity() {
                     return (
                       <ShowChooseStep
                         key={index}
+                        stepKey={`custom-${index}`}
+                        onChange={updateStepData}
                       />
                     );
 
@@ -537,7 +650,12 @@ function CreateActivity() {
                   }
                 `}
               >
-                <ActivityAIVoice />
+                <ActivityAIVoice
+                    selectedGender={aiVoiceGender}
+                    setSelectedGender={setAiVoiceGender}
+                    selectedSpeed={aiVoiceSpeed}
+                    setSelectedSpeed={setAiVoiceSpeed}
+                  />
               </div>
 
               <div

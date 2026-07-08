@@ -1,4 +1,4 @@
-// src/controllers/activityController.ts
+//mobi-backend/src/controllers/activityController.ts
 
 import { Request, Response } from "express";
 import {
@@ -37,7 +37,8 @@ export async function listActivities(_req: Request, res: Response) {
 
 export async function readActivity(req: Request, res: Response) {
   try {
-    const activity = await getActivityById(req.params.id);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const activity = await getActivityById(id);
     res.status(200).json(activity);
   } catch (error: any) {
     res.status(404).json({
