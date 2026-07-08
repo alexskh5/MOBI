@@ -16,7 +16,8 @@
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "openai": "^6.35.0",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -24,6 +25,9 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^25.9.4",
     "@types/pg": "^8.20.0",
+    "@types/ws": "^8.18.1",
+    "install": "^0.13.0",
+    "npm": "^11.18.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^6.0.3"
   },
