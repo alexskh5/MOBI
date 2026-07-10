@@ -34,7 +34,7 @@ const Sidebar = ({
             className="w-32 h-32 object-contain "
           />
           <p className="text-lg text-center leading-tight">
-            Welcome <br /> back, Admin!
+            Welcome <br /> back, Therapist!
           </p>
         </div>
 
@@ -42,7 +42,7 @@ const Sidebar = ({
         <ul className="space-y-4 text-xl ml-2">
           <li>
             <NavLink
-              to="/center/dashboard"
+              to="/therapist/dashboard"
               className={({ isActive }) =>
                 isActive
                     ? "text-[#965deb] font-semibold"
@@ -55,7 +55,7 @@ const Sidebar = ({
 
           <li>
             <NavLink
-              to="/center/profile"
+              to="/therapist/profile"
               className={({ isActive }) =>
                 isActive
                     ? "text-[#965deb] font-semibold"
@@ -68,7 +68,7 @@ const Sidebar = ({
 
           <li>
             <NavLink
-              to="/center/materials"
+              to="/therapist/materials"
               className={({ isActive }) =>
                 isActive
                     ? "text-[#965deb] font-semibold"
@@ -81,7 +81,7 @@ const Sidebar = ({
 
           <li>
             <NavLink
-              to="/center/notifications"
+              to="/therapist/notifications"
               className={({ isActive }) =>
                 isActive
                     ? "text-[#965deb] font-semibold"
@@ -94,7 +94,7 @@ const Sidebar = ({
 
           <li>
             <NavLink
-              to="/center/schedule"
+              to="/therapist/schedule"
               className={({ isActive }) =>
                 isActive
                     ? "text-[#965deb] font-semibold"
@@ -107,7 +107,7 @@ const Sidebar = ({
 
           <li>
             <NavLink
-              to="/center/collaboration"
+              to="/therapist/collaboration"
               className={({ isActive }) =>
                 isActive
                     ? "text-[#965deb] font-semibold"

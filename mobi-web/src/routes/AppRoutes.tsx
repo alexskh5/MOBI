@@ -28,9 +28,12 @@ import {
 import Home from "../pages/Home";
 import About from "../pages/About";
 import Login from "../pages/Login";
+
+// Center
 import Learner from "../pages/center/dashboard/learner";
 import AddLearner from "../pages/center/dashboard/AddLearner";
 import EditLearner from "../pages/center/dashboard/EditLearner";
+import Progress from "../pages/center/dashboard/Progress";
 import CenterProfile from "../pages/center/profile/CenterProfile";
 import ViewDoctor from "../pages/center/profile/ViewDoctor";
 import ViewStaff from "../pages/center/profile/ViewStaff";
@@ -40,8 +43,16 @@ import EditDoctor from "../pages/center/profile/EditDoctor";
 import EditStaff from "../pages/center/profile/EditStaff";
 import ActivityLibrary from "../pages/center/materials/ActivityLibrary";
 import CreateActivity from "../pages/center/materials/CreateActivity";
-// import ActivityLimits from "../pages/center/materials/ActivityLimits";
 import ActivityPreview from "../pages/center/materials/ActivityPreview";
+import DraftMaterials from "../pages/center/materials/DraftMaterials";
+import ArchivedMaterials from "../pages/center/materials/ArchivedMaterials";
+import Notifications from "../pages/center/notifications/Notifications";
+import Schedule from "../pages/center/schedule/Schedule";
+import Collaboration from "../pages/center/collaboration/Collaboration"
+// Therapist
+import TherapistLearner from "../pages/therapist/dashboard/Learner";
+import TherapistProgress from "../pages/therapist/dashboard/Progress";
+
 
 // Super-Admin
 import SuperDashboardScreen from "../pages/superadmin/SuperDashboardScreen";
@@ -98,6 +109,7 @@ const AppRoutes = () => {
           element={<Login />}
         />
 
+        {/* Center Admin */}
         <Route
           path="/center/dashboard"
           element={<Learner />}
@@ -111,6 +123,11 @@ const AppRoutes = () => {
         <Route
           path="/center/dashboard/:id/EditLearner"
           element={<EditLearner />}
+        />
+
+        <Route
+          path="/center/dashboard/:id/progress"
+          element={<Progress />}
         />
 
         <Route
@@ -157,18 +174,55 @@ const AppRoutes = () => {
           path="/center/materials/CreateActivity"
           element={<CreateActivity />}
         />
-{/* 
-        <Route
-          path="/center/materials/ActivityLimits"
-          element={<CreateActivity />}
-        /> */}
 
         <Route
           path="/center/materials/:id"
           element={<ActivityPreview />}
         />
 
+        <Route
+            path="/center/materials/DraftMaterials"
+            element={<DraftMaterials />}
+        />
 
+        <Route
+          path="/center/materials/ArchivedMaterials"
+          element={<ArchivedMaterials />}
+        />
+
+        <Route
+          path="/center/notifications"
+          element={<Notifications />}
+        />
+
+        <Route
+            path="/center/schedule"
+            element={<Schedule />}
+        />
+
+        <Route
+            path="/center/collaboration"
+            element={<Collaboration />}
+        />
+
+        {/* Therapist */}
+        <Route
+          path="/therapist/dashboard"
+          element={<TherapistLearner />}
+        />
+
+        <Route
+          path="/therapist/dashboard/:id/progress"
+          element={<Progress />}
+        />
+
+        <Route
+          path="/therapist/dashboard/:id/progress"
+          element={<TherapistProgress />}
+        />
+
+
+        {/* Super Admin */}
         <Route
           path="/superadmin/SuperDashboardScreen"
           element={<SuperDashboardScreen />}
@@ -183,10 +237,8 @@ const AppRoutes = () => {
           path="/superadmin/SuperProcessScreen"
           element={<SuperProcessScreen />}
         />
-
-
         
-
+      {/* Doctor */}
         <Route
           path="/doctor/DocDashboardScreen"
           element={<DocDashboardScreen />}
