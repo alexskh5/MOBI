@@ -1,23 +1,3 @@
-// import { BrowserRouter, Routes, Route } from "react-router-dom";
-// import Login from "../pages/Login";
-// import Dashboard from "../pages/Dashboard";
-// import CreateActivity from "../pages/CreateActivity";
-// import ActivityLibrary from "../pages/ActivityLibrary";
-// import ActivityPreview from "../pages/ActivityPreview";
-
-// export default function AppRoutes() {
-//   return (
-//     <BrowserRouter>
-//       <Routes>
-//         <Route path="/" element={<Login />} />
-//         <Route path="/dashboard" element={<Dashboard />} />
-//         <Route path="/create-activity" element={<CreateActivity />} />
-//         <Route path="activities" element={<ActivityLibrary/>} />
-//         <Route path="/activities/:id" element={<ActivityPreview />} />
-//       </Routes>
-//     </BrowserRouter>
-//   );
-// }
 import {
   BrowserRouter,
   Routes,
@@ -49,9 +29,16 @@ import ArchivedMaterials from "../pages/center/materials/ArchivedMaterials";
 import Notifications from "../pages/center/notifications/Notifications";
 import Schedule from "../pages/center/schedule/Schedule";
 import Collaboration from "../pages/center/collaboration/Collaboration"
+
 // Therapist
 import TherapistLearner from "../pages/therapist/dashboard/Learner";
 import TherapistProgress from "../pages/therapist/dashboard/Progress";
+import TherapistProfile from "../pages/therapist/profile/TherapistProfile";
+import TherapistMaterials from "../pages/therapist/materials/ActivityLibrary";
+import TherapistDraftMaterials from "../pages/therapist/materials/DraftMaterials";
+import TherapistArchivedMaterials from "../pages/therapist/materials/ArchivedMaterials";
+import TherapistActivityPreview from "../pages/therapist/materials/ActivityPreview";
+import TherapistCreateActivity from "../pages/therapist/materials/CreateActivity";
 
 
 // Super-Admin
@@ -219,6 +206,36 @@ const AppRoutes = () => {
         <Route
           path="/therapist/dashboard/:id/progress"
           element={<TherapistProgress />}
+        />
+
+        <Route
+          path="/therapist/profile"
+          element={<TherapistProfile />}
+        />
+
+        <Route
+          path="/therapist/materials"
+          element={<TherapistMaterials />}
+        />
+
+        <Route
+          path="/therapist/materials/DraftMaterials"
+          element={<TherapistDraftMaterials />}
+        />
+
+        <Route
+          path="/therapist/materials/ArchivedMaterials"
+          element={<TherapistArchivedMaterials />}
+        />
+
+        <Route
+          path="/therapist/materials/:id"
+          element={<TherapistActivityPreview />}
+        />
+
+        <Route
+          path="/therapist/materials/CreateActivity"
+          element={<TherapistCreateActivity />}
         />
 
 

@@ -62,7 +62,7 @@ const Sidebar = ({
                     : "hover:text-[#965deb] transition"
               }
             >
-              Center Profile
+              My Profile
             </NavLink>
           </li>
 
