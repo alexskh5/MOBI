@@ -217,7 +217,9 @@ const Learner = () => {
                     </button>
                     </div>
                 )}
-                </div>
+            </div>
+
+                
 
               <button
                 onClick={() => navigate("/center/dashboard/AddLearner")}
@@ -253,7 +255,12 @@ const Learner = () => {
                         key={learner._id}
                         className="border-b border-[#DFA5C9] hover:bg-[#EBCFE9] cursor-pointer [&>td]:py-2"
                         onClick={() =>
-                        navigate(`/center/dashboard/${learner._id}`)
+                        navigate(`/center/dashboard/${learner._id}/progress`, {
+                            state: {
+                                learner,
+                                learnerCount: learners.length,
+                            },
+                        })
                         }
                     >
                         <td>{learner._id}</td>

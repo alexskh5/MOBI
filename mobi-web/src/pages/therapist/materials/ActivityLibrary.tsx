@@ -1,9 +1,9 @@
-// MOBI/mobi-web/src/pages/center/materials/ActivityLibrary.tsx
+// MOBI/mobi-web/src/pages/therapist/materials/ActivityLibrary.tsx
 
 import { useState, useEffect, useRef } from "react";
 import { Search, ArrowUp, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import CenterLayout from "../../../layouts/CenterLayout";
+import TherapistLayout from "../../../layouts/TherapistLayout";
 import { getActivities } from "../../../services/activityApi";
 
 interface ActivityData {
@@ -33,10 +33,10 @@ const ActivityLibrary = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   /*
-    Center admin default view:
-    Mine = activities uploaded by Center Admin
+    Therapist default view:
+    Mine = activities uploaded by this logged-in therapist
     All = all approved/published activities
-    Therapist = activities uploaded by therapists
+    Center = activities uploaded by center admin
   */
   const [filterBy, setFilterBy] = useState("Mine");
 
@@ -45,35 +45,16 @@ const ActivityLibrary = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // TEMP ONLY.
-  // Later this should come from logged-in center admin account/auth.
+  // Later this should come from logged-in therapist profile/auth.
   const currentUser = {
-    id: "center-admin-1",
-    name: "Center Admin",
-    role: "center_admin",
+    id: "therapist-1",
+    name: "Anna Reyes",
+    role: "therapist",
   };
 
-  const filterOptions = ["Mine", "All", "Therapist"];
+  const filterOptions = ["Mine", "All", "Center"];
 
-  // =======================================================
-  // TEMPORARY DRAFT DATA
-  // Replace this once the backend returns draft activities.
-  // =======================================================
   const draftCount = 3;
-
-  /*
-  const [drafts, setDrafts] = useState<ActivityData[]>([]);
-
-  useEffect(() => {
-    async function loadDrafts() {
-      const data = await getDraftActivities();
-      setDrafts(data);
-    }
-
-    loadDrafts();
-  }, []);
-
-  const draftCount = drafts.length;
-  */
 
   const scrollToTop = () => {
     scrollContainerRef.current?.scrollTo({
@@ -110,8 +91,7 @@ const ActivityLibrary = () => {
 
     container.addEventListener("scroll", handleScroll);
 
-    return () =>
-      container.removeEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
   }, [loading]);
 
   const filteredActivities = activities.filter((activity) => {
@@ -130,8 +110,8 @@ const ActivityLibrary = () => {
       return uploadedBy === currentUser.name;
     }
 
-    if (filterBy === "Therapist") {
-      return uploadedBy !== "Center Admin";
+    if (filterBy === "Center") {
+      return uploadedBy === "Center Admin";
     }
 
     return true;
@@ -168,7 +148,7 @@ const ActivityLibrary = () => {
   };
 
   return (
-    <CenterLayout>
+    <TherapistLayout>
       {(sidebarOpen, setSidebarOpen) => (
         <div className="bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 inter flex flex-col relative">
           <div className="flex justify-between items-center mb-6">
@@ -182,15 +162,11 @@ const ActivityLibrary = () => {
                 </button>
               )}
 
-              <h1 className="text-5xl font-medium itim">
-                Materials
-              </h1>
+              <h1 className="text-5xl font-medium itim">Materials</h1>
 
               <div className="relative ml-4">
                 <button
-                  onClick={() =>
-                    setShowActivityMenu(!showActivityMenu)
-                  }
+                  onClick={() => setShowActivityMenu(!showActivityMenu)}
                   className="bg-[#F5EEF6] shadow-md px-5 py-2 rounded-xl flex items-center gap-2"
                 >
                   <span className="text-xl font-bold">+</span>
@@ -215,12 +191,9 @@ const ActivityLibrary = () => {
                       <button
                         key={item}
                         onClick={() =>
-                          navigate(
-                            "/center/materials/CreateActivity",
-                            {
-                              state: { template: item },
-                            }
-                          )
+                          navigate("/therapist/materials/CreateActivity", {
+                            state: { template: item },
+                          })
                         }
                         className="block w-full text-left px-6 py-2 hover:bg-[#E4C9E5]"
                       >
@@ -234,27 +207,20 @@ const ActivityLibrary = () => {
 
             <div className="flex items-center gap-5">
               <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96">
-                <Search
-                  size={20}
-                  className="text-gray-500 mr-3"
-                />
+                <Search size={20} className="text-gray-500 mr-3" />
 
                 <input
                   type="text"
                   placeholder="Search"
                   value={searchTerm}
-                  onChange={(e) =>
-                    setSearchTerm(e.target.value)
-                  }
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="bg-transparent outline-none w-full"
                 />
               </div>
 
               <div className="relative">
                 <button
-                  onClick={() =>
-                    setShowFilterMenu(!showFilterMenu)
-                  }
+                  onClick={() => setShowFilterMenu(!showFilterMenu)}
                   className="bg-[#F5EEF6] px-6 py-3 rounded-xl shadow-md"
                 >
                   Filter: {filterBy}
@@ -270,9 +236,9 @@ const ActivityLibrary = () => {
                           setShowFilterMenu(false);
 
                           // TODO Backend:
-                          // Mine      -> show activities uploaded by center admin
-                          // All       -> show all published/approved activities
-                          // Therapist -> show activities uploaded by therapists
+                          // Mine   -> show activities uploaded by logged-in therapist
+                          // All    -> show all published/approved activities
+                          // Center -> show activities uploaded by center admin
                         }}
                         className="block w-full text-left px-5 py-2 hover:bg-gray-100"
                       >
@@ -285,7 +251,7 @@ const ActivityLibrary = () => {
 
               <button
                 onClick={() =>
-                  navigate("/center/materials/ArchivedMaterials")
+                  navigate("/therapist/materials/ArchivedMaterials")
                 }
                 className="bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md flex items-center gap-2 hover:bg-white transition"
               >
@@ -302,37 +268,37 @@ const ActivityLibrary = () => {
               Click an activity to preview
             </p>
 
-            <div className="relative">
-              <button
-                onClick={() =>
-                  setShowSortMenu(!showSortMenu)
-                }
-                className="text-md"
-              >
-                Sort: {sortBy} ▾
-              </button>
+            <div className="flex items-center gap-5">
+              <div className="relative">
+                <button
+                  onClick={() => setShowSortMenu(!showSortMenu)}
+                  className="text-md"
+                >
+                  Sort: {sortBy} ▾
+                </button>
 
-              {showSortMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
-                  {[
-                    "Newest",
-                    "Oldest",
-                    "Title A-Z",
-                    "Title Z-A",
-                  ].map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        setSortBy(item);
-                        setShowSortMenu(false);
-                      }}
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              )}
+                {showSortMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
+                    {[
+                      "Newest",
+                      "Oldest",
+                      "Title A-Z",
+                      "Title Z-A",
+                    ].map((item) => (
+                      <button
+                        key={item}
+                        onClick={() => {
+                          setSortBy(item);
+                          setShowSortMenu(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -360,10 +326,10 @@ const ActivityLibrary = () => {
               className="flex-1 overflow-y-auto no-scrollbar pr-2"
             >
               <div className="grid grid-cols-4 gap-4">
-                {/* Drafts Card - center admin can access own drafts */}
+                {/* Drafts Card - therapist can only access own drafts */}
                 <div
                   onClick={() =>
-                    navigate("/center/materials/DraftMaterials")
+                    navigate("/therapist/materials/DraftMaterials")
                   }
                   className="
                     bg-white
@@ -399,8 +365,8 @@ const ActivityLibrary = () => {
                     </h3>
 
                     <p className="text-sm text-gray-600 mt-2 line-clamp-2 min-h-[42px]">
-                      Continue editing your activities that haven&apos;t
-                      been published yet.
+                      Continue editing your activities that have not been
+                      submitted for review yet.
                     </p>
                   </div>
                 </div>
@@ -409,7 +375,7 @@ const ActivityLibrary = () => {
                   <div
                     key={activity.id}
                     onClick={() =>
-                      navigate(`/center/materials/${activity.id}`)
+                      navigate(`/therapist/materials/${activity.id}`)
                     }
                     className="
                       bg-white
@@ -436,8 +402,7 @@ const ActivityLibrary = () => {
                       </h3>
 
                       <p className="text-sm text-gray-600 line-clamp-2 min-h-[42px] mb-4">
-                        {activity.description ||
-                          "No description provided."}
+                        {activity.description || "No description provided."}
                       </p>
 
                       <div className="mt-auto">
@@ -451,9 +416,7 @@ const ActivityLibrary = () => {
                         </p>
 
                         <p className="text-xs text-gray-500 mt-2">
-                          {new Date(
-                            activity.created_at
-                          ).toLocaleDateString()}
+                          {new Date(activity.created_at).toLocaleDateString()}
                         </p>
 
                         <div className="flex justify-end relative">
@@ -480,12 +443,11 @@ const ActivityLibrary = () => {
                                       e.stopPropagation();
 
                                       navigate(
-                                        "/center/materials/CreateActivity",
+                                        "/therapist/materials/CreateActivity",
                                         {
                                           state: {
                                             mode: "edit",
-                                            activityId:
-                                              activity.id,
+                                            activityId: activity.id,
                                           },
                                         }
                                       );
@@ -502,7 +464,7 @@ const ActivityLibrary = () => {
                                       e.stopPropagation();
 
                                       // TODO Backend:
-                                      // Archive only center admin's own activity.
+                                      // Archive only therapist's own activity.
                                       // await archiveActivity(activity.id);
 
                                       setOpenMenu(null);
@@ -516,15 +478,14 @@ const ActivityLibrary = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
 
-                                      const confirmDelete =
-                                        window.confirm(
-                                          "Are you sure you want to delete this activity?"
-                                        );
+                                      const confirmDelete = window.confirm(
+                                        "Are you sure you want to delete this activity?"
+                                      );
 
                                       if (!confirmDelete) return;
 
                                       // TODO Backend:
-                                      // Delete only center admin's own activity.
+                                      // Delete only therapist's own activity.
                                       // await deleteActivity(activity.id);
 
                                       setOpenMenu(null);
@@ -575,7 +536,7 @@ const ActivityLibrary = () => {
           )}
         </div>
       )}
-    </CenterLayout>
+    </TherapistLayout>
   );
 };
 
