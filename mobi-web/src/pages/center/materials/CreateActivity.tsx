@@ -30,7 +30,7 @@ import ActivityAIVoice from "../../../components/center/materials/ActivityAIVoic
 import ActivityAssignLearner from "../../../components/center/materials/ActivityAssignLearner";
 // import ActivityReadinessLadder from "../../../components/center/materials/ActivityReadinessLadder";
 // newly added
-import ActivityLimits from "../../../pages/center/materials/ActivityLimits";
+import ActivityLimits from "../../../components/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
 
 import { createActivity } from "../../../services/activityApi";
@@ -80,6 +80,9 @@ function CreateActivity() {
     useRef<HTMLDivElement>(null);
 
   const thumbnailRef =
+    useRef<HTMLDivElement>(null);
+
+  const activityLimitsRef =
     useRef<HTMLDivElement>(null);
 
   const aiVoiceRef =
@@ -313,22 +316,19 @@ function CreateActivity() {
         </div>
 
         <div className="flex items-center gap-10 font-itim text-2xl">
-          <span
-            className="
-              text-gray-500
-              text-lg
-              italic
-            "
-          >
-            Changes are saved automatically
-          </span>
-
           <button
             onClick={() =>
               navigate(-1)
             }
           >
             Exit
+          </button>
+
+          <button
+            // onClick={handleSaveDraft}
+            // className="text-gray-600 hover:text-gray-800"
+          >
+            Save Draft
           </button>
 
           <button
@@ -365,6 +365,12 @@ function CreateActivity() {
               scrollToSection(
                 thumbnailRef,
                 "thumbnail"
+              )
+            }
+            onActivityLimits={() =>
+              scrollToSection(
+                activityLimitsRef,
+                "limits"
               )
             }
             onAIVoice={() =>
@@ -630,13 +636,25 @@ function CreateActivity() {
                   thumbnail={thumbnail}
                   setThumbnail={setThumbnail}
                 />
+              </div>
 
+              <div
+                ref={activityLimitsRef}
+                className={`
+                  transition-all duration-500
+                  ${
+                    highlightedSection === "limits"
+                      ? "shadow-[0_0_25px_rgba(229,155,231,0.5)] rounded-[30px]"
+                      : ""
+                  }
+                `}
+              >
                 <ActivityLimits
-  maxAttempts={maxAttempts}
-  setMaxAttempts={setMaxAttempts}
-  estimatedMinutes={estimatedMinutes}
-  setEstimatedMinutes={setEstimatedMinutes}
-/>
+                  maxAttempts={maxAttempts}
+                  setMaxAttempts={setMaxAttempts}
+                  estimatedMinutes={estimatedMinutes}
+                  setEstimatedMinutes={setEstimatedMinutes}
+                />
               </div>
 
               <div
@@ -689,6 +707,7 @@ function CreateActivity() {
           title={title}
           description={description}
           thumbnail={thumbnail}
+          uploadedBy="Center Admin"
         />
 
         </div>

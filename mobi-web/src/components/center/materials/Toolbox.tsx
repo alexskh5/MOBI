@@ -8,6 +8,7 @@ interface ToolboxProps {
   onSkillArea: () => void;
   onDescription: () => void;
   onThumbnail: () => void;
+  onActivityLimits: () => void;
   onAIVoice: () => void;
   onAssignLearner: () => void;
 }
@@ -17,6 +18,7 @@ function Toolbox({
     onSkillArea,
     onDescription,
     onThumbnail,
+    onActivityLimits,
     onAIVoice,
     onAssignLearner,
   }: ToolboxProps) {
@@ -177,6 +179,13 @@ function Toolbox({
               className="block w-full text-left hover:text-purple-600 transition"
             >
               Add thumbnail
+            </button>
+
+            <button
+              onClick={onActivityLimits}
+              className="block w-full text-left hover:text-purple-600 transition"
+            >
+              Activity Limits
             </button>
 
             <button 
