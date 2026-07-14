@@ -114,6 +114,8 @@ import dotenv from "dotenv";
 import activityRoutes from "./routes/activityRoutes";
 import speechRoutes from "./routes/speechRoutes";
 
+import superAdminRoutes from "./routes/super_admin/superAdmin.routes";
+
 dotenv.config();
 
 const app = express();
@@ -121,6 +123,9 @@ const PORT = Number(process.env.PORT) || 5050;
 
 app.use(cors());
 app.use(express.json());
+
+app.use("/api/super-admin", superAdminRoutes);
+
 
 app.get("/", (_req, res) => {
   res.status(200).send("MOBI backend is running");

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
+import { getSuperAdminCenter, getSuperAdminParents } from "../../services/super_admin/superAdminApi";
 
 type ViewMode = "menu" | "users" | "subscription";
 type UserTab = "center" | "parents";
@@ -30,6 +31,16 @@ type CenterAccount = {
   status: "Active" | "Suspended";
 };
 
+type ApiCenterAccount = {
+  id: string;
+  center_name: string;
+  contact_person: string | null;
+  center_owner: string | null;
+  email: string;
+  plan_detail: string | null;
+  status: "Active" | "Suspended";
+};
+
 type ParentAccount = {
   id: string;
   firstName: string;
@@ -37,6 +48,16 @@ type ParentAccount = {
   email: string;
   planDetail: string;
   childNumber: number;
+  status: "Active" | "Suspended";
+};
+
+type ApiParentAccount = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  plan_detail: string;
+  child_number: number;
   status: "Active" | "Suspended";
 };
 
@@ -151,7 +172,14 @@ export default function SuperManageScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>("menu");
   const [activeTab, setActiveTab] = useState<UserTab>("center");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [center, setCenter] = useState<CenterAccount>(centerAccount);
+  const [centerLoading, setCenterLoading] = useState(false);
+  const [centerError, setCenterError] = useState("");
+
   const [parents, setParents] = useState<ParentAccount[]>(initialParents);
+  const [parentsLoading, setParentsLoading] = useState(false);
+  const [parentsError, setParentsError] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>(initialPlans);
 
   const [selectedUser, setSelectedUser] = useState<ParentAccount | null>(null);
@@ -168,6 +196,99 @@ export default function SuperManageScreen() {
         .includes(searchQuery.toLowerCase())
     );
   }, [parents, searchQuery]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadParents() {
+      try {
+        setParentsLoading(true);
+        setParentsError("");
+
+        const result = await getSuperAdminParents();
+
+        const mappedParents: ParentAccount[] = result.data.map(
+          (parent: ApiParentAccount) => ({
+            id: parent.id,
+            firstName: parent.first_name,
+            lastName: parent.last_name,
+            email: parent.email,
+            planDetail: parent.plan_detail,
+            childNumber: parent.child_number,
+            status: parent.status,
+          })
+        );
+
+        if (isMounted) {
+          setParents(mappedParents);
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setParentsError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load parent accounts."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setParentsLoading(false);
+        }
+      }
+    }
+
+    loadParents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCenter() {
+      try {
+        setCenterLoading(true);
+        setCenterError("");
+
+        const result = await getSuperAdminCenter();
+        const apiCenter: ApiCenterAccount = result.data;
+
+        const mappedCenter: CenterAccount = {
+          id: apiCenter.id,
+          centerName: apiCenter.center_name,
+          contactPerson: apiCenter.contact_person || "Not set",
+          centerOwner: apiCenter.center_owner || "Not set",
+          email: apiCenter.email,
+          planDetail: apiCenter.plan_detail || "No plan",
+          status: apiCenter.status,
+        };
+
+        if (isMounted) {
+          setCenter(mappedCenter);
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setCenterError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load center account."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setCenterLoading(false);
+        }
+      }
+    }
+
+    loadCenter();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleBack = () => {
     setSearchQuery("");
@@ -366,33 +487,51 @@ export default function SuperManageScreen() {
             </div>
 
             {activeTab === "center" && (
-              <div className="center-card">
-                <div className="center-top">
-                  <div className="center-icon">
-                    <Building2 size={28} />
+              <>
+                {centerLoading && (
+                  <div className="center-card">
+                    <p>Loading center account...</p>
                   </div>
+                )}
 
-                  <div>
-                    <h2>{centerAccount.centerName}</h2>
-                    <p>{centerAccount.email}</p>
+                {centerError && (
+                  <div className="center-card">
+                    <p>{centerError}</p>
                   </div>
+                )}
 
-                  <span className="status active">{centerAccount.status}</span>
-                </div>
+                {!centerLoading && !centerError && (
+                  <div className="center-card">
+                    <div className="center-top">
+                      <div className="center-icon">
+                        <Building2 size={28} />
+                      </div>
 
-                <div className="info-grid">
-                  <InfoItem label="Center ID" value={centerAccount.id} />
-                  <InfoItem
-                    label="Contact Person"
-                    value={centerAccount.contactPerson}
-                  />
-                  <InfoItem
-                    label="Center Owner"
-                    value={centerAccount.centerOwner}
-                  />
-                  <InfoItem label="Plan Detail" value={centerAccount.planDetail} />
-                </div>
-              </div>
+                      <div>
+                        <h2>{center.centerName}</h2>
+                        <p>{center.email}</p>
+                      </div>
+
+                      <span
+                        className={
+                          center.status === "Active"
+                            ? "status active"
+                            : "status suspended"
+                        }
+                      >
+                        {center.status}
+                      </span>
+                    </div>
+
+                    <div className="info-grid">
+                      <InfoItem label="Center ID" value={center.id} />
+                      <InfoItem label="Contact Person" value={center.contactPerson} />
+                      <InfoItem label="Center Owner" value={center.centerOwner} />
+                      <InfoItem label="Plan Detail" value={center.planDetail} />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {activeTab === "parents" && (
@@ -417,7 +556,19 @@ export default function SuperManageScreen() {
                 </div>
 
                 <div className="parent-list compact">
-                  {filteredParents.map((parent) => (
+                  {parentsLoading && (
+                    <div className="empty-state">
+                      <p>Loading parent accounts...</p>
+                    </div>
+                  )}
+
+                  {parentsError && (
+                    <div className="empty-state">
+                      <p>{parentsError}</p>
+                    </div>
+                  )}
+
+                  {!parentsLoading && !parentsError && filteredParents.map((parent) => (
                     <article key={parent.id} className="parent-row">
                       <div className="parent-main">
                         <div className="avatar">
