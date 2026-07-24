@@ -113,18 +113,33 @@ const getStatusLabel = (status: ScheduleStatus) => {
 };
 
 const getStatusStyle = (status: ScheduleStatus) => {
-  switch (status) {
-    case "pending":
-      return "bg-yellow-100 text-yellow-700";
-    case "confirmed":
-      return "bg-green-100 text-green-700";
-    case "declined":
-      return "bg-red-100 text-red-700";
-    case "cancelled":
-      return "bg-gray-200 text-gray-600";
-    default:
-      return "bg-yellow-100 text-yellow-700";
-  }
+    switch (status) {
+        case "pending":
+            return "text-amber-700";
+        case "confirmed":
+            return "text-emerald-700";
+        case "declined":
+            return "text-red-600";
+        case "cancelled":
+            return "text-gray-500";
+        default:
+            return "text-amber-700";
+    }
+};
+
+const getStatusDotStyle = (status: ScheduleStatus) => {
+    switch (status) {
+        case "pending":
+            return "bg-amber-400";
+        case "confirmed":
+            return "bg-emerald-500";
+        case "declined":
+            return "bg-red-500";
+        case "cancelled":
+            return "bg-gray-400";
+        default:
+            return "bg-amber-400";
+    }
 };
 
 const Schedule = () => {
@@ -392,482 +407,628 @@ const Schedule = () => {
 
   return (
     <CenterLayout>
-      {(sidebarOpen, setSidebarOpen) => (
-        <div className="inter flex h-full flex-col overflow-hidden rounded-[30px] bg-[#E4C9E5]/80 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-4">
-              {!sidebarOpen && (
-                <button
-                  className="text-3xl"
-                  onClick={() => setSidebarOpen(true)}
-                >
-                  ☰
-                </button>
-              )}
+        {(sidebarOpen, setSidebarOpen) => (
+            <div className="inter flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] bg-[#E4C9E5]/80 p-4 sm:p-6 lg:p-8">
+                {/* PAGE HEADER */}
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex items-center gap-4">
+                        {!sidebarOpen && (
+                            <button
+                                type="button"
+                                onClick={() => setSidebarOpen(true)}
+                                className="text-3xl leading-none"
+                                aria-label="Open sidebar"
+                            >
+                                ☰
+                            </button>
+                        )}
 
-              <h1 className="itim text-4xl font-medium sm:text-5xl">
-                Schedule
-              </h1>
-            </div>
+                        <h1 className="itim text-4xl font-medium sm:text-5xl">
+                            Schedule
+                        </h1>
+                    </div>
 
-            <div className="grid w-full gap-3 sm:grid-cols-[1fr_auto] xl:w-auto xl:grid-cols-[360px_auto]">
-              <div className="flex items-center rounded-xl bg-[#F5EEF6] px-4 py-3 shadow-md">
-                <Search size={20} className="mr-3 text-gray-500" />
+                    <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
+                        {/* SEARCH */}
+                        <div className="flex w-full items-center rounded-xl border border-white/80 bg-[#F8F3F8] px-4 py-2.5 xl:w-[360px]">
+                            <Search
+                                size={19}
+                                className="mr-3 shrink-0 text-gray-400"
+                            />
 
-                <input
-                  type="text"
-                  placeholder="Search schedule"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  className="w-full bg-transparent text-sm outline-none sm:text-base"
-                />
-              </div>
+                            <input
+                                type="text"
+                                placeholder="Search schedule"
+                                value={searchTerm}
+                                onChange={(event) =>
+                                    setSearchTerm(event.target.value)
+                                }
+                                className="w-full bg-transparent text-sm outline-none sm:text-base"
+                            />
 
-              <button
-                onClick={openAddSchedule}
-                className="flex items-center justify-center gap-2 rounded-xl bg-[#9021C4] px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-[#7D1AAC] sm:text-base"
-              >
-                <Plus size={18} />
-                Add Session
-              </button>
-            </div>
-          </div>
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchTerm("")}
+                                    className="ml-2 rounded-lg p-1 text-gray-400 transition hover:bg-white hover:text-gray-700"
+                                    aria-label="Clear search"
+                                >
+                                    <X size={15} />
+                                </button>
+                            )}
+                        </div>
 
-          <div className="my-5 border-b border-gray-400/60" />
-
-          <div className="flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div
-              className={`grid gap-5 ${
-                editingSchedule
-                  ? "xl:grid-cols-[minmax(0,1fr)_380px]"
-                  : "grid-cols-1"
-              }`}
-            >
-              <section className="rounded-3xl border border-white bg-white/65 p-4 shadow-sm sm:p-5">
-                <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-                      {formatFullDate(selectedDate)}
-                    </h2>
-
-                    <p className="mt-1 text-sm font-semibold text-gray-500">
-                      {schedulesForSelectedDate.length} session
-                      {schedulesForSelectedDate.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={openDatePicker}
-                      className="flex items-center gap-2 rounded-xl border border-[#D8B7DD] bg-white px-4 py-3 text-sm font-semibold shadow-sm transition hover:bg-[#F8EFF9]"
-                    >
-                      <CalendarDays size={18} />
-                      Calendar
-                    </button>
-
-                    <input
-                      ref={dateInputRef}
-                      type="date"
-                      value={selectedDateKey}
-                      onChange={(event) => {
-                        if (!event.target.value) return;
-                        setSelectedDate(dateFromKey(event.target.value));
-                      }}
-                      className="sr-only"
-                    />
-
-                    <button
-                      onClick={goToPreviousDay}
-                      className="rounded-xl border border-[#D8B7DD] bg-white p-3 shadow-sm transition hover:bg-[#F8EFF9]"
-                      aria-label="Previous day"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-
-                    <button
-                      onClick={goToNextDay}
-                      className="rounded-xl border border-[#D8B7DD] bg-white p-3 shadow-sm transition hover:bg-[#F8EFF9]"
-                      aria-label="Next day"
-                    >
-                      <ChevronRight size={20} />
-                    </button>
-
-                    <button
-                      onClick={goToToday}
-                      className="rounded-xl border border-[#D8B7DD] bg-white px-5 py-3 text-sm font-semibold shadow-sm transition hover:bg-[#F8EFF9]"
-                    >
-                      Today
-                    </button>
-                  </div>
-                </div>
-
-                <div className="hidden rounded-2xl bg-[#F5EEF6] px-4 py-3 text-sm font-bold text-gray-600 md:grid md:grid-cols-[100px_minmax(0,1fr)_minmax(0,1fr)_150px_minmax(0,1fr)_155px]">
-                  <span>Time</span>
-                  <span>Therapist</span>
-                  <span>Learner</span>
-                  <span>Status</span>
-                  <span>Notes</span>
-                  <span className="text-right">Actions</span>
-                </div>
-
-                <div className="mt-3 space-y-3">
-                  {filteredSchedules.length > 0 ? (
-                    filteredSchedules.map((schedule) => {
-                      const therapist = getTherapist(schedule.therapistId);
-                      const learner = getLearner(schedule.learnerId);
-                      const isEditing = editingExistingId === schedule.id;
-
-                      return (
-                        <article
-                          key={schedule.id}
-                          className={`rounded-2xl border p-4 shadow-sm transition md:grid md:grid-cols-[100px_minmax(0,1fr)_minmax(0,1fr)_150px_minmax(0,1fr)_155px] md:items-center md:gap-3 ${
-                            isEditing
-                              ? "border-[#9021C4] bg-[#F6E8FA]"
-                              : "border-white bg-white"
-                          }`}
+                        {/* ADD SESSION */}
+                        <button
+                            type="button"
+                            onClick={openAddSchedule}
+                            className="flex items-center justify-center gap-2 rounded-xl bg-[#82548C] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#704578] sm:text-base"
                         >
-                          <div className="mb-3 md:mb-0">
-                            <p className="text-xs font-bold uppercase text-gray-400 md:hidden">
-                              Time
-                            </p>
-
-                            <p className="font-bold text-gray-900">
-                              {formatTime(schedule.time)}
-                            </p>
-                          </div>
-
-                          <div className="mb-3 flex items-center gap-2 md:mb-0">
-                            <UserRound
-                              size={20}
-                              className="shrink-0 text-[#9021C4]"
-                            />
-
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold uppercase text-gray-400 md:hidden">
-                                Therapist
-                              </p>
-
-                              <p className="truncate font-semibold text-gray-900">
-                                {therapist?.name ?? "No therapist selected"}
-                              </p>
-
-                              <p className="truncate text-xs text-gray-500">
-                                {therapist?.role ?? "Therapist role"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mb-3 flex items-center gap-2 md:mb-0">
-                            <Users
-                              size={20}
-                              className="shrink-0 text-[#9021C4]"
-                            />
-
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold uppercase text-gray-400 md:hidden">
-                                Learner
-                              </p>
-
-                              <p className="truncate font-semibold text-gray-900">
-                                {learner?.name ?? "No learner selected"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mb-3 md:mb-0">
-                            <p className="text-xs font-bold uppercase text-gray-400 md:hidden">
-                              Status
-                            </p>
-
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusStyle(
-                                schedule.status
-                              )}`}
-                            >
-                              {getStatusLabel(schedule.status)}
-                            </span>
-                          </div>
-
-                          <div className="mb-4 md:mb-0">
-                            <p className="text-xs font-bold uppercase text-gray-400 md:hidden">
-                              Notes
-                            </p>
-
-                            <p className="max-h-10 overflow-hidden text-sm text-gray-600">
-                              {schedule.notes || "No notes added"}
-                            </p>
-                          </div>
-
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => openEditSchedule(schedule)}
-                              className="flex items-center gap-1 rounded-xl bg-[#F5EEF6] px-3 py-2 text-sm font-semibold text-[#9021C4] transition hover:bg-[#EAD5EF]"
-                            >
-                              <PencilLine size={16} />
-                              Edit
-                            </button>
-
-                            <button
-                              onClick={() => deleteSchedule(schedule.id)}
-                              className="flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-100"
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <div className="flex min-h-[300px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-[#D8B7DD] bg-white/70 p-8 text-center">
-                      <CalendarDays size={44} className="mb-3 text-[#9021C4]" />
-
-                      <h3 className="text-2xl font-bold text-gray-900">
-                        Schedule is empty
-                      </h3>
-
-                      <p className="mt-2 max-w-md text-gray-500">
-                        No sessions are assigned for this date yet. Add a
-                        session to assign a therapist, learner, date, and time.
-                      </p>
-
-                      <button
-                        onClick={openAddSchedule}
-                        className="mt-5 flex items-center gap-2 rounded-xl bg-[#9021C4] px-5 py-3 font-semibold text-white shadow-md transition hover:bg-[#7D1AAC]"
-                      >
-                        <Plus size={18} />
-                        Add Session
-                      </button>
+                            <Plus size={18} />
+                            Add Session
+                        </button>
                     </div>
-                  )}
                 </div>
-              </section>
 
-              {editingSchedule && (
-                <aside className="rounded-3xl border border-white bg-[#FDFBFD] p-5 shadow-lg xl:sticky xl:top-0 xl:self-start">
-                  <div className="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-500">
-                        {editingExistingId ? "Edit Schedule" : "Add Schedule"}
-                      </p>
+                <div className="my-5 border-b border-gray-400/50" />
 
-                      <h3 className="text-2xl font-bold text-gray-900">
-                        Assign Session
-                      </h3>
-                    </div>
-
-                    <button
-                      onClick={closeEditor}
-                      className="rounded-xl bg-[#F5EEF6] p-2 transition hover:bg-[#EAD5EF]"
+                {/* PAGE CONTENT */}
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div
+                        className={`grid gap-5 ${
+                            editingSchedule
+                                ? "xl:grid-cols-[minmax(0,1fr)_360px]"
+                                : "grid-cols-1"
+                        }`}
                     >
-                      <X size={20} />
-                    </button>
-                  </div>
+                        {/* SCHEDULE LIST */}
+                        <section className="overflow-hidden rounded-[20px] bg-white">
+                            {/* DATE HEADER */}
+                            <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
+                                        {formatFullDate(selectedDate)}
+                                    </h2>
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="mb-2 block text-sm font-bold text-gray-700">
-                        Date
-                      </label>
-
-                      <input
-                        type="date"
-                        value={editingSchedule.dateKey}
-                        onChange={(event) =>
-                          updateEditingSchedule({
-                            dateKey: event.target.value,
-                          })
-                        }
-                        className="w-full rounded-xl border border-[#D8B7DD] bg-white px-4 py-3 outline-none focus:border-[#9021C4]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-bold text-gray-700">
-                        Time
-                      </label>
-
-                      <input
-                        type="time"
-                        value={editingSchedule.time}
-                        onChange={(event) =>
-                          updateEditingSchedule({
-                            time: event.target.value,
-                          })
-                        }
-                        className="w-full rounded-xl border border-[#D8B7DD] bg-white px-4 py-3 outline-none focus:border-[#9021C4]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-bold text-gray-700">
-                        Assigned Therapist
-                      </label>
-
-                      <div className="mb-2 flex items-center rounded-xl border border-[#D8B7DD] bg-white px-3 py-2">
-                        <Search size={17} className="mr-2 text-gray-400" />
-
-                        <input
-                          type="text"
-                          placeholder="Search therapist"
-                          value={therapistSearch}
-                          onChange={(event) =>
-                            setTherapistSearch(event.target.value)
-                          }
-                          className="w-full bg-transparent text-sm outline-none"
-                        />
-                      </div>
-
-                      <div className="max-h-48 space-y-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {filteredTherapists.length > 0 ? (
-                          filteredTherapists.map((therapist) => {
-                            const isSelected =
-                              editingSchedule.therapistId === therapist.id;
-
-                            return (
-                              <button
-                                key={therapist.id}
-                                onClick={() =>
-                                  updateEditingSchedule({
-                                    therapistId: therapist.id,
-                                  })
-                                }
-                                className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                                  isSelected
-                                    ? "border-[#9021C4] bg-[#F6E8FA]"
-                                    : "border-[#E7D8EA] bg-white hover:bg-[#F8EFF9]"
-                                }`}
-                              >
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5EEF6] text-[#9021C4]">
-                                  <UserRound size={20} />
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        {schedulesForSelectedDate.length} session
+                                        {schedulesForSelectedDate.length === 1
+                                            ? ""
+                                            : "s"}
+                                    </p>
                                 </div>
 
-                                <div className="min-w-0">
-                                  <p className="truncate font-bold text-gray-900">
-                                    {therapist.name}
-                                  </p>
+                                {/* DATE CONTROLS */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                        <button
+                                            type="button"
+                                            onClick={openDatePicker}
+                                            className="flex h-10 items-center gap-2 border-r border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                                        >
+                                            <CalendarDays size={17} />
+                                            <span className="hidden sm:inline">
+                                                Calendar
+                                            </span>
+                                        </button>
 
-                                  <p className="truncate text-xs text-gray-500">
-                                    {therapist.role}
-                                  </p>
+                                        <button
+                                            type="button"
+                                            onClick={goToPreviousDay}
+                                            className="flex h-10 w-10 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+                                            aria-label="Previous day"
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={goToNextDay}
+                                            className="flex h-10 w-10 items-center justify-center text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+                                            aria-label="Next day"
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
+
+                                    <input
+                                        ref={dateInputRef}
+                                        type="date"
+                                        value={selectedDateKey}
+                                        onChange={(event) => {
+                                            if (!event.target.value) {
+                                                return;
+                                            }
+
+                                            setSelectedDate(
+                                                dateFromKey(event.target.value)
+                                            );
+                                        }}
+                                        className="sr-only"
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={goToToday}
+                                        className="h-10 rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+                                    >
+                                        Today
+                                    </button>
                                 </div>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <p className="rounded-xl bg-[#F5EEF6] px-4 py-3 text-sm font-semibold text-gray-500">
-                            No therapist found.
-                          </p>
+                            </div>
+
+                            {/* TABLE HEADER */}
+                            <div className="hidden border-y border-gray-100 bg-[#FAF8FA] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-400 md:grid md:grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)_145px_minmax(0,1fr)_90px] md:gap-4">
+                                <span>Time</span>
+                                <span>Therapist</span>
+                                <span>Learner</span>
+                                <span>Status</span>
+                                <span>Notes</span>
+                                <span className="text-right">Actions</span>
+                            </div>
+
+                            {/* SCHEDULE ROWS */}
+                            {filteredSchedules.length > 0 ? (
+                                <div>
+                                    {filteredSchedules.map((schedule) => {
+                                        const therapist = getTherapist(
+                                            schedule.therapistId
+                                        );
+
+                                        const learner = getLearner(
+                                            schedule.learnerId
+                                        );
+
+                                        const isEditing =
+                                            editingExistingId === schedule.id;
+
+                                        return (
+                                            <article
+                                                key={schedule.id}
+                                                className={`border-b border-gray-100 px-5 py-4 transition last:border-b-0 md:grid md:grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)_145px_minmax(0,1fr)_90px] md:items-center md:gap-4 ${
+                                                    isEditing
+                                                        ? "bg-[#FBF6FC]"
+                                                        : "bg-white hover:bg-gray-50/70"
+                                                }`}
+                                            >
+                                                {/* TIME */}
+                                                <div className="mb-3 md:mb-0">
+                                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
+                                                        Time
+                                                    </p>
+
+                                                    <p className="text-sm font-bold text-gray-900">
+                                                        {formatTime(schedule.time)}
+                                                    </p>
+                                                </div>
+
+                                                {/* THERAPIST */}
+                                                <div className="mb-3 min-w-0 md:mb-0">
+                                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
+                                                        Therapist
+                                                    </p>
+
+                                                    <p className="truncate text-sm font-semibold text-gray-900">
+                                                        {therapist?.name ??
+                                                            "No therapist selected"}
+                                                    </p>
+
+                                                    <p className="mt-0.5 truncate text-xs text-gray-500">
+                                                        {therapist?.role ??
+                                                            "Therapist role"}
+                                                    </p>
+                                                </div>
+
+                                                {/* LEARNER */}
+                                                <div className="mb-3 min-w-0 md:mb-0">
+                                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
+                                                        Learner
+                                                    </p>
+
+                                                    <p className="truncate text-sm font-semibold text-gray-900">
+                                                        {learner?.name ??
+                                                            "No learner selected"}
+                                                    </p>
+                                                </div>
+
+                                                {/* STATUS */}
+                                                <div className="mb-3 md:mb-0">
+                                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
+                                                        Status
+                                                    </p>
+
+                                                    <div className="inline-flex items-center gap-2">
+                                                        <span
+                                                            className={`h-2 w-2 shrink-0 rounded-full ${getStatusDotStyle(
+                                                                schedule.status
+                                                            )}`}
+                                                        />
+
+                                                        <span
+                                                            className={`text-sm font-semibold ${getStatusStyle(
+                                                                schedule.status
+                                                            )}`}
+                                                        >
+                                                            {getStatusLabel(
+                                                                schedule.status
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* NOTES */}
+                                                <div className="mb-4 min-w-0 md:mb-0">
+                                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
+                                                        Notes
+                                                    </p>
+
+                                                    <p className="line-clamp-2 text-sm leading-5 text-gray-500">
+                                                        {schedule.notes ||
+                                                            "No notes added"}
+                                                    </p>
+                                                </div>
+
+                                                {/* ACTIONS */}
+                                                <div className="flex justify-end gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            openEditSchedule(
+                                                                schedule
+                                                            )
+                                                        }
+                                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-[#F1E7F3] hover:text-[#82548C]"
+                                                        aria-label="Edit session"
+                                                        title="Edit session"
+                                                    >
+                                                        <PencilLine size={17} />
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            deleteSchedule(
+                                                                schedule.id
+                                                            )
+                                                        }
+                                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                                                        aria-label="Delete session"
+                                                        title="Delete session"
+                                                    >
+                                                        <Trash2 size={17} />
+                                                    </button>
+                                                </div>
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F5EEF6] text-[#82548C]">
+                                        <CalendarDays size={26} />
+                                    </div>
+
+                                    <h3 className="mt-4 text-xl font-bold text-gray-900">
+                                        No sessions scheduled
+                                    </h3>
+
+                                    <p className="mt-2 max-w-md text-sm leading-6 text-gray-500">
+                                        There are no sessions assigned for this
+                                        date.
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={openAddSchedule}
+                                        className="mt-5 flex items-center gap-2 rounded-xl bg-[#82548C] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#704578]"
+                                    >
+                                        <Plus size={17} />
+                                        Add Session
+                                    </button>
+                                </div>
+                            )}
+                        </section>
+
+                        {/* ADD / EDIT PANEL */}
+                        {editingSchedule && (
+                            <aside className="overflow-hidden rounded-[24px] bg-white xl:sticky xl:top-0 xl:self-start">
+                                {/* EDITOR HEADER */}
+                                <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-5">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-[#95609F]">
+                                            {editingExistingId
+                                                ? "Edit session"
+                                                : "New session"}
+                                        </p>
+
+                                        <h3 className="mt-1 text-xl font-bold text-gray-900">
+                                            Assign Session
+                                        </h3>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={closeEditor}
+                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                                        aria-label="Close session editor"
+                                    >
+                                        <X size={19} />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-5 px-5 py-5">
+                                    {/* DATE AND TIME */}
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-semibold text-gray-700">
+                                                Date
+                                            </label>
+
+                                            <input
+                                                type="date"
+                                                value={editingSchedule.dateKey}
+                                                onChange={(event) =>
+                                                    updateEditingSchedule({
+                                                        dateKey:
+                                                            event.target.value,
+                                                    })
+                                                }
+                                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#82548C] focus:ring-2 focus:ring-[#82548C]/10"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="mb-2 block text-sm font-semibold text-gray-700">
+                                                Time
+                                            </label>
+
+                                            <input
+                                                type="time"
+                                                value={editingSchedule.time}
+                                                onChange={(event) =>
+                                                    updateEditingSchedule({
+                                                        time: event.target.value,
+                                                    })
+                                                }
+                                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#82548C] focus:ring-2 focus:ring-[#82548C]/10"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* THERAPIST */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-semibold text-gray-700">
+                                            Assigned Therapist
+                                        </label>
+
+                                        <div className="mb-2 flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+                                            <Search
+                                                size={16}
+                                                className="mr-2 shrink-0 text-gray-400"
+                                            />
+
+                                            <input
+                                                type="text"
+                                                placeholder="Search therapist"
+                                                value={therapistSearch}
+                                                onChange={(event) =>
+                                                    setTherapistSearch(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className="w-full bg-transparent text-sm outline-none"
+                                            />
+                                        </div>
+
+                                        <div className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                            {filteredTherapists.length > 0 ? (
+                                                filteredTherapists.map(
+                                                    (therapist) => {
+                                                        const isSelected =
+                                                            editingSchedule.therapistId ===
+                                                            therapist.id;
+
+                                                        return (
+                                                            <button
+                                                                key={
+                                                                    therapist.id
+                                                                }
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    updateEditingSchedule(
+                                                                        {
+                                                                            therapistId:
+                                                                                therapist.id,
+                                                                        }
+                                                                    )
+                                                                }
+                                                                className={`flex w-full items-center gap-3 px-3 py-3 text-left transition ${
+                                                                    isSelected
+                                                                        ? "bg-[#F7F1F8]"
+                                                                        : "hover:bg-gray-50"
+                                                                }`}
+                                                            >
+                                                                <span
+                                                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                                                                        isSelected
+                                                                            ? "bg-[#82548C] text-white"
+                                                                            : "bg-[#F4EEF5] text-[#82548C]"
+                                                                    }`}
+                                                                >
+                                                                    <UserRound
+                                                                        size={16}
+                                                                    />
+                                                                </span>
+
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="truncate text-sm font-semibold text-gray-900">
+                                                                        {
+                                                                            therapist.name
+                                                                        }
+                                                                    </p>
+
+                                                                    <p className="truncate text-xs text-gray-500">
+                                                                        {
+                                                                            therapist.role
+                                                                        }
+                                                                    </p>
+                                                                </div>
+
+                                                                {isSelected && (
+                                                                    <span className="h-2 w-2 shrink-0 rounded-full bg-[#82548C]" />
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    }
+                                                )
+                                            ) : (
+                                                <p className="px-4 py-4 text-center text-sm text-gray-500">
+                                                    No therapist found.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* LEARNER */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-semibold text-gray-700">
+                                            Learner
+                                        </label>
+
+                                        <div className="mb-2 flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+                                            <Search
+                                                size={16}
+                                                className="mr-2 shrink-0 text-gray-400"
+                                            />
+
+                                            <input
+                                                type="text"
+                                                placeholder="Search learner"
+                                                value={learnerSearch}
+                                                onChange={(event) =>
+                                                    setLearnerSearch(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className="w-full bg-transparent text-sm outline-none"
+                                            />
+                                        </div>
+
+                                        <div className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                            {filteredLearners.length > 0 ? (
+                                                filteredLearners.map(
+                                                    (learner) => {
+                                                        const isSelected =
+                                                            editingSchedule.learnerId ===
+                                                            learner.id;
+
+                                                        return (
+                                                            <button
+                                                                key={learner.id}
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    updateEditingSchedule(
+                                                                        {
+                                                                            learnerId:
+                                                                                learner.id,
+                                                                        }
+                                                                    )
+                                                                }
+                                                                className={`flex w-full items-center gap-3 px-3 py-3 text-left transition ${
+                                                                    isSelected
+                                                                        ? "bg-[#F7F1F8]"
+                                                                        : "hover:bg-gray-50"
+                                                                }`}
+                                                            >
+                                                                <span
+                                                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                                                                        isSelected
+                                                                            ? "bg-[#82548C] text-white"
+                                                                            : "bg-[#F4EEF5] text-[#82548C]"
+                                                                    }`}
+                                                                >
+                                                                    <Users
+                                                                        size={16}
+                                                                    />
+                                                                </span>
+
+                                                                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
+                                                                    {learner.name}
+                                                                </p>
+
+                                                                {isSelected && (
+                                                                    <span className="h-2 w-2 shrink-0 rounded-full bg-[#82548C]" />
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    }
+                                                )
+                                            ) : (
+                                                <p className="px-4 py-4 text-center text-sm text-gray-500">
+                                                    No learner found.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* NOTES */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-semibold text-gray-700">
+                                            Notes
+                                        </label>
+
+                                        <textarea
+                                            value={
+                                                editingSchedule.notes ?? ""
+                                            }
+                                            onChange={(event) =>
+                                                updateEditingSchedule({
+                                                    notes: event.target.value,
+                                                })
+                                            }
+                                            placeholder="Add optional session notes..."
+                                            rows={4}
+                                            className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#82548C] focus:ring-2 focus:ring-[#82548C]/10"
+                                        />
+                                    </div>
+
+                                    {editorError && (
+                                        <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                                            {editorError}
+                                        </p>
+                                    )}
+
+                                    {/* ACTIONS */}
+                                    <div className="flex flex-col-reverse gap-2 border-t border-gray-100 pt-5 sm:flex-row xl:flex-col-reverse">
+                                        <button
+                                            type="button"
+                                            onClick={closeEditor}
+                                            className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={saveSchedule}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#82548C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#704578]"
+                                        >
+                                            <Save size={17} />
+
+                                            {editingExistingId
+                                                ? "Save Changes"
+                                                : "Add Session"}
+                                        </button>
+                                    </div>
+                                </div>
+                            </aside>
                         )}
-                      </div>
                     </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-bold text-gray-700">
-                        Learner
-                      </label>
-
-                      <div className="mb-2 flex items-center rounded-xl border border-[#D8B7DD] bg-white px-3 py-2">
-                        <Search size={17} className="mr-2 text-gray-400" />
-
-                        <input
-                          type="text"
-                          placeholder="Search learner"
-                          value={learnerSearch}
-                          onChange={(event) =>
-                            setLearnerSearch(event.target.value)
-                          }
-                          className="w-full bg-transparent text-sm outline-none"
-                        />
-                      </div>
-
-                      <div className="max-h-48 space-y-2 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {filteredLearners.length > 0 ? (
-                          filteredLearners.map((learner) => {
-                            const isSelected =
-                              editingSchedule.learnerId === learner.id;
-
-                            return (
-                              <button
-                                key={learner.id}
-                                onClick={() =>
-                                  updateEditingSchedule({
-                                    learnerId: learner.id,
-                                  })
-                                }
-                                className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                                  isSelected
-                                    ? "border-[#9021C4] bg-[#F6E8FA]"
-                                    : "border-[#E7D8EA] bg-white hover:bg-[#F8EFF9]"
-                                }`}
-                              >
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5EEF6] text-[#9021C4]">
-                                  <Users size={20} />
-                                </div>
-
-                                <p className="truncate font-semibold text-gray-900">
-                                  {learner.name}
-                                </p>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <p className="rounded-xl bg-[#F5EEF6] px-4 py-3 text-sm font-semibold text-gray-500">
-                            No learner found.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-bold text-gray-700">
-                        Notes
-                      </label>
-
-                      <textarea
-                        value={editingSchedule.notes ?? ""}
-                        onChange={(event) =>
-                          updateEditingSchedule({
-                            notes: event.target.value,
-                          })
-                        }
-                        placeholder="Add session notes here..."
-                        rows={4}
-                        className="w-full resize-none rounded-xl border border-[#D8B7DD] bg-white px-4 py-3 outline-none focus:border-[#9021C4]"
-                      />
-                    </div>
-
-                    {editorError && (
-                      <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-500">
-                        {editorError}
-                      </p>
-                    )}
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <button
-                        onClick={saveSchedule}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#9021C4] px-5 py-3 font-semibold text-white shadow-md transition hover:bg-[#7D1AAC]"
-                      >
-                        <Save size={18} />
-                        Save Schedule
-                      </button>
-
-                      <button
-                        onClick={closeEditor}
-                        className="rounded-xl bg-[#F5EEF6] px-5 py-3 font-semibold text-gray-700 transition hover:bg-[#EAD5EF]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </aside>
-              )}
+                </div>
             </div>
-          </div>
-        </div>
-      )}
+        )}
     </CenterLayout>
-  );
+);
 };
 
 export default Schedule;

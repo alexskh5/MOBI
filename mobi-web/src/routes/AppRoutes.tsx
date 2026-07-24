@@ -39,7 +39,9 @@ import TherapistDraftMaterials from "../pages/therapist/materials/DraftMaterials
 import TherapistArchivedMaterials from "../pages/therapist/materials/ArchivedMaterials";
 import TherapistActivityPreview from "../pages/therapist/materials/ActivityPreview";
 import TherapistCreateActivity from "../pages/therapist/materials/CreateActivity";
-
+import TherapistNotification from "../pages/therapist/notifications/TherapistNotification";
+import TherapistSchedule from "../pages/therapist/schedule/TherapistSchedule";
+import TherapistCollaboration from "../pages/therapist/collaboration/TherapistCollaboration";
 
 // Super-Admin
 import SuperDashboardScreen from "../pages/superadmin/SuperDashboardScreen";
@@ -236,6 +238,20 @@ const AppRoutes = () => {
         <Route
           path="/therapist/materials/CreateActivity"
           element={<TherapistCreateActivity />}
+        />
+        <Route
+          path="/therapist/notifications"
+          element={<TherapistNotification />}
+        />
+
+        <Route
+          path="/therapist/schedule"
+          element={<TherapistSchedule />}
+        />
+
+        <Route
+          path="/therapist/collaboration"
+          element={<TherapistCollaboration />}
         />
 
 
