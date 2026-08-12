@@ -4,20 +4,16 @@ import {
   ArrowLeft,
   ArrowRight,
   Building2,
-  CheckCircle2,
   ClipboardCheck,
-  Edit3,
   Home,
   LogOut,
   Menu,
-  Plus,
   Search,
-  Trash2,
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
 
-type ViewMode = "menu" | "users" | "subscription";
+type ViewMode = "menu" | "users" ;
 type UserTab = "center" | "parents";
 
 type CenterAccount = {
@@ -26,7 +22,7 @@ type CenterAccount = {
   contactPerson: string;
   centerOwner: string;
   email: string;
-  planDetail: string;
+  
   status: "Active" | "Suspended";
 };
 
@@ -35,23 +31,13 @@ type ParentAccount = {
   firstName: string;
   lastName: string;
   email: string;
-  planDetail: string;
   childNumber: number;
   status: "Active" | "Suspended";
 };
 
-type SubscriptionPlan = {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  duration: "Month" | "Year";
-  learnerLimit: string;
-  aiAccess: string;
-  isActive: boolean;
-};
 
-type PlanForm = Omit<SubscriptionPlan, "id" | "isActive">;
+
+
 
 const centerAccount: CenterAccount = {
   id: "C-001",
@@ -59,7 +45,6 @@ const centerAccount: CenterAccount = {
   contactPerson: "Maria Garcia",
   centerOwner: "Ruby Jane",
   email: "abledmind@example.com",
-  planDetail: "Center Standard",
   status: "Active",
 };
 
@@ -69,7 +54,6 @@ const initialParents: ParentAccount[] = [
     firstName: "Maria Curry",
     lastName: "Deguzman",
     email: "maria@example.com",
-    planDetail: "Free Trial",
     childNumber: 2,
     status: "Active",
   },
@@ -78,7 +62,6 @@ const initialParents: ParentAccount[] = [
     firstName: "Habibi",
     lastName: "Deloz Reyes",
     email: "habibi@example.com",
-    planDetail: "Free Trial",
     childNumber: 2,
     status: "Active",
   },
@@ -87,7 +70,6 @@ const initialParents: ParentAccount[] = [
     firstName: "Maria Curry",
     lastName: "Kwanza",
     email: "kwanza@example.com",
-    planDetail: "Free Trial",
     childNumber: 2,
     status: "Active",
   },
@@ -96,7 +78,6 @@ const initialParents: ParentAccount[] = [
     firstName: "Gwen",
     lastName: "Garcia",
     email: "gwen@example.com",
-    planDetail: "Free Trial",
     childNumber: 2,
     status: "Active",
   },
@@ -105,45 +86,10 @@ const initialParents: ParentAccount[] = [
     firstName: "Say",
     lastName: "Dela Peña",
     email: "say@example.com",
-    planDetail: "Free Trial",
     childNumber: 2,
     status: "Active",
   },
 ];
-
-const initialPlans: SubscriptionPlan[] = [
-  {
-    id: 1,
-    name: "Center Standard",
-    description:
-      "Limited number of learners, progress monitoring features, and limited AI generator access.",
-    price: 549,
-    duration: "Month",
-    learnerLimit: "Limited learners",
-    aiAccess: "Limited AI access",
-    isActive: true,
-  },
-  {
-    id: 2,
-    name: "Center Advanced",
-    description:
-      "Unlimited number of learners, unlimited progress monitoring features, and unlimited AI generator access.",
-    price: 949,
-    duration: "Month",
-    learnerLimit: "Unlimited learners",
-    aiAccess: "Unlimited AI access",
-    isActive: true,
-  },
-];
-
-const emptyPlanForm: PlanForm = {
-  name: "",
-  description: "",
-  price: 0,
-  duration: "Month",
-  learnerLimit: "",
-  aiAccess: "",
-};
 
 export default function SuperManageScreen() {
   const navigate = useNavigate();
@@ -152,18 +98,13 @@ export default function SuperManageScreen() {
   const [activeTab, setActiveTab] = useState<UserTab>("center");
   const [searchQuery, setSearchQuery] = useState("");
   const [parents, setParents] = useState<ParentAccount[]>(initialParents);
-  const [plans, setPlans] = useState<SubscriptionPlan[]>(initialPlans);
 
   const [selectedUser, setSelectedUser] = useState<ParentAccount | null>(null);
-  const [planModalMode, setPlanModalMode] = useState<"add" | "edit" | null>(
-    null
-  );
-  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
-  const [planForm, setPlanForm] = useState<PlanForm>(emptyPlanForm);
+
 
   const filteredParents = useMemo(() => {
     return parents.filter((parent) =>
-      `${parent.id} ${parent.firstName} ${parent.lastName} ${parent.email} ${parent.planDetail} ${parent.status}`
+      `${parent.id} ${parent.firstName} ${parent.lastName} ${parent.email} ${parent.status}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase())
     );
@@ -181,65 +122,9 @@ export default function SuperManageScreen() {
     setViewMode("menu");
   };
 
-  const openAddPlan = () => {
-    setEditingPlanId(null);
-    setPlanForm(emptyPlanForm);
-    setPlanModalMode("add");
-  };
+  
 
-  const openEditPlan = (plan: SubscriptionPlan) => {
-    setEditingPlanId(plan.id);
-    setPlanForm({
-      name: plan.name,
-      description: plan.description,
-      price: plan.price,
-      duration: plan.duration,
-      learnerLimit: plan.learnerLimit,
-      aiAccess: plan.aiAccess,
-    });
-    setPlanModalMode("edit");
-  };
-
-  const closePlanModal = () => {
-    setPlanModalMode(null);
-    setEditingPlanId(null);
-    setPlanForm(emptyPlanForm);
-  };
-
-  const savePlan = () => {
-    if (!planForm.name.trim() || !planForm.description.trim()) {
-      alert("Please complete the plan name and description.");
-      return;
-    }
-
-    if (planModalMode === "add") {
-      const newPlan: SubscriptionPlan = {
-        id: Date.now(),
-        ...planForm,
-        isActive: true,
-      };
-
-      setPlans((prev) => [newPlan, ...prev]);
-    }
-
-    if (planModalMode === "edit" && editingPlanId !== null) {
-      setPlans((prev) =>
-        prev.map((plan) =>
-          plan.id === editingPlanId ? { ...plan, ...planForm } : plan
-        )
-      );
-    }
-
-    closePlanModal();
-  };
-
-  const removePlan = (id: number) => {
-    const confirmed = confirm("Remove this subscription plan?");
-    if (!confirmed) return;
-
-    setPlans((prev) => prev.filter((plan) => plan.id !== id));
-  };
-
+  
   const suspendParent = (id: string) => {
     setParents((prev) =>
       prev.map((parent) =>
@@ -317,17 +202,6 @@ export default function SuperManageScreen() {
               </div>
               <ArrowRight size={26} />
             </button>
-
-            <button
-              className="manage-option"
-              onClick={() => setViewMode("subscription")}
-            >
-              <div>
-                <h2>MANAGE APP SUBSCRIPTION</h2>
-                <p>Add, edit, save, and remove subscription plans.</p>
-              </div>
-              <ArrowRight size={26} />
-            </button>
           </div>
         )}
 
@@ -390,7 +264,6 @@ export default function SuperManageScreen() {
                     label="Center Owner"
                     value={centerAccount.centerOwner}
                   />
-                  <InfoItem label="Plan Detail" value={centerAccount.planDetail} />
                 </div>
               </div>
             )}
@@ -457,56 +330,7 @@ export default function SuperManageScreen() {
           </div>
         )}
 
-        {viewMode === "subscription" && (
-          <div className="content-panel subscription-panel">
-            <div className="subscription-header">
-              <div>
-                <h1>Manage Subscription Plan</h1>
-                <p>Create and update center subscription packages.</p>
-              </div>
-
-              <button className="add-plan-btn" onClick={openAddPlan}>
-                <Plus size={17} />
-                Add subscription
-              </button>
-            </div>
-
-            <div className="plans-list">
-              {plans.map((plan) => (
-                <article key={plan.id} className="plan-card">
-                  <div>
-                    <div className="plan-title-row">
-                      <h2>{plan.name}</h2>
-                      <span className="status active">Active</span>
-                    </div>
-
-                    <p>{plan.description}</p>
-
-                    <div className="plan-features">
-                      <span>{plan.learnerLimit}</span>
-                      <span>{plan.aiAccess}</span>
-                    </div>
-                  </div>
-
-                  <div className="plan-side">
-                    <strong>₱{plan.price}</strong>
-                    <span>/{plan.duration}</span>
-
-                    <div className="plan-actions">
-                      <button onClick={() => openEditPlan(plan)}>
-                        <Edit3 size={18} />
-                      </button>
-
-                      <button onClick={() => removePlan(plan.id)}>
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
+        
       </section>
 
       {selectedUser && (
@@ -518,7 +342,6 @@ export default function SuperManageScreen() {
             />
             <InfoItem label="Email" value={selectedUser.email} />
             <InfoItem label="Parent ID" value={selectedUser.id} />
-            <InfoItem label="Plan" value={selectedUser.planDetail} />
             <InfoItem label="Children" value={String(selectedUser.childNumber)} />
             <InfoItem label="Status" value={selectedUser.status} />
           </div>
@@ -536,104 +359,6 @@ export default function SuperManageScreen() {
                 : "Activate Account"}
             </button>
           </div>
-        </Modal>
-      )}
-
-      {planModalMode && (
-        <Modal
-          title={planModalMode === "add" ? "Add Subscription" : "Edit Subscription"}
-          onClose={closePlanModal}
-        >
-          <div className="form-grid">
-            <label>
-              Plan Name
-              <input
-                value={planForm.name}
-                onChange={(e) =>
-                  setPlanForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="e.g. Center Premium"
-              />
-            </label>
-
-            <label>
-              Price
-              <input
-                type="number"
-                value={planForm.price}
-                onChange={(e) =>
-                  setPlanForm((prev) => ({
-                    ...prev,
-                    price: Number(e.target.value),
-                  }))
-                }
-                placeholder="549"
-              />
-            </label>
-
-            <label>
-              Duration
-              <select
-                value={planForm.duration}
-                onChange={(e) =>
-                  setPlanForm((prev) => ({
-                    ...prev,
-                    duration: e.target.value as "Month" | "Year",
-                  }))
-                }
-              >
-                <option value="Month">Month</option>
-                <option value="Year">Year</option>
-              </select>
-            </label>
-
-            <label>
-              Learner Limit
-              <input
-                value={planForm.learnerLimit}
-                onChange={(e) =>
-                  setPlanForm((prev) => ({
-                    ...prev,
-                    learnerLimit: e.target.value,
-                  }))
-                }
-                placeholder="Limited learners"
-              />
-            </label>
-
-            <label>
-              AI Access
-              <input
-                value={planForm.aiAccess}
-                onChange={(e) =>
-                  setPlanForm((prev) => ({
-                    ...prev,
-                    aiAccess: e.target.value,
-                  }))
-                }
-                placeholder="Limited AI access"
-              />
-            </label>
-
-            <label className="full">
-              Description
-              <textarea
-                value={planForm.description}
-                onChange={(e) =>
-                  setPlanForm((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                placeholder="Describe what this plan includes..."
-              />
-            </label>
-          </div>
-
-          <button className="save-btn" onClick={savePlan}>
-            <CheckCircle2 size={18} />
-            Save subscription
-          </button>
         </Modal>
       )}
 
@@ -790,29 +515,6 @@ export default function SuperManageScreen() {
           border-radius: 12px;
           padding: 26px;
           box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        }
-
-        .panel-header,
-        .subscription-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-          margin-bottom: 20px;
-        }
-
-        .panel-header h1,
-        .subscription-header h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: 900;
-        }
-
-        .panel-header p,
-        .subscription-header p {
-          margin: 5px 0 0;
-          color: #555;
-          font-size: 14px;
         }
 
         .search-box {
@@ -1007,17 +709,6 @@ export default function SuperManageScreen() {
           font-weight: 900;
         }
 
-        .secondary-btn,
-        .danger-btn,
-        .save-btn,
-        .add-plan-btn {
-          border: none;
-          border-radius: 999px;
-          padding: 10px 14px;
-          font-weight: 900;
-          cursor: pointer;
-        }
-
         .secondary-btn {
           background: white;
           color: #7d3eb0;
@@ -1027,101 +718,6 @@ export default function SuperManageScreen() {
         .danger-btn {
           background: #fff0f0;
           color: #b73232;
-        }
-
-        .add-plan-btn {
-          background: #ef4b22;
-          color: white;
-          display: flex;
-          align-items: center;
-          gap: 7px;
-        }
-
-        .subscription-panel {
-          margin-top: 30px;
-        }
-
-        .plans-list {
-          display: grid;
-          gap: 16px;
-        }
-
-        .plan-card {
-          background: #ead9eb;
-          border-radius: 15px;
-          padding: 20px;
-          display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 20px;
-          align-items: center;
-        }
-
-        .plan-title-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          margin-bottom: 7px;
-        }
-
-        .plan-card h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 900;
-        }
-
-        .plan-card p {
-          margin: 0;
-          font-size: 14px;
-          line-height: 1.5;
-          color: #333;
-        }
-
-        .plan-features {
-          margin-top: 12px;
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .plan-features span {
-          background: white;
-          border-radius: 999px;
-          padding: 7px 10px;
-          font-size: 12px;
-          font-weight: 800;
-          color: #6f2f9d;
-        }
-
-        .plan-side {
-          text-align: right;
-          min-width: 120px;
-        }
-
-        .plan-side strong {
-          display: block;
-          font-size: 24px;
-          font-weight: 900;
-        }
-
-        .plan-side span {
-          color: #555;
-          font-size: 13px;
-        }
-
-        .plan-actions {
-          margin-top: 12px;
-          display: flex;
-          justify-content: flex-end;
-        }
-
-        .plan-actions button {
-          border: none;
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          cursor: pointer;
-          color: #555;
         }
 
         .modal-backdrop {
@@ -1155,6 +751,35 @@ export default function SuperManageScreen() {
         .modal-header h2 {
           margin: 0;
           font-size: 21px;
+        }
+
+        .panel-header,
+        .subscription-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+
+        .panel-header,
+        .subscription-header {
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 20px;
+        }
+
+        .panel-header h1,
+        .subscription-header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 900;
+        }
+
+        .panel-header p,
+        .subscription-header p {
+          margin: 5px 0 0;
+          color: #555;
+          font-size: 14px;
         }
 
         .close-btn {
@@ -1278,12 +903,6 @@ export default function SuperManageScreen() {
             padding: 18px;
           }
 
-          .panel-header,
-          .subscription-header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-
           .search-box {
             width: 100%;
           }
@@ -1302,18 +921,6 @@ export default function SuperManageScreen() {
 
           .parent-row .secondary-btn {
             width: fit-content;
-          }
-
-          .plan-card {
-            grid-template-columns: 1fr;
-          }
-
-          .plan-side {
-            text-align: left;
-          }
-
-          .plan-actions {
-            justify-content: flex-start;
           }
 
           .menu-options {
