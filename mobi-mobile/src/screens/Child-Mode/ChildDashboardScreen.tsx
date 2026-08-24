@@ -1,4 +1,4 @@
-// MOBI/mobi-backend/src/screens/Child-Mode/ChildDashboardScreen.tsx
+// MOBI/mobi-mobile/src/screens/Child-Mode/ChildDashboardScreen.tsx
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Activity, NavigationProp } from '../../types';
-import { getActivities } from '../../services/api';
+import { getActivities, getNextRecommendedActivity, } from '../../services/api';
 
 const logo = require('../../../assets/images/mobi_logo.png');
 const bgImage = require('../../../assets/images/background.jpg');
@@ -31,6 +31,8 @@ const sample3 = require('../../../assets/images/sample3.jpg');
 const sample4 = require('../../../assets/images/sample4.jpg');
 
 const ADULT_MAGIC_CODE = '1234';
+const TEST_LEARNER_ID =
+  '6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc';
 
 const filterOptions = [
   { id: 'all', label: 'All options', value: 'all' },
@@ -56,6 +58,11 @@ export default function ChildDashboardScreen() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [
+    recommendedActivityId,
+    setRecommendedActivityId,
+  ] = useState<string | null>(null);
+
   const [showAdultModal, setShowAdultModal] = useState(false);
   const [magicCode, setMagicCode] = useState('');
 
@@ -71,6 +78,16 @@ export default function ChildDashboardScreen() {
     async function loadActivities() {
       try {
         const data = await getActivities();
+
+        const recommendation =
+          await getNextRecommendedActivity(
+            TEST_LEARNER_ID,
+          );
+
+        setRecommendedActivityId(
+          recommendation.nextActivity?.activityId ??
+            null,
+        );
 
         const mappedActivities: Activity[] = data.map((item: any) => ({
           id: item.id as any,
@@ -193,9 +210,17 @@ export default function ChildDashboardScreen() {
 
   const renderCategorySection = (category: string) => {
     const data =
-      category === "Recommended for Lexi’s needs"
-        ? filteredActivities
-        : filteredActivities.filter((item) => item.category === category);
+      category ===
+      "Recommended for Lexi’s needs"
+        ? filteredActivities.filter(
+            (item) =>
+              String(item.id) ===
+              recommendedActivityId,
+          )
+        : filteredActivities.filter(
+            (item) =>
+              item.category === category,
+          );
 
     if (data.length === 0) return null;
 

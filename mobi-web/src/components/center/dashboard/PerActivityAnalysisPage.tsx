@@ -1,3 +1,6 @@
+//mobi-web/src/components/center/dashboard/PerActivityAnalysisPage.tsx
+
+
 import {
     useEffect,
     useMemo,
@@ -15,6 +18,10 @@ import {
     TrendingUp,
     X,
 } from "lucide-react";
+
+import type {
+    PerActivityAnalysisProgress,
+} from "../../../services/progress/perActivityApi";
 
 /* =========================================================
    TYPES
@@ -53,6 +60,8 @@ export interface PerActivityAnalysisData {
 
 interface PerActivityAnalysisPageProps {
     data?: PerActivityAnalysisData;
+
+    progress?: PerActivityAnalysisProgress;
 }
 
 /* =========================================================
@@ -353,6 +362,7 @@ const ActivityStepCard = ({
 
 const PerActivityAnalysisPage = ({
     data = defaultPerActivityAnalysisData,
+    progress,
 }: PerActivityAnalysisPageProps) => {
     const [searchQuery, setSearchQuery] =
         useState("");
@@ -360,13 +370,78 @@ const PerActivityAnalysisPage = ({
     const [currentActivityIndex, setCurrentActivityIndex] =
         useState(0);
 
+    const realActivityData =
+    useMemo<PerActivityAnalysisData | null>(() => {
+        if (!progress) {
+            return null;
+        }
+
+        return {
+            activities:
+                progress.activities.map(
+                    (activity) => ({
+                        id:
+                            activity.id,
+
+                        activityTitle:
+                            activity.activityTitle,
+
+                        correctAnswers:
+                            activity.correctAnswers,
+
+                        needsPractice:
+                            activity.needsPractice,
+
+                        successRate:
+                            activity.successRate,
+
+                        steps:
+                            activity.steps.map(
+                                (step) => ({
+                                    id:
+                                        step.id,
+
+                                    stepNumber:
+                                        step.stepNumber,
+
+                                    stepType:
+                                        step.stepType,
+
+                                    question:
+                                        step.question,
+
+                                    learnerAnswer:
+                                        step.learnerAnswer,
+
+                                    expectedAnswer:
+                                        step.expectedAnswer ??
+                                        undefined,
+
+                                    status:
+                                        step.status ??
+                                        undefined,
+
+                                    supportUsed:
+                                        step.supportUsed ??
+                                        undefined,
+                                }),
+                            ),
+                    }),
+                ),
+        };
+    }, [progress]);
+
+    const displayData =
+        realActivityData ??
+        data;
+
     /*
      * Feedback is not shown because it is not correct/wrong.
      * Backend can still store feedback steps; this UI simply
      * excludes them from answer analysis.
      */
     const activitiesWithoutFeedback = useMemo(() => {
-        return data.activities.map((activity) => ({
+        return displayData.activities.map((activity) => ({
             ...activity,
             steps: activity.steps.filter(
                 (step) =>
@@ -375,7 +450,7 @@ const PerActivityAnalysisPage = ({
                         .toLowerCase() !== "feedback",
             ),
         }));
-    }, [data.activities]);
+    }, [displayData.activities]);
 
     /*
      * When the activity title matches the search, all answerable

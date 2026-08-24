@@ -1,13 +1,40 @@
-//mobi-backend/src/services/speech/activityService.ts
+//mobi-backend/src/services/activityService.ts
 
 import { supabase } from "../config/supabase";
+import { assignActivityToLearners } from "./activity/activityAssignmentService";
 
 export async function createActivityWithSteps(payload: any) {
-  const { steps = [], ...activityData } = payload;
+  const {
+    steps = [],
 
-  const { data: activity, error: activityError } = await supabase
+    learner_ids = [],
+
+    access_scope = "center_library",
+
+    activity_domain = "speech_training",
+
+    ...activityData
+  } = payload;
+
+  const {
+  data: activity,
+  error: activityError,
+  } = await supabase
     .from("activities")
-    .insert(activityData)
+    .insert({
+      ...activityData,
+
+      /*
+        access_scope was extracted above because we also need
+        it for application logic.
+
+        We explicitly put it back into the database insert.
+      */
+      access_scope,
+      
+      activity_domain,
+
+    })
     .select()
     .single();
 
@@ -50,9 +77,29 @@ export async function createActivityWithSteps(payload: any) {
       .insert(stepRows);
 
     if (stepsError) throw stepsError;
-  }
+}
 
-  return activity;
+/* ======================================================
+   ASSIGN TO SELECTED LEARNERS
+====================================================== */
+
+if (learner_ids.length > 0) {
+  await assignActivityToLearners({
+    centerId:
+      activity.center_id,
+
+    activityId:
+      activity.id,
+
+    learnerIds:
+      learner_ids,
+
+    assignmentType:
+      "recommended",
+  });
+}
+
+return activity;
 }
 
 export async function getActivities() {
