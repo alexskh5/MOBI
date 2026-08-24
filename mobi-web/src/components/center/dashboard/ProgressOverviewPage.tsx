@@ -1,11 +1,18 @@
-import type { ReactNode } from "react";
+//mobi-web/src/components/center/dashboard/ProgressOverviewPage.tsx
+
+import type {
+    ReactNode,
+} from "react";
 
 import {
     Layers3,
-    Type,
-    Clock3,
+    MessageCircle,
+    Target,
+    AudioWaveform,
+    Eye,
     PauseCircle,
     Smartphone,
+    Clock3,
 } from "lucide-react";
 
 import {
@@ -21,47 +28,123 @@ import {
 
 /* =========================================================
    TYPES
-   These types can later match the backend response.
 ========================================================= */
 
 export interface ProgressMetricsData {
     activitiesCompleted: number;
-    wordsPracticed: number;
-    focusTime: string;
-    inactivityTime: string;
-    screenTimeUsed: string;
-    screenTimeLimit: string;
+
+    communicationAttempts: number;
+
+    targetAchievements: number;
+
+    speechApproximations: number;
+
+    observedEngagementSeconds: number;
+
+    inactivitySeconds: number;
+
+    screenTimeSeconds: number;
+
+    screenTimeLimitSeconds:
+        number | null;
 }
 
 export interface ProgressGraphPoint {
     period: string;
+
     speech: number;
+
     social: number;
 }
 
 export interface ProgressAnalysisData {
     summary: string;
+
     description: string;
 }
 
 interface ProgressOverviewPageProps {
-    metrics: ProgressMetricsData;
-    graphData: ProgressGraphPoint[];
-    speechAnalysis: ProgressAnalysisData;
-    socialAnalysis: ProgressAnalysisData;
+    metrics:
+        ProgressMetricsData;
+
+    graphData:
+        ProgressGraphPoint[];
+
+    /*
+      These are optional because the AI summary backend
+      has not been connected yet.
+    */
+    speechAnalysis?:
+        ProgressAnalysisData;
+
+    socialAnalysis?:
+        ProgressAnalysisData;
 }
 
 /* =========================================================
-   LOCAL HELPER COMPONENTS
-   These remain in this file to avoid unnecessary files.
+   HELPERS
+========================================================= */
+
+function formatDuration(
+    totalSeconds:
+        number | null,
+) {
+    if (totalSeconds === null) {
+        return "Not set";
+    }
+
+    if (totalSeconds <= 0) {
+        return "0m";
+    }
+
+    const hours =
+        Math.floor(
+            totalSeconds / 3600,
+        );
+
+    const minutes =
+        Math.floor(
+            (
+                totalSeconds % 3600
+            ) / 60,
+        );
+
+    const seconds =
+        totalSeconds % 60;
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    }
+
+    if (minutes > 0) {
+        if (seconds > 0) {
+            return `${minutes}m ${seconds}s`;
+        }
+
+        return `${minutes}m`;
+    }
+
+    return `${seconds}s`;
+}
+
+/* =========================================================
+   METRIC CARD
 ========================================================= */
 
 interface MetricCardProps {
     icon: ReactNode;
-    value: string | number;
-    label: string;
-    helperText?: string;
-    className?: string;
+
+    value:
+        string | number;
+
+    label:
+        string;
+
+    helperText?:
+        string;
+
+    className?:
+        string;
 }
 
 const MetricCard = ({
@@ -112,17 +195,36 @@ const MetricCard = ({
     );
 };
 
+/* =========================================================
+   ANALYSIS CARD
+========================================================= */
+
 interface AnalysisCardProps {
-    title: string;
-    summary: string;
-    description: string;
+    title:
+        string;
+
+    summary?:
+        string;
+
+    description?:
+        string;
+
+    emptyMessage:
+        string;
 }
 
 const AnalysisCard = ({
     title,
     summary,
     description,
+    emptyMessage,
 }: AnalysisCardProps) => {
+    const hasAnalysis =
+        Boolean(
+            summary ||
+            description,
+        );
+
     return (
         <article
             className="
@@ -138,19 +240,36 @@ const AnalysisCard = ({
                 {title}
             </h3>
 
-            <p className="mt-3 text-sm font-medium leading-6 text-gray-700">
-                {summary}
-            </p>
+            {hasAnalysis ? (
+                <>
+                    {summary && (
+                        <p className="mt-3 text-sm font-medium leading-6 text-gray-700">
+                            {summary}
+                        </p>
+                    )}
 
-            <p className="mt-4 text-sm leading-6 text-gray-600">
-                {description}
-            </p>
+                    {description && (
+                        <p className="mt-4 text-sm leading-6 text-gray-600">
+                            {description}
+                        </p>
+                    )}
+                </>
+            ) : (
+                <p className="mt-3 text-sm leading-6 text-gray-500">
+                    {emptyMessage}
+                </p>
+            )}
         </article>
     );
 };
 
+/* =========================================================
+   PROGRESS CHART
+========================================================= */
+
 interface ProgressChartProps {
-    data: ProgressGraphPoint[];
+    data:
+        ProgressGraphPoint[];
 }
 
 const ProgressChart = ({
@@ -205,7 +324,10 @@ const ProgressChart = ({
                         />
 
                         <YAxis
-                            domain={[0, 100]}
+                            domain={[
+                                0,
+                                100,
+                            ]}
                             tick={{
                                 fontSize: 13,
                                 fill: "#6B7280",
@@ -218,22 +340,35 @@ const ProgressChart = ({
 
                         <Tooltip
                             contentStyle={{
-                                borderRadius: "12px",
-                                border: "1px solid #D1D5DB",
-                                backgroundColor: "#FFFFFF",
+                                borderRadius:
+                                    "12px",
+
+                                border:
+                                    "1px solid #D1D5DB",
+
+                                backgroundColor:
+                                    "#FFFFFF",
                             }}
                             labelStyle={{
-                                color: "#111827",
-                                fontWeight: 600,
-                                marginBottom: "6px",
+                                color:
+                                    "#111827",
+
+                                fontWeight:
+                                    600,
+
+                                marginBottom:
+                                    "6px",
                             }}
                         />
 
                         <Legend
                             verticalAlign="bottom"
                             wrapperStyle={{
-                                paddingTop: "14px",
-                                fontSize: "13px",
+                                paddingTop:
+                                    "14px",
+
+                                fontSize:
+                                    "13px",
                             }}
                         />
 
@@ -245,9 +380,15 @@ const ProgressChart = ({
                             strokeWidth={3}
                             dot={{
                                 r: 4,
-                                fill: "#FFFFFF",
-                                stroke: "#9021C4",
-                                strokeWidth: 2,
+
+                                fill:
+                                    "#FFFFFF",
+
+                                stroke:
+                                    "#9021C4",
+
+                                strokeWidth:
+                                    2,
                             }}
                             activeDot={{
                                 r: 6,
@@ -262,9 +403,15 @@ const ProgressChart = ({
                             strokeWidth={3}
                             dot={{
                                 r: 4,
-                                fill: "#FFFFFF",
-                                stroke: "#DFA5C9",
-                                strokeWidth: 2,
+
+                                fill:
+                                    "#FFFFFF",
+
+                                stroke:
+                                    "#DFA5C9",
+
+                                strokeWidth:
+                                    2,
                             }}
                             activeDot={{
                                 r: 6,
@@ -283,9 +430,9 @@ const ProgressChart = ({
                         text-center
                     "
                 >
-                    <p className="text-sm text-gray-500">
-                        No progress data is available for the
-                        selected period.
+                    <p className="max-w-md text-sm text-gray-500">
+                        Progress trend data will appear here
+                        after the timeline API is connected.
                     </p>
                 </div>
             )}
@@ -337,8 +484,7 @@ const ProgressOverviewPage = ({
                         grid-cols-1
                         gap-4
                         sm:grid-cols-2
-                        lg:grid-cols-3
-                        2xl:grid-cols-5
+                        lg:grid-cols-4
                     "
                 >
                     <MetricCard
@@ -348,30 +494,67 @@ const ProgressOverviewPage = ({
                                 strokeWidth={1.8}
                             />
                         }
-                        value={metrics.activitiesCompleted}
+                        value={
+                            metrics.activitiesCompleted
+                        }
                         label="Activities Completed"
                     />
 
                     <MetricCard
                         icon={
-                            <Type
+                            <MessageCircle
                                 size={26}
                                 strokeWidth={1.8}
                             />
                         }
-                        value={metrics.wordsPracticed}
-                        label="Words Practiced"
+                        value={
+                            metrics.communicationAttempts
+                        }
+                        label="Communication Attempts"
+                        helperText="Recorded attempts to communicate during activities"
                     />
 
                     <MetricCard
                         icon={
-                            <Clock3
+                            <Target
                                 size={26}
                                 strokeWidth={1.8}
                             />
                         }
-                        value={metrics.focusTime}
-                        label="Focus Time"
+                        value={
+                            metrics.targetAchievements
+                        }
+                        label="Target Achievements"
+                        helperText="Responses that achieved the intended activity target"
+                    />
+
+                    <MetricCard
+                        icon={
+                            <AudioWaveform
+                                size={26}
+                                strokeWidth={1.8}
+                            />
+                        }
+                        value={
+                            metrics.speechApproximations
+                        }
+                        label="Speech Approximations"
+                        helperText="Target-related attempts with incomplete pronunciation"
+                    />
+
+                    <MetricCard
+                        icon={
+                            <Eye
+                                size={26}
+                                strokeWidth={1.8}
+                            />
+                        }
+                        value={formatDuration(
+                            metrics
+                                .observedEngagementSeconds,
+                        )}
+                        label="Observed Engagement"
+                        helperText="Based on available gaze-presence evidence"
                     />
 
                     <MetricCard
@@ -381,7 +564,10 @@ const ProgressOverviewPage = ({
                                 strokeWidth={1.8}
                             />
                         }
-                        value={metrics.inactivityTime}
+                        value={formatDuration(
+                            metrics
+                                .inactivitySeconds,
+                        )}
                         label="Inactivity Time"
                     />
 
@@ -392,13 +578,27 @@ const ProgressOverviewPage = ({
                                 strokeWidth={1.8}
                             />
                         }
-                        value={`${metrics.screenTimeUsed} / ${metrics.screenTimeLimit}`}
-                        label="Screen Time"
-                        helperText="Used vs. daily limit"
-                        className="
-                            sm:col-span-2
-                            lg:col-span-1
-                        "
+                        value={formatDuration(
+                            metrics
+                                .screenTimeSeconds,
+                        )}
+                        label="Session / Screen Time"
+                        helperText="Current activity-session duration"
+                    />
+
+                    <MetricCard
+                        icon={
+                            <Clock3
+                                size={26}
+                                strokeWidth={1.8}
+                            />
+                        }
+                        value={formatDuration(
+                            metrics
+                                .screenTimeLimitSeconds,
+                        )}
+                        label="Daily Screen Time Limit"
+                        helperText="Parent-configured limit when available"
                     />
                 </div>
             </section>
@@ -423,8 +623,8 @@ const ProgressOverviewPage = ({
                     </h2>
 
                     <p className="mt-1 text-sm text-gray-600">
-                        Overview of speech training and social
-                        readiness performance.
+                        Overview of speech training and early
+                        social readiness performance.
                     </p>
                 </div>
 
@@ -440,10 +640,14 @@ const ProgressOverviewPage = ({
                     {/* Graph */}
 
                     <div className="min-w-0 xl:col-span-3">
-                        <ProgressChart data={graphData} />
+                        <ProgressChart
+                            data={
+                                graphData
+                            }
+                        />
                     </div>
 
-                    {/* Analysis cards */}
+                    {/* Analysis */}
 
                     <div
                         className="
@@ -455,19 +659,29 @@ const ProgressOverviewPage = ({
                         "
                     >
                         <AnalysisCard
-                            title="Speech and Vocabulary"
-                            summary={speechAnalysis.summary}
-                            description={
-                                speechAnalysis.description
+                            title="Speech Training"
+                            summary={
+                                speechAnalysis
+                                    ?.summary
                             }
+                            description={
+                                speechAnalysis
+                                    ?.description
+                            }
+                            emptyMessage="AI-assisted speech progress analysis will appear after the factual progress data and trend APIs are fully connected."
                         />
 
                         <AnalysisCard
                             title="Social Readiness"
-                            summary={socialAnalysis.summary}
-                            description={
-                                socialAnalysis.description
+                            summary={
+                                socialAnalysis
+                                    ?.summary
                             }
+                            description={
+                                socialAnalysis
+                                    ?.description
+                            }
+                            emptyMessage="AI-assisted social readiness analysis will appear after social readiness activity outcomes are connected."
                         />
                     </div>
                 </div>

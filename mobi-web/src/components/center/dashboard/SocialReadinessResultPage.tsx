@@ -1,3 +1,5 @@
+//mobi-web/src/components/center/dashboard/SocialReadinessResultPage.tsx
+
 import { useMemo, useState } from "react";
 
 import {
@@ -6,6 +8,11 @@ import {
     Search,
     X,
 } from "lucide-react";
+
+
+import type {
+    SocialReadinessProgress,
+} from "../../../services/progress/socialReadinessApi";
 
 /* =========================================================
    TYPES
@@ -42,6 +49,8 @@ export interface SocialReadinessResultData {
 
 interface SocialReadinessResultPageProps {
     data?: SocialReadinessResultData;
+
+    progress?: SocialReadinessProgress;
 }
 
 /* =========================================================
@@ -115,7 +124,7 @@ const StatusBadge = ({
     status,
 }: StatusBadgeProps) => {
     const settings: Record<
-        SocialReadinessStatus,
+        SocialReadinessStatus, 
         {
             label: string;
             className: string;
@@ -280,6 +289,7 @@ const SocialSummaryCard = ({
 
 const SocialReadinessResultPage = ({
     data = defaultSocialReadinessResultData,
+    progress,
 }: SocialReadinessResultPageProps) => {
     const [searchQuery, setSearchQuery] =
         useState("");
@@ -479,12 +489,12 @@ const SocialReadinessResultPage = ({
                         </div>
 
                         <p className="font-bold text-gray-900">
-                            Conversation Attempts
+                            Communication Attempts
                         </p>
                     </div>
 
                     <p className="text-xl font-bold text-[#B77AC8]">
-                        {data.conversationAttempts}
+                        {progress?.metrics.communicationAttempts ?? 0}
                     </p>
                 </div>
 
@@ -566,36 +576,86 @@ const SocialReadinessResultPage = ({
                         grid
                         grid-cols-1
                         gap-4
-                        lg:grid-cols-3
+                        lg:grid-cols-4
                     "
                 >
                     <SocialSummaryCard
-                        title="Response Appropriateness"
-                        value={
-                            data.summary
-                                .responseAppropriateness
-                        }
+                        title="Activities Completed"
+                        value={String(
+                            progress?.metrics.activitiesCompleted ??
+                            0,
+                        )}
                     />
 
                     <SocialSummaryCard
-                        title="Turn-taking"
-                        value={data.summary.turnTaking}
+                        title="Target Achievements"
+                        value={String(
+                            progress?.metrics.targetAchievements ??
+                            0,
+                        )}
                     />
 
                     <SocialSummaryCard
-                        title="Engagement Level"
-                        value={
-                            data.summary.engagementLevel
-                        }
+                        title="Participation Responses"
+                        value={String(
+                            progress?.metrics.participationResponses ??
+                            0,
+                        )}
+                    />
+
+                    <SocialSummaryCard
+                        title="Observed Engagement"
+                        value={`${Math.round(
+                            (
+                                progress?.metrics.engagementSeconds ??
+                                0
+                            ) / 60,
+                        )} min`}
                     />
                 </div>
 
-                <div className="mt-4">
-                    <SocialSummaryCard
-                        title="AI Social Readiness Summary"
-                        value={data.summary.aiSummary}
-                    />
-                </div>
+                <div
+                className="
+                    mt-4
+                    grid
+                    grid-cols-1
+                    gap-4
+                    lg:grid-cols-3
+                "
+            >
+                <SocialSummaryCard
+                    title="Inactivity Time"
+                    value={`${Math.round(
+                        (
+                            progress?.metrics.inactivitySeconds ??
+                            0
+                        ) / 60,
+                    )} min`}
+                />
+
+                <SocialSummaryCard
+                    title="Average Response Time"
+                    value={
+                        progress?.metrics.averageResponseTimeMs !==
+                        null &&
+                        progress?.metrics.averageResponseTimeMs !==
+                        undefined
+                            ? `${(
+                                progress.metrics.averageResponseTimeMs /
+                                1000
+                            ).toFixed(1)} sec`
+                            : "No data"
+                    }
+                />
+
+                <SocialSummaryCard
+                    title="Activities Mastered"
+                    value={String(
+                        progress?.metrics.activitiesMastered ??
+                        0,
+                    )}
+                />
+            </div>
             </section>
         </div>
     );

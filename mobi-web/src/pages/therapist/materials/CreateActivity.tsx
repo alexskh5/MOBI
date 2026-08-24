@@ -22,7 +22,7 @@ import ActivityDescription from "../../../components/center/materials/ActivityDe
 import ActivityThumbnail from "../../../components/center/materials/ActivityThumbnail";
 import ActivitySpeechLadder from "../../../components/center/materials/ActivitySpeechLadder";
 import ActivityAIVoice from "../../../components/center/materials/ActivityAIVoice";
-import ActivityAssignLearner from "../../../components/center/materials/ActivityAssignLearner";
+import ActivityAssignLearner from "../../../components/center/materials/ActivityAssignLearnerMock";
 import ActivityLimits from "../../../components/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
 

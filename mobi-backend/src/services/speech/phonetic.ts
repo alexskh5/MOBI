@@ -1,3 +1,4 @@
+// mobi-backend/src/services/speech/phonetic.ts
 function normalizeForChildSpeech(word: string): string {
   return word
     .toLowerCase()
