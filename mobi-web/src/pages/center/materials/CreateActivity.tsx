@@ -27,13 +27,15 @@ import ActivityDescription from "../../../components/center/materials/ActivityDe
 import ActivityThumbnail from "../../../components/center/materials/ActivityThumbnail";
 import ActivitySpeechLadder from "../../../components/center/materials/ActivitySpeechLadder";
 import ActivityAIVoice from "../../../components/center/materials/ActivityAIVoice";
-import ActivityAssignLearner from "../../../components/center/materials/ActivityAssignLearner";
+// import ActivityAssignLearnerMock from "../../../components/center/materials/ActivityAssignLearnerMock";
 // import ActivityReadinessLadder from "../../../components/center/materials/ActivityReadinessLadder";
 // newly added
-import ActivityLimits from "../../../pages/center/materials/ActivityLimits";
+import ActivityLimits from "../../../components/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
 
 import { createActivity } from "../../../services/activityApi";
+
+import ActivityAssignLearner from "../../../pages/center/materials/ActivityAssignLearner";
 
 function CreateActivity() {
   const location = useLocation();
@@ -61,6 +63,25 @@ function CreateActivity() {
   const [aiVoiceGender, setAiVoiceGender] = useState("girl");
   const [aiVoiceSpeed, setAiVoiceSpeed] = useState("moderate");
 
+  /*
+  Activity assignment state.
+
+  selectedLearners:
+  Stores the UUIDs of learners selected for this activity.
+
+  assignmentType:
+  center_library = activity remains generally available
+  assigned_only = activity is intended only for selected learners
+*/
+  const [selectedLearners, setSelectedLearners] =
+    useState<string[]>([]);
+
+  const [assignmentType, setAssignmentType] =
+    useState<
+      "center_library" | "assigned_only"
+    >("center_library");
+
+    
   const updateStepData = (stepKey: string, data: any) => {
   setStepData((prev) => ({
     ...prev,
@@ -80,6 +101,9 @@ function CreateActivity() {
     useRef<HTMLDivElement>(null);
 
   const thumbnailRef =
+    useRef<HTMLDivElement>(null);
+
+  const activityLimitsRef =
     useRef<HTMLDivElement>(null);
 
   const aiVoiceRef =
@@ -232,33 +256,184 @@ function CreateActivity() {
       };
     });
 
-    const payload = {
-      title,
-      description,
-      activity_type: selectedTemplate,
-      speech_ladder_level: "word",
-      max_attempts: maxAttempts,
-      estimated_minutes: estimatedMinutes,
-      allow_skip: true,
-      success_required_count: 1,
-      thumbnail_url: thumbnail,
-      ai_voice_gender: aiVoiceGender,
-      ai_voice_speed: aiVoiceSpeed,
-      status: "published",
-      uploaded_by: "Center Admin",
-      steps: formattedSteps,
-    };
+    // const payload = {
+    //   title,
+    //   description,
+    //   activity_type: selectedTemplate,
+    //   speech_ladder_level: "word",
+    //   max_attempts: maxAttempts,
+    //   estimated_minutes: estimatedMinutes,
+    //   allow_skip: true,
+    //   success_required_count: 1,
+    //   thumbnail_url: thumbnail,
+    //   ai_voice_gender: aiVoiceGender,
+    //   ai_voice_speed: aiVoiceSpeed,
+    //   status: "published",
+    //   uploaded_by: "Center Admin",
+    //   // center_id: "d5ae1649-0343-46d4-b433-575c97e064e1",
+    //   access_scope: assignmentType,
+    //   learner_ids: selectedLearners,
+    //   steps: formattedSteps,
+    // };
 
+    const payload = {
+  title,
+  description,
+  activity_type: selectedTemplate,
+  speech_ladder_level: "word",
+  max_attempts: maxAttempts,
+  estimated_minutes: estimatedMinutes,
+  allow_skip: true,
+  success_required_count: 1,
+  thumbnail_url: thumbnail,
+  ai_voice_gender: aiVoiceGender,
+  ai_voice_speed: aiVoiceSpeed,
+  status: "published",
+  uploaded_by: "Center Admin",
+
+  /*
+    Controls whether this activity belongs to the
+    general Center library or is limited to assigned learners.
+  */
+  access_scope: assignmentType,
+
+  /*
+    Selected learner UUIDs.
+
+    The backend removes this before inserting the activity
+    and uses it to create learner_activity_assignments.
+  */
+  learner_ids: selectedLearners,
+
+  steps: formattedSteps,
+};
     console.log("Formatted steps:");
     console.dir(formattedSteps, { depth: null });
 
     console.log("Payload:");
     console.dir(payload, { depth: null });
 
-    await createActivity(payload);
+    // await createActivity(payload);
 
-    alert("Activity published successfully!");
-    navigate("/center/materials");
+    // alert("Activity published successfully!");
+    // navigate("/center/materials");
+
+    /* =====================================================
+   1. CREATE THE ACTIVITY FIRST
+===================================================== */
+
+const createResult =
+  await createActivity(
+    payload,
+  );
+
+console.log(
+  "Created activity:",
+  createResult,
+);
+
+// /*
+//   Your backend returns:
+
+//   {
+//     message: "...",
+//     activity: {
+//       id: "UUID",
+//       ...
+//     }
+//   }
+
+//   We need that UUID before learner assignments can be
+//   created.
+// */
+// const activityId =
+//   createResult?.activity?.id;
+
+// if (!activityId) {
+//   throw new Error(
+//     "The activity was created but no activity ID was returned.",
+//   );
+// }
+
+// /* =====================================================
+//    2. ASSIGN TO SELECTED LEARNERS
+
+//    Learner assignment is optional.
+
+//    Therefore:
+//    0 selected learners
+//       → no assignment rows are created
+
+//    1+ selected learners
+//       → create learner_activity_assignments rows
+// ===================================================== */
+
+// if (
+//   selectedLearners.length >
+//   0
+// ) {
+//   const assignmentResult =
+//     await assignActivityToLearners(
+//       {
+//         activityId,
+
+//         learnerIds:
+//           selectedLearners,
+
+//         /*
+//           For now selected activities are treated as
+//           recommendations.
+
+//           Later, therapist UI can separately choose:
+
+//           Required
+//           Recommended
+
+//           Do NOT map "assigned_only" to "required";
+//           those mean different things.
+//         */
+//         assignmentType:
+//           "recommended",
+
+//         priority:
+//           1,
+
+//         /*
+//           null means use the normal activity/learner
+//           adaptation settings rather than overriding them
+//           specifically for this assignment.
+//         */
+//         maxAttemptsOverride:
+//           null,
+
+//         estimatedMinutesOverride:
+//           null,
+
+//         allowSkipOverride:
+//           null,
+//       },
+//     );
+
+//   console.log(
+//     "Activity assignments:",
+//     assignmentResult,
+//   );
+// }
+
+/* =====================================================
+   3. COMPLETE PUBLISH FLOW
+===================================================== */
+
+alert(
+  selectedLearners.length >
+    0
+    ? `Activity published and assigned to ${selectedLearners.length} learner(s)!`
+    : "Activity published successfully!",
+);
+
+navigate(
+  "/center/materials",
+);
   } catch (error) {
     console.error(error);
     alert("Failed to publish activity.");
@@ -313,22 +488,19 @@ function CreateActivity() {
         </div>
 
         <div className="flex items-center gap-10 font-itim text-2xl">
-          <span
-            className="
-              text-gray-500
-              text-lg
-              italic
-            "
-          >
-            Changes are saved automatically
-          </span>
-
           <button
             onClick={() =>
               navigate(-1)
             }
           >
             Exit
+          </button>
+
+          <button
+            // onClick={handleSaveDraft}
+            // className="text-gray-600 hover:text-gray-800"
+          >
+            Save Draft
           </button>
 
           <button
@@ -365,6 +537,12 @@ function CreateActivity() {
               scrollToSection(
                 thumbnailRef,
                 "thumbnail"
+              )
+            }
+            onActivityLimits={() =>
+              scrollToSection(
+                activityLimitsRef,
+                "limits"
               )
             }
             onAIVoice={() =>
@@ -630,13 +808,25 @@ function CreateActivity() {
                   thumbnail={thumbnail}
                   setThumbnail={setThumbnail}
                 />
+              </div>
 
+              <div
+                ref={activityLimitsRef}
+                className={`
+                  transition-all duration-500
+                  ${
+                    highlightedSection === "limits"
+                      ? "shadow-[0_0_25px_rgba(229,155,231,0.5)] rounded-[30px]"
+                      : ""
+                  }
+                `}
+              >
                 <ActivityLimits
-  maxAttempts={maxAttempts}
-  setMaxAttempts={setMaxAttempts}
-  estimatedMinutes={estimatedMinutes}
-  setEstimatedMinutes={setEstimatedMinutes}
-/>
+                  maxAttempts={maxAttempts}
+                  setMaxAttempts={setMaxAttempts}
+                  estimatedMinutes={estimatedMinutes}
+                  setEstimatedMinutes={setEstimatedMinutes}
+                />
               </div>
 
               <div
@@ -669,7 +859,12 @@ function CreateActivity() {
                   }
                 `}
               >
-                <ActivityAssignLearner />
+                <ActivityAssignLearner
+                  selectedLearners={selectedLearners}
+                  setSelectedLearners={setSelectedLearners}
+                  assignmentType={assignmentType}
+                  setAssignmentType={setAssignmentType}
+                />
               </div>
 {/* 
               <div ref={readinessRef}>
@@ -689,6 +884,7 @@ function CreateActivity() {
           title={title}
           description={description}
           thumbnail={thumbnail}
+          uploadedBy="Center Admin"
         />
 
         </div>

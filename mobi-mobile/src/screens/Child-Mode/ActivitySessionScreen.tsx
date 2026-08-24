@@ -1,606 +1,4 @@
-// // MOBI/mobi-backend/src/screens/Child-Mode/ActivitySessionScreen.tsx
-
-// import React, { useEffect, useRef, useState } from 'react';
-// import {
-//   View,
-//   Text,
-//   StyleSheet,
-//   Image,
-//   Pressable,
-//   ImageBackground,
-//   Animated,
-//   ScrollView,
-//   useWindowDimensions,
-//   Modal,
-// } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context';
-// import { Ionicons } from '@expo/vector-icons';
-// import { useNavigation, useRoute } from '@react-navigation/native';
-// import { NavigationProp, RoutePropType } from '../../types';
-
-// const bgImage = require('../../../assets/images/background.jpg');
-// const fallbackImage = require('../../../assets/images/cow.jpg');
-
-// const waveBars = [18, 28, 36, 24, 42, 56, 48, 64, 74, 52, 45, 34, 26, 18];
-
-// type SessionStatus = 'intro' | 'active' | 'completed';
-// type SpeakerStatus = 'idle' | 'appSpeaking' | 'userSpeaking';
-
-// export default function ActivitySessionScreen() {
-//   const navigation = useNavigation<NavigationProp<'ActivitySession'>>();
-//   const route = useRoute<RoutePropType<'ActivitySession'>>();
-//   const { activity } = route.params;
-
-//   const { width, height } = useWindowDimensions();
-//   const isTablet = width >= 768;
-//   const isSmallPhone = height < 700;
-
-//   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('intro');
-//   const [speakerStatus, setSpeakerStatus] = useState<SpeakerStatus>('idle');
-//   const [attempts, setAttempts] = useState(0);
-//   const [showExitModal, setShowExitModal] = useState(false);
-
-//   const pulse = useRef(new Animated.Value(0)).current;
-//   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-
-//   const imageSize = {
-//     width: isTablet ? 380 : isSmallPhone ? 230 : 285,
-//     height: isTablet ? 250 : isSmallPhone ? 145 : 185,
-//   };
-
-//   useEffect(() => {
-//     if (speakerStatus === 'idle') {
-//       animationRef.current?.stop();
-//       pulse.setValue(0);
-//       return;
-//     }
-
-//     animationRef.current = Animated.loop(
-//       Animated.sequence([
-//         Animated.timing(pulse, {
-//           toValue: 1,
-//           duration: speakerStatus === 'appSpeaking' ? 520 : 380,
-//           useNativeDriver: true,
-//         }),
-//         Animated.timing(pulse, {
-//           toValue: 0,
-//           duration: speakerStatus === 'appSpeaking' ? 520 : 380,
-//           useNativeDriver: true,
-//         }),
-//       ])
-//     );
-
-//     animationRef.current.start();
-
-//     return () => {
-//       animationRef.current?.stop();
-//     };
-//   }, [speakerStatus]);
-
-//   const scale = pulse.interpolate({
-//     inputRange: [0, 1],
-//     outputRange: [0.55, 1.45],
-//   });
-
-//   const handleExitSession = () => {
-//     setShowExitModal(true);
-//   };
-
-//   const confirmExitSession = () => {
-//     setShowExitModal(false);
-
-//     // BACKEND READY:
-//     // Later save progress here before leaving.
-//     // await api.post('/sessions/end', {
-//     //   activity_id: activity.id,
-//     //   attempts,
-//     //   status: sessionStatus === 'intro' ? 'cancelled' : 'stopped',
-//     // });
-
-//     navigation.navigate('ChildDashboard');
-//   };
-
-//   const handleStartSession = () => {
-//     setSessionStatus('active');
-//     playAppPrompt();
-//   };
-
-//   const playAppPrompt = () => {
-//     setSpeakerStatus('appSpeaking');
-
-//     // BACKEND / AUDIO READY:
-//     // Later replace with real TTS/audio playback.
-//     setTimeout(() => {
-//       setSpeakerStatus('idle');
-//     }, 2200);
-//   };
-
-//   const handleMicPress = () => {
-//     if (speakerStatus === 'userSpeaking') {
-//       setSpeakerStatus('idle');
-//       setAttempts((current) => current + 1);
-
-//       // BACKEND READY:
-//       // Later send recorded audio/transcript here.
-//       return;
-//     }
-
-//     setSpeakerStatus('userSpeaking');
-//   };
-
-//   const currentStatusText =
-//     speakerStatus === 'appSpeaking'
-//       ? 'MOBI is speaking...'
-//       : speakerStatus === 'userSpeaking'
-//       ? 'Listening to you...'
-//       : 'Tap the microphone when you are ready.';
-
-//   const ExitSessionModal = () => (
-//     <Modal visible={showExitModal} transparent animationType="fade">
-//       <View style={styles.exitOverlay}>
-//         <View style={styles.exitCard}>
-//           <Text style={styles.exitTitle}>Stop Session?</Text>
-
-//           <Text style={styles.exitMessage}>
-//             Are you sure you want to stop this activity? Your progress will still be recorded.
-//           </Text>
-
-//           <Pressable
-//             style={styles.continueButton}
-//             onPress={() => setShowExitModal(false)}
-//           >
-//             <Text style={styles.continueText}>Continue Session</Text>
-//           </Pressable>
-
-//           <Pressable style={styles.stopButton} onPress={confirmExitSession}>
-//             <Text style={styles.stopText}>Stop Session</Text>
-//           </Pressable>
-//         </View>
-//       </View>
-//     </Modal>
-//   );
-
-//   if (sessionStatus === 'intro') {
-//     return (
-//       <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
-//         <SafeAreaView style={styles.container}>
-//           <View style={styles.topBar}>
-//             <Pressable style={styles.iconButton} onPress={handleExitSession}>
-//               <Ionicons name="arrow-back" size={24} color="#111" />
-//             </Pressable>
-//           </View>
-
-//           <ScrollView
-//             showsVerticalScrollIndicator={false}
-//             contentContainerStyle={styles.introContent}
-//           >
-//             <View style={styles.introCard}>
-//               <Text style={styles.introLabel}>Activity Preview</Text>
-
-//               <Image
-//                 source={
-//                   activity.activity_image_url
-//                     ? { uri: activity.activity_image_url }
-//                     : fallbackImage
-//                 }
-//                 style={[styles.introImage, imageSize]}
-//               />
-
-//               <Text style={styles.introTitle}>{activity.title}</Text>
-
-//               <Text style={styles.introDescription}>
-//                 {activity.teach_prompt ||
-//                   'This activity will guide the learner using simple prompts, visuals, and speech practice.'}
-//               </Text>
-
-//               <View style={styles.metaRow}>
-//                 <View style={styles.metaPill}>
-//                   <Text style={styles.metaText}>{activity.level}</Text>
-//                 </View>
-
-//                 <View style={styles.metaPill}>
-//                   <Text style={styles.metaText}>{activity.difficulty}</Text>
-//                 </View>
-//               </View>
-
-//               <Pressable style={styles.startButton} onPress={handleStartSession}>
-//                 <Ionicons name="play" size={18} color="#FFFFFF" />
-//                 <Text style={styles.startText}>Start Session</Text>
-//               </Pressable>
-
-//               <Pressable style={styles.cancelIntroButton} onPress={handleExitSession}>
-//                 <Text style={styles.cancelIntroText}>Cancel Session</Text>
-//               </Pressable>
-//             </View>
-//           </ScrollView>
-
-//           <ExitSessionModal />
-//         </SafeAreaView>
-//       </ImageBackground>
-//     );
-//   }
-
-//   return (
-//     <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
-//       <SafeAreaView style={styles.container}>
-//         <View style={styles.topBar}>
-//           <Pressable style={styles.iconButton} onPress={handleExitSession}>
-//             <Ionicons name="arrow-back" size={24} color="#111" />
-//           </Pressable>
-
-//           <View style={styles.sessionBadge}>
-//             <Text style={styles.sessionBadgeText}>Attempt {attempts + 1}</Text>
-//           </View>
-//         </View>
-
-//         <View style={styles.headerTextGroup}>
-//           <Text style={styles.pageTitle}>{activity.title}</Text>
-//           <Text style={styles.pageSubtitle}>{activity.category}</Text>
-//         </View>
-
-//         <View style={styles.activityPanel}>
-//           <Image
-//             source={
-//               activity.activity_image_url
-//                 ? { uri: activity.activity_image_url }
-//                 : fallbackImage
-//             }
-//             style={[styles.mainImage, imageSize]}
-//           />
-
-//           <Text style={styles.questionText}>
-//             {activity.ask_prompt || 'What do you see in the picture?'}
-//           </Text>
-
-//           <Pressable style={styles.playPromptButton} onPress={playAppPrompt}>
-//             <Ionicons name="volume-high-outline" size={17} color="#B48BC7" />
-//             <Text style={styles.playPromptText}>Play prompt</Text>
-//           </Pressable>
-
-//           <View style={styles.waveContainer}>
-//             {waveBars.map((heightValue, index) => (
-//               <Animated.View
-//                 key={index}
-//                 style={[
-//                   styles.waveBar,
-//                   {
-//                     height: heightValue,
-//                     opacity: speakerStatus === 'idle' ? 0.25 : 0.8,
-//                     transform: [
-//                       {
-//                         scaleY:
-//                           speakerStatus === 'idle'
-//                             ? 0.55
-//                             : index % 2 === 0
-//                             ? scale
-//                             : 1,
-//                       },
-//                     ],
-//                   },
-//                 ]}
-//               />
-//             ))}
-//           </View>
-
-//           <Text style={styles.listenText}>{currentStatusText}</Text>
-
-//           <Pressable
-//             style={[
-//               styles.micButton,
-//               speakerStatus === 'userSpeaking' && styles.activeMicButton,
-//             ]}
-//             onPress={handleMicPress}
-//           >
-//             <Ionicons
-//               name={speakerStatus === 'userSpeaking' ? 'stop' : 'mic'}
-//               size={28}
-//               color={speakerStatus === 'userSpeaking' ? '#FFFFFF' : '#B48BC7'}
-//             />
-//           </Pressable>
-//         </View>
-
-//         <ExitSessionModal />
-//       </SafeAreaView>
-//     </ImageBackground>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   background: { flex: 1, width: '100%', height: '100%' },
-//   container: { flex: 1 },
-
-//   topBar: {
-//     paddingHorizontal: 18,
-//     paddingTop: 8,
-//     paddingBottom: 8,
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'space-between',
-//   },
-  
-//   iconButton: {
-//     width: 42,
-//     height: 42,
-//     borderRadius: 14,
-//     backgroundColor: '#FFFFFF',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     shadowColor: '#000',
-//     shadowOpacity: 0.12,
-//     shadowRadius: 5,
-//     elevation: 4,
-//   },
-
-//   sessionBadge: {
-//     backgroundColor: '#FFFFFF',
-//     borderRadius: 14,
-//     paddingHorizontal: 14,
-//     paddingVertical: 8,
-//   },
-
-//   sessionBadgeText: {
-//     fontSize: 12,
-//     fontWeight: '800',
-//     color: '#7B5B88',
-//   },
-
-//   introContent: {
-//     flexGrow: 1,
-//     justifyContent: 'center',
-//     paddingHorizontal: 22,
-//     paddingBottom: 30,
-//   },
-
-//   introCard: {
-//     backgroundColor: 'rgba(255,255,255,0.97)',
-//     borderRadius: 26,
-//     padding: 22,
-//     alignItems: 'center',
-//     shadowColor: '#000',
-//     shadowOpacity: 0.16,
-//     shadowRadius: 8,
-//     elevation: 6,
-//   },
-
-//   introLabel: {
-//     fontSize: 12,
-//     fontWeight: '900',
-//     color: '#B48BC7',
-//     marginBottom: 14,
-//     textTransform: 'uppercase',
-//   },
-
-//   introImage: {
-//     borderRadius: 18,
-//     resizeMode: 'cover',
-//   },
-
-//   introTitle: {
-//     marginTop: 18,
-//     fontSize: 23,
-//     fontWeight: '900',
-//     color: '#111',
-//     textAlign: 'center',
-//   },
-
-//   introDescription: {
-//     marginTop: 10,
-//     fontSize: 14,
-//     color: '#333',
-//     lineHeight: 20,
-//     textAlign: 'center',
-//   },
-
-//   metaRow: {
-//     flexDirection: 'row',
-//     gap: 10,
-//     marginTop: 16,
-//   },
-
-//   metaPill: {
-//     backgroundColor: '#F2DDF2',
-//     borderRadius: 14,
-//     paddingHorizontal: 12,
-//     paddingVertical: 7,
-//   },
-
-//   metaText: {
-//     fontSize: 11,
-//     fontWeight: '800',
-//     color: '#7B5B88',
-//   },
-
-//   startButton: {
-//     width: '100%',
-//     height: 52,
-//     borderRadius: 18,
-//     backgroundColor: '#B48BC7',
-//     marginTop: 22,
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//   },
-
-//   startText: {
-//     color: '#FFFFFF',
-//     fontSize: 15,
-//     fontWeight: '900',
-//     marginLeft: 8,
-//   },
-
-//   cancelIntroButton: {
-//     marginTop: 14,
-//   },
-
-//   cancelIntroText: {
-//     fontSize: 12,
-//     fontWeight: '700',
-//     color: '#777',
-//   },
-
-//   headerTextGroup: {
-//     paddingHorizontal: 22,
-//     marginTop: 4,
-//     marginBottom: 16,
-//   },
-
-//   pageTitle: {
-//     fontSize: 24,
-//     fontWeight: '900',
-//     color: '#111',
-//   },
-
-//   pageSubtitle: {
-//     marginTop: 3,
-//     fontSize: 12,
-//     fontWeight: '700',
-//     color: '#666',
-//   },
-
-//   activityPanel: {
-//     flex: 1,
-//     backgroundColor: 'rgba(238, 205, 238, 0.96)',
-//     borderTopLeftRadius: 38,
-//     borderTopRightRadius: 38,
-//     paddingTop: 34,
-//     paddingHorizontal: 22,
-//     alignItems: 'center',
-//   },
-
-//   mainImage: {
-//     borderRadius: 18,
-//     resizeMode: 'cover',
-//   },
-
-//   questionText: {
-//     marginTop: 22,
-//     fontSize: 20,
-//     fontWeight: '900',
-//     color: '#111',
-//     textAlign: 'center',
-//   },
-
-//   playPromptButton: {
-//     marginTop: 14,
-//     height: 36,
-//     borderRadius: 18,
-//     paddingHorizontal: 15,
-//     backgroundColor: '#FFFFFF',
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//   },
-
-//   playPromptText: {
-//     marginLeft: 6,
-//     fontSize: 12,
-//     fontWeight: '800',
-//     color: '#7B5B88',
-//   },
-
-//   waveContainer: {
-//     marginTop: 28,
-//     height: 88,
-//     width: 245,
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//   },
-
-//   waveBar: {
-//     width: 4,
-//     borderRadius: 10,
-//     backgroundColor: '#B48BC7',
-//     marginHorizontal: 3,
-//   },
-
-//   listenText: {
-//     marginTop: 2,
-//     fontSize: 12,
-//     fontWeight: '800',
-//     color: '#7F6BB2',
-//     textAlign: 'center',
-//   },
-
-//   micButton: {
-//     position: 'absolute',
-//     right: 22,
-//     bottom: 22,
-//     width: 58,
-//     height: 58,
-//     borderRadius: 29,
-//     backgroundColor: '#FFFFFF',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     shadowColor: '#000',
-//     shadowOpacity: 0.16,
-//     shadowRadius: 6,
-//     elevation: 5,
-//   },
-
-//   activeMicButton: {
-//     backgroundColor: '#B48BC7',
-//   },
-
-//   exitOverlay: {
-//     flex: 1,
-//     backgroundColor: 'rgba(0,0,0,0.42)',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     paddingHorizontal: 24,
-//   },
-
-//   exitCard: {
-//     width: '100%',
-//     maxWidth: 310,
-//     backgroundColor: '#FFFFFF',
-//     borderRadius: 20,
-//     padding: 22,
-//     alignItems: 'center',
-//   },
-
-//   exitTitle: {
-//     fontSize: 20,
-//     fontWeight: '900',
-//     color: '#111',
-//   },
-
-//   exitMessage: {
-//     marginTop: 10,
-//     fontSize: 13,
-//     color: '#555',
-//     lineHeight: 19,
-//     textAlign: 'center',
-//   },
-
-//   continueButton: {
-//     width: '100%',
-//     height: 45,
-//     borderRadius: 15,
-//     backgroundColor: '#B48BC7',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     marginTop: 20,
-//   },
-
-//   continueText: {
-//     color: '#FFFFFF',
-//     fontSize: 13,
-//     fontWeight: '900',
-//   },
-
-//   stopButton: {
-//     marginTop: 14,
-//   },
-
-//   stopText: {
-//     color: '#D9534F',
-//     fontSize: 13,
-//     fontWeight: '800',
-//   },
-// });
-
-
-// MOBI/mobi-backend/src/screens/Child-Mode/ActivitySessionScreen.tsx
+// MOBI/mobi-mobile/src/screens/Child-Mode/ActivitySessionScreen.tsx
 
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -632,7 +30,16 @@ import SessionVoiceControl from '../../components/Child-Mode/session/SessionVoic
 
 // for audio
 import { Audio } from "expo-av";
-import { transcribeAndEvaluateAudio, generateTTSAudio } from '../../services/api';
+import { 
+  transcribeAndEvaluateAudio, 
+  generateTTSAudio, 
+  startActivitySession,  
+  respondToActivitySession,
+} from '../../services/api';
+
+
+const TEST_LEARNER_ID =
+  "6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc";
 
 const bgImage = require('../../../assets/images/background.jpg');
 const fallbackImage = require('../../../assets/images/cow.jpg');
@@ -659,6 +66,21 @@ export default function ActivitySessionScreen() {
 
   const [fullActivity, setFullActivity] = useState<any>(activity);
   const [loading, setLoading] = useState(true);
+
+  const [
+    activitySessionId,
+    setActivitySessionId,
+  ] = useState<string | null>(null);
+
+  const [
+    sessionEffectiveSettings,
+    setSessionEffectiveSettings,
+  ] = useState<any>(null);
+
+  const [
+    totalAttemptOrder,
+    setTotalAttemptOrder,
+  ] = useState(0);
 
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('intro');
   const [speakerStatus, setSpeakerStatus] = useState<SpeakerStatus>('idle');
@@ -739,9 +161,42 @@ export default function ActivitySessionScreen() {
     navigation.navigate('ChildDashboard');
   };
 
-  const handleStartSession = () => {
-    setSessionStatus("active");
-    playAppPrompt(steps[0]);
+  const handleStartSession = async () => {
+    try {
+      const session =
+        await startActivitySession({
+          learnerId:
+            TEST_LEARNER_ID,
+
+          activityId:
+            String(fullActivity.id),
+
+          sessionSource:
+            "manual",
+        });
+
+      console.log(
+        "Started activity session:",
+        session,
+      );
+
+      setActivitySessionId(
+          session.session.id,
+      );
+
+      setSessionEffectiveSettings(
+        session.effectiveSettings ?? {},
+      );
+
+      setSessionStatus("active");
+
+      playAppPrompt(steps[0]);
+    } catch (error) {
+      console.log(
+        "Failed to start activity session:",
+        error,
+      );
+    }
   };
 
   const playAppPrompt = async (stepToRead?: any, customText?: string) => {
@@ -798,80 +253,256 @@ export default function ActivitySessionScreen() {
   };
 
     
-const getNextFeedbackStep = () => {
-  const nextStep = steps[currentStepIndex + 1];
+    const getNextFeedbackStep = () => {
+      const nextStep = steps[currentStepIndex + 1];
 
-  if (nextStep?.step_type === "feedback") {
-    return nextStep;
-  }
+      if (nextStep?.step_type === "feedback") {
+        return nextStep;
+      }
 
-  return null;
-};
+      return null;
+    };
 
-// const showFeedbackForResult = (isCorrect: boolean | null) => {
-//   const feedbackStep = getNextFeedbackStep();
+    // const showFeedbackForResult = (isCorrect: boolean | null) => {
+    //   const feedbackStep = getNextFeedbackStep();
 
-//   if (!feedbackStep) return;
+    //   if (!feedbackStep) return;
 
-//   const feedbackText =
-//     isCorrect === true
-//       ? feedbackStep.correct_feedback?.[0] || "Great job!"
-//       : feedbackStep.wrong_feedback?.[0] || "Good try.";
+    //   const feedbackText =
+    //     isCorrect === true
+    //       ? feedbackStep.correct_feedback?.[0] || "Great job!"
+    //       : feedbackStep.wrong_feedback?.[0] || "Good try.";
 
-//   setActiveFeedbackText(feedbackText);
-// };
-  const showFeedbackForResult = async (isCorrect: boolean | null) => {
-    const feedbackStep = getNextFeedbackStep();
+    //   setActiveFeedbackText(feedbackText);
+    // };
+      const showFeedbackForResult = async (isCorrect: boolean | null) => {
+        const feedbackStep = getNextFeedbackStep();
 
-    if (!feedbackStep) return;
+        if (!feedbackStep) return;
 
-    const feedbackText =
-      isCorrect === true
-        ? feedbackStep.correct_feedback?.[0] || "Great job!"
-        : feedbackStep.wrong_feedback?.[0] || "Good try.";
+        const feedbackText =
+          isCorrect === true
+            ? feedbackStep.correct_feedback?.[0] || "Great job!"
+            : feedbackStep.wrong_feedback?.[0] || "Good try.";
 
-    setActiveFeedbackText(feedbackText);
+        setActiveFeedbackText(feedbackText);
 
-    await playAppPrompt(
-      feedbackStep,
-      feedbackText
-    );
-  };
-  const handleMicPress = async () => {
-  if (isRecordingBusy) return;
+        await playAppPrompt(
+          feedbackStep,
+          feedbackText
+        );
+      };
+      const handleMicPress = async () => {
 
-  setIsRecordingBusy(true);
+        console.log("MIC BUTTON PRESSED");
+      if (isRecordingBusy) return;
 
-  try {
-    const activeRecording = recordingRef.current;
+      setIsRecordingBusy(true);
 
-    if (activeRecording) {
-      setSpeakerStatus("idle");
+      try {
+        const activeRecording = recordingRef.current;
 
-      recordingRef.current = null;
-      setRecording(null);
+        if (activeRecording) {
+          console.log("STOPPING RECORDING");
+          setSpeakerStatus("idle");
 
-      await activeRecording.stopAndUnloadAsync();
+          recordingRef.current = null;
+          setRecording(null);
 
-      const uri = activeRecording.getURI();
-      if (!uri || !currentStep) return;
+          await activeRecording.stopAndUnloadAsync();
 
-      const result = await transcribeAndEvaluateAudio({
+          const uri = activeRecording.getURI();
+          console.log("AUDIO URI:", uri);
+          if (!uri || !currentStep) return;
+
+          console.log("SENDING AUDIO TO STT");
+          const speechResult =
+      await transcribeAndEvaluateAudio({
         audioUri: uri,
-        expectedAnswers: currentStep.expected_answers || [],
-        acceptedVariations: currentStep.accepted_variations || [],
+
+        expectedAnswers:
+          currentStep.expected_answers ??
+          [],
+
+        acceptedVariations:
+          currentStep.accepted_variations ??
+          [],
       });
 
-      setAttempts((current) => current + 1);
-      setLastLearnerResponse(result.transcript);
-      setLastResultCorrect(result.accepted);
-      await showFeedbackForResult(result.accepted);
+    console.log(
+      "Speech transcription:",
+      speechResult,
+    );
 
-      console.log("Speech result:", result);
+    /*
+      We need an active backend session before the adaptive
+      runtime can save this learner response.
+    */
+    if (!activitySessionId) {
+      console.log(
+        "No activity session ID is available.",
+      );
+
       return;
     }
 
+    /*
+      attempt_order is unique across the whole activity session.
+
+      stepAttemptNumber counts attempts only for the current step.
+    */
+    const nextAttemptOrder =
+      totalAttemptOrder + 1;
+
+    const nextStepAttemptNumber =
+      attempts + 1;
+
+    const maxAttempts =
+      Number(
+        sessionEffectiveSettings
+          ?.maxAttempts ??
+        fullActivity?.max_attempts ??
+        3,
+      );
+
+    const reachedMaximumAttempts =
+      nextStepAttemptNumber >=
+      maxAttempts;
+
+    /*
+      Send the transcript into the real adaptive runtime.
+
+      The backend will:
+      - evaluate the communication
+      - distinguish approximation from achieved target
+      - decide adaptive support
+      - save the attempt
+    */
+    const adaptiveResult =
+      await respondToActivitySession({
+        sessionId:
+          activitySessionId,
+
+        learnerId:
+          TEST_LEARNER_ID,
+
+        attemptOrder:
+          nextAttemptOrder,
+
+        stepAttemptNumber:
+          nextStepAttemptNumber,
+
+        transcript:
+          speechResult.transcript,
+
+        expectedAnswers:
+          currentStep.expected_answers ??
+          [],
+
+        acceptedVariations:
+          currentStep.accepted_variations ??
+          [],
+
+        responseTimeMs:
+          null,
+
+        /*
+          Gaze integration comes later.
+
+          Do not pretend gaze was available when it was not.
+        */
+        gazeDetectionAvailable:
+          false,
+
+        gazePresent:
+          null,
+
+        gazeAwaySeconds:
+          0,
+
+        inactivitySeconds:
+          0,
+
+        reachedMaximumAttempts,
+
+        activityCompleted:
+          false,
+
+        therapistRequestedStop:
+          false,
+
+        parentRequestedStop:
+          false,
+
+        adaptiveSettings: {
+          inactivityBreakSeconds:
+            30,
+
+          inactivityAutoStopSeconds:
+            120,
+
+          oneMoreTryEnabled:
+            sessionEffectiveSettings
+              ?.oneMoreTryEnabled ??
+            true,
+
+          allowBreakSuggestion:
+            true,
+        },
+      });
+
+    console.log(
+      "Adaptive response:",
+      adaptiveResult,
+    );
+
+    setTotalAttemptOrder(
+      nextAttemptOrder,
+    );
+
+    setAttempts(
+      nextStepAttemptNumber,
+    );
+
+    setLastLearnerResponse(
+      speechResult.transcript,
+    );
+
+    /*
+      A target achievement is treated as the successful target
+      response.
+
+      An approximation remains meaningful communication, but
+      does not falsely become a correct target response.
+    */
+    setLastResultCorrect(
+      adaptiveResult.communication
+        ?.targetAchieved ??
+      false,
+    );
+
+    /*
+      For this first integration, continue using the activity's
+      existing feedback UI.
+
+      We will make approximation / one-more-try feedback
+      context-aware immediately after verifying the runtime.
+    */
+    await showFeedbackForResult(
+      adaptiveResult.communication
+        ?.targetAchieved ??
+      false,
+    );
+
+    return;
+    }
+    console.log("STARTING NEW RECORDING");
     const permission = await Audio.requestPermissionsAsync();
+    console.log(
+      "MIC PERMISSION:",
+      permission.granted,
+    );
+
     if (!permission.granted) return;
 
     await Audio.setAudioModeAsync({
