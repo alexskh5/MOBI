@@ -313,17 +313,11 @@ export function SearchBox({
   );
 }
 
-export function TopBackHeader({ onBack }: { onBack: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onBack}
-      className="mt-2 inline-flex h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-slate-600 transition hover:bg-[#eee5f1] hover:text-[#8257bd]"
-    >
-      <ProgressIcon name="arrow-back" className="h-5 w-5" />
-      Back to overview
-    </button>
-  );
+export function TopBackHeader({ onBack: _onBack }: { onBack: () => void }) {
+  // Navigation is handled by the single breadcrumb in DocPatientProgressScreen.
+  // Keep this component exported so existing progress screens do not need
+  // to change their imports or props.
+  return null;
 }
 
 export function InfoBox({
