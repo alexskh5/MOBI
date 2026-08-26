@@ -33,21 +33,6 @@ function MenuIcon() {
   );
 }
 
-function BackIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m6-6-6 6 6 6" />
-    </svg>
-  );
-}
-
 function DocPatientProgressScreen() {
   const navigate = useNavigate();
   const { patientId } = useParams<{ patientId: string }>();
@@ -91,10 +76,9 @@ function DocPatientProgressScreen() {
           <button
             type="button"
             onClick={() => navigate("/doctor/DocDashboardScreen")}
-            className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#8257bd] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#7047a8]"
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-[#8257bd] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#7047a8]"
           >
-            <BackIcon />
-            Return to patient list
+            Go to My Patients
           </button>
         </div>
       </div>
@@ -123,6 +107,15 @@ function DocPatientProgressScreen() {
     setPageIndex(0);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const pageLabel = [
+    "Overview",
+    "Speech Training",
+    "Social Readiness",
+    "Activity Analysis",
+  ][pageIndex];
+
+  const patientName = getDoctorPatientFullName(patient);
 
   return (
     <div className="font-professional min-h-screen bg-[#f7f5fa]">
@@ -173,14 +166,44 @@ function DocPatientProgressScreen() {
         </header>
 
         <div className="mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7 xl:px-10">
-          <button
-            type="button"
-            onClick={() => navigate("/doctor/DocDashboardScreen")}
-            className="mb-2 inline-flex items-center gap-2 rounded-xl px-2 py-2 text-sm font-semibold text-slate-500 transition hover:bg-[#eee8f5] hover:text-[#7549ad]"
+          <nav
+            aria-label="Patient progress breadcrumb"
+            className="mb-4 flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-medium text-slate-400"
           >
-            <BackIcon />
-            Back to patient list
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate("/doctor/DocDashboardScreen")}
+              className="rounded-md text-slate-500 transition hover:text-[#7549ad]"
+            >
+              My Patients
+            </button>
+
+            <span className="select-none text-slate-300">/</span>
+
+            {pageIndex === 0 ? (
+              <span className="max-w-[220px] truncate font-semibold text-[#342b3f]">
+                {patientName}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={goToOverview}
+                className="max-w-[220px] truncate rounded-md text-slate-500 transition hover:text-[#7549ad]"
+                title={`Open ${patientName} overview`}
+              >
+                {patientName}
+              </button>
+            )}
+
+            <span className="select-none text-slate-300">/</span>
+
+            <span
+              aria-current="page"
+              className="font-semibold text-[#7549ad]"
+            >
+              {pageLabel}
+            </span>
+          </nav>
 
           {pageIndex === 0 && (
             <ProgressOverviewScreen

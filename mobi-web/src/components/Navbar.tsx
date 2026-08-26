@@ -9,7 +9,7 @@ function Navbar() {
   return (
     <nav className="font-itim flex justify-between items-center px-4 md:px-10 lg:px-20 py-2 lg:py-1 bg-white shadow-md sticky top-0 z-50">
       
-      {/* LEFT: LOGO + TITLE */}
+      {/* LEFT: LOGO + TITLE */} 
       <div className="flex items-center gap-2 md:gap-4 lg:gap-5">
         <img
           src={mobiLogo}

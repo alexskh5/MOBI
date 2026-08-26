@@ -1,22 +1,22 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
-  ArrowRight,
+  Bell,
   Building2,
+  CalendarDays,
+  CheckCircle2,
   ClipboardCheck,
   Edit3,
   Home,
   LogOut,
-  Menu,
   Search,
   Send,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
 
-type ViewMode = "menu" | "notifications";
 type ReceiverType = "Center" | "Parents" | "Doctor" | "Therapist" | "All";
 type DateFilter = "Today" | "This Week" | "This Month";
 
@@ -63,46 +63,49 @@ const initialNotifications: NotificationItem[] = [
   },
 ];
 
+const receiverOptions: ReceiverType[] = [
+  "Center",
+  "Parents",
+  "Doctor",
+  "Therapist",
+  "All",
+];
+
+const dateOptions: DateFilter[] = ["Today", "This Week", "This Month"];
+
 export default function SuperProcessScreen() {
   const navigate = useNavigate();
 
-  const [viewMode, setViewMode] = useState<ViewMode>("menu");
+  // Process now opens directly to the notification workspace.
   const [receiverType, setReceiverType] = useState<ReceiverType>("Parents");
   const [dateFilter, setDateFilter] = useState<DateFilter>("Today");
   const [searchQuery, setSearchQuery] = useState("");
   const [message, setMessage] = useState("");
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(initialNotifications);
+
   const [editingNotification, setEditingNotification] =
     useState<NotificationItem | null>(null);
 
-  const [deleteTarget, setDeleteTarget] = useState<NotificationItem | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    useState<NotificationItem | null>(null);
 
   const filteredNotifications = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
     return notifications.filter((notification) => {
       const matchesReceiver =
         receiverType === "All" || notification.receiver === receiverType;
 
-      const matchesSearch = `${notification.receiver} ${notification.message} ${notification.dateLabel}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+      const matchesSearch =
+        !normalizedQuery ||
+        `${notification.receiver} ${notification.message} ${notification.dateLabel}`
+          .toLowerCase()
+          .includes(normalizedQuery);
 
       return matchesReceiver && matchesSearch;
     });
   }, [notifications, receiverType, searchQuery]);
-
-  const handleBack = () => {
-    setSearchQuery("");
-    setMessage("");
-    setEditingNotification(null);
-
-    if (viewMode === "menu") {
-      navigate("/superadmin/SuperDashboardScreen");
-      return;
-    }
-
-    setViewMode("menu");
-  };
 
   const sendNotification = () => {
     if (!message.trim()) {
@@ -118,7 +121,11 @@ export default function SuperProcessScreen() {
       createdAt: new Date().toISOString(),
     };
 
-    setNotifications((prev) => [newNotification, ...prev]);
+    setNotifications((previousNotifications) => [
+      newNotification,
+      ...previousNotifications,
+    ]);
+
     setMessage("");
 
     // BACKEND LATER:
@@ -126,8 +133,10 @@ export default function SuperProcessScreen() {
   };
 
   const deleteNotification = (id: number) => {
-    setNotifications((prev) =>
-        prev.filter((notification) => notification.id !== id)
+    setNotifications((previousNotifications) =>
+      previousNotifications.filter(
+        (notification) => notification.id !== id,
+      ),
     );
 
     setDeleteTarget(null);
@@ -142,12 +151,15 @@ export default function SuperProcessScreen() {
       return;
     }
 
-    setNotifications((prev) =>
-      prev.map((notification) =>
+    setNotifications((previousNotifications) =>
+      previousNotifications.map((notification) =>
         notification.id === editingNotification.id
-          ? editingNotification
-          : notification
-      )
+          ? {
+              ...editingNotification,
+              message: editingNotification.message.trim(),
+            }
+          : notification,
+      ),
     );
 
     setEditingNotification(null);
@@ -161,250 +173,407 @@ export default function SuperProcessScreen() {
 
   return (
     <main className="super-page">
+      {/* SIDEBAR */}
       <aside className="sidebar">
-        <button className="burger-btn" aria-label="Menu">
-          <Menu size={22} />
+        <div className="sidebar-top">
+          <div className="brand">
+            <img src={mobiLogo} alt="MOBI Logo" />
+
+            <div className="brand-text">
+              <span className="brand-name">MOBI</span>
+              <span className="brand-role">Super Admin</span>
+            </div>
+          </div>
+
+          <div className="welcome">
+            <span>WELCOME BACK</span>
+            <strong>Dev</strong>
+          </div>
+
+          <nav className="nav-links">
+            <button
+              className="nav-item"
+              onClick={() => navigate("/superadmin/SuperDashboardScreen")}
+            >
+              <span className="nav-icon">
+                <Home size={19} />
+              </span>
+
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate("/superadmin/SuperManageScreen")}
+            >
+              <span className="nav-icon">
+                <Building2 size={19} />
+              </span>
+
+              <span>Manage</span>
+            </button>
+
+            <button className="nav-item active">
+              <span className="nav-active-line" />
+
+              <span className="nav-icon">
+                <ClipboardCheck size={19} />
+              </span>
+
+              <span>Process</span>
+            </button>
+          </nav>
+        </div>
+
+        <button className="logout-button" onClick={() => navigate("/")}>
+          <LogOut size={18} />
+          <span>Log out</span>
         </button>
-
-        <div className="brand">
-          <img src={mobiLogo} alt="MOBI Logo" />
-        </div>
-
-        <div className="welcome">
-          <h2>
-            Welcome
-            <br />
-            back, Admin!
-          </h2>
-        </div>
-
-        <nav className="nav-links">
-          <button
-            className="nav-item"
-            onClick={() => navigate("/superadmin/SuperDashboardScreen")}
-          >
-            <Home size={20} />
-            <span>Dashboard</span>
-          </button>
-
-          <button
-            className="nav-item"
-            onClick={() => navigate("/superadmin/SuperManageScreen")}
-          >
-            <Building2 size={20} />
-            <span>Manage</span>
-          </button>
-
-          <button className="nav-item active" onClick={() => setViewMode("menu")}>
-            <ClipboardCheck size={20} />
-            <span>Process</span>
-          </button>
-
-          <button className="nav-item" onClick={() => navigate("/")}>
-            <LogOut size={20} />
-            <span>Log out</span>
-          </button>
-        </nav>
       </aside>
 
-      <section className="process-card">
-        {viewMode !== "menu" && (
-          <button className="back-btn" onClick={handleBack}>
-            <ArrowLeft size={18} />
-          </button>
-        )}
-
-        {viewMode === "menu" && (
-          <div className="menu-options">
-            <button
-              className="process-option"
-              onClick={() => setViewMode("notifications")}
-            >
-              <div>
-                <h2>PROCESS SYSTEM NOTIFICATION</h2>
-                <p>Send system notifications to specific users or general users.</p>
-              </div>
-              <ArrowRight size={28} />
-            </button>
+      {/* MAIN CONTENT */}
+      <section className="process-content">
+        {/* PAGE HEADER */}
+        <header className="page-header">
+          <div>
+            <span className="page-eyebrow">SUPER ADMIN</span>
+            <h1>Process</h1>
+            <p>
+              Create, review, and manage system notifications sent across the
+              MOBI platform.
+            </p>
           </div>
-        )}
 
-        {viewMode === "notifications" && (
-          <div className="notification-panel">
-            <div className="notification-header">
-              <div>
-                <h1>Process System Notifications</h1>
-                <p>Who is/are the receiver?</p>
-              </div>
+          <div className="admin-profile">
+            <div className="admin-avatar">D</div>
 
-              <div className="search-box">
-                <Search size={14} />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search"
-                />
+            <div className="admin-info">
+              <strong>Dev</strong>
+              <span>Administrator</span>
+            </div>
+          </div>
+        </header>
+
+        {/* NOTIFICATION PANEL */}
+        <section className="notification-panel">
+          <div className="panel-header">
+            <div>
+              <span className="section-eyebrow">SYSTEM COMMUNICATION</span>
+              <h2>System Notifications</h2>
+              <p>
+                Send notifications to a specific user group and manage
+                previously created messages.
+              </p>
+            </div>
+
+            <div className="search-box">
+              <Search size={16} />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search notifications..."
+                aria-label="Search notifications"
+              />
+            </div>
+          </div>
+
+          {/* RECEIVER + DATE FILTERS */}
+          <div className="notification-toolbar">
+            <div className="toolbar-group">
+              <span className="toolbar-label">Receiver</span>
+
+              <div className="receiver-tabs">
+                {receiverOptions.map((receiver) => (
+                  <button
+                    key={receiver}
+                    className={
+                      receiverType === receiver
+                        ? "receiver-tab active"
+                        : "receiver-tab"
+                    }
+                    onClick={() => setReceiverType(receiver)}
+                  >
+                    {receiver}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="toolbar">
-              <div className="receiver-tabs">
-                {(["Center", "Parents", "Doctor", "Therapist", "All"] as ReceiverType[]).map(
-                  (receiver) => (
-                    <button
-                      key={receiver}
-                      className={
-                        receiverType === receiver
-                          ? "receiver-tab active"
-                          : "receiver-tab"
-                      }
-                      onClick={() => setReceiverType(receiver)}
-                    >
-                      {receiver}
-                    </button>
-                  )
-                )}
-              </div>
+            <div className="toolbar-group date-group">
+              <span className="toolbar-label">Period</span>
 
               <div className="date-tabs">
-                {(["Today", "This Week", "This Month"] as DateFilter[]).map(
-                  (filter) => (
-                    <button
-                      key={filter}
-                      className={
-                        dateFilter === filter ? "date-tab active" : "date-tab"
-                      }
-                      onClick={() => setDateFilter(filter)}
-                    >
-                      {filter}
-                    </button>
-                  )
-                )}
+                {dateOptions.map((filter) => (
+                  <button
+                    key={filter}
+                    className={
+                      dateFilter === filter
+                        ? "date-tab active"
+                        : "date-tab"
+                    }
+                    onClick={() => setDateFilter(filter)}
+                  >
+                    {filter}
+                  </button>
+                ))}
               </div>
+            </div>
+          </div>
+
+          {/* COMPOSE */}
+          <div className="compose-section">
+            <div className="compose-heading">
+              <div className="compose-icon">
+                <Bell size={18} />
+              </div>
+
+              <div>
+                <span className="compose-eyebrow">
+                  NEW NOTIFICATION
+                </span>
+                <h3>Send to {receiverType}</h3>
+              </div>
+            </div>
+
+            <div className="compose-box">
+              <textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Write your notification here..."
+                rows={3}
+              />
+
+              <div className="compose-footer">
+                <span>
+                  This message will be sent to{" "}
+                  <strong>{receiverType}</strong>.
+                </span>
+
+                <button
+                  className="send-button"
+                  onClick={sendNotification}
+                >
+                  <span>Send notification</span>
+                  <Send size={15} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* HISTORY */}
+          <div className="history-section">
+            <div className="history-header">
+              <div>
+                <span className="history-eyebrow">
+                  NOTIFICATION HISTORY
+                </span>
+                <h3>Recent Notifications</h3>
+              </div>
+
+              <div className="history-meta">
+                <CalendarDays size={14} />
+                <span>{dateFilter}</span>
+              </div>
+            </div>
+
+            <div className="notification-table-header">
+              <span>Receiver</span>
+              <span>Message</span>
+              <span>Published</span>
+              <span>Actions</span>
             </div>
 
             <div className="notification-list">
               {filteredNotifications.length > 0 ? (
                 filteredNotifications.map((notification) => (
-                  <article key={notification.id} className="notification-row">
-                    <div>
-                      <div className="notification-title">
-                        <strong>{notification.receiver.slice(0, -1) || notification.receiver}</strong>
-                        <span>{notification.dateLabel}</span>
+                  <article
+                    key={notification.id}
+                    className="notification-row"
+                  >
+                    <div className="receiver-cell">
+                      <div className="receiver-icon">
+                        <Bell size={15} />
                       </div>
 
-                      <p>{notification.message}</p>
+                      <div>
+                        <strong>{notification.receiver}</strong>
+                        <span>System notification</span>
+                      </div>
+                    </div>
+
+                    <p className="notification-message">
+                      {notification.message}
+                    </p>
+
+                    <div className="date-cell">
+                      <span>{notification.dateLabel}</span>
                     </div>
 
                     <div className="row-actions">
-                      <button onClick={() => setDeleteTarget(notification)}>
-                        <Trash2 size={18} />
+                      <button
+                        className="action-button edit"
+                        onClick={() =>
+                          setEditingNotification(notification)
+                        }
+                        aria-label="Edit notification"
+                        title="Edit"
+                      >
+                        <Edit3 size={15} />
                       </button>
 
-                      <button onClick={() => setEditingNotification(notification)}>
-                        <Edit3 size={18} />
+                      <button
+                        className="action-button delete"
+                        onClick={() =>
+                          setDeleteTarget(notification)
+                        }
+                        aria-label="Delete notification"
+                        title="Delete"
+                      >
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   </article>
                 ))
               ) : (
                 <div className="empty-state">
-                  <p>No notifications found.</p>
+                  <Search size={20} />
+                  <strong>No notifications found</strong>
+                  <span>
+                    Try another receiver or search term.
+                  </span>
                 </div>
               )}
             </div>
-
-            <div className="compose-area">
-              <label>Write notification here</label>
-
-              <div className="compose-box">
-                <input
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Type here..."
-                />
-
-                <button onClick={sendNotification}>
-                  <span>SEND</span>
-                  <Send size={15} />
-                </button>
-              </div>
-            </div>
           </div>
-        )}
+        </section>
       </section>
 
+      {/* EDIT MODAL */}
       {editingNotification && (
-        <Modal title="Edit Notification" onClose={() => setEditingNotification(null)}>
-          <label className="modal-label">
-            Receiver
-            <select
-              value={editingNotification.receiver}
-              onChange={(event) =>
-                setEditingNotification((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        receiver: event.target.value as ReceiverType,
-                      }
-                    : prev
-                )
-              }
-            >
-              <option value="Center">Center</option>
-              <option value="Parents">Parents</option>
-              <option value="Doctor">Doctor</option>
-              <option value="Therapist">Therapist</option>
-              <option value="All">All</option>
-            </select>
-          </label>
-
-          <label className="modal-label">
-            Message
-            <textarea
-              value={editingNotification.message}
-              onChange={(event) =>
-                setEditingNotification((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        message: event.target.value,
-                      }
-                    : prev
-                )
-              }
-            />
-          </label>
-
-          <button className="save-btn" onClick={saveEditedNotification}>
-            Save Changes
-          </button>
-        </Modal>
-      )}
-
-      {deleteTarget && (
-        <Modal title="Delete Notification" onClose={() => setDeleteTarget(null)}>
-            <p className="confirm-text">
-            Are you sure you want to delete this notification?
-            </p>
-
-            <div className="confirm-preview">
-            <strong>{deleteTarget.receiver}</strong>
-            <p>{deleteTarget.message}</p>
+        <Modal
+          title="Edit Notification"
+          onClose={() => setEditingNotification(null)}
+        >
+          <div className="modal-intro">
+            <div className="modal-intro-icon">
+              <Edit3 size={18} />
             </div>
 
-            <div className="confirm-actions">
-            <button className="cancel-btn" onClick={() => setDeleteTarget(null)}>
-                Cancel
+            <div>
+              <span>NOTIFICATION</span>
+              <h3>Update notification details</h3>
+              <p>
+                Change the receiver or message, then save your changes.
+              </p>
+            </div>
+          </div>
+
+          <div className="modal-form">
+            <label className="modal-label">
+              <span>Receiver</span>
+
+              <select
+                value={editingNotification.receiver}
+                onChange={(event) =>
+                  setEditingNotification((previousNotification) =>
+                    previousNotification
+                      ? {
+                          ...previousNotification,
+                          receiver:
+                            event.target.value as ReceiverType,
+                        }
+                      : previousNotification,
+                  )
+                }
+              >
+                {receiverOptions.map((receiver) => (
+                  <option key={receiver} value={receiver}>
+                    {receiver}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="modal-label">
+              <span>Message</span>
+
+              <textarea
+                value={editingNotification.message}
+                onChange={(event) =>
+                  setEditingNotification((previousNotification) =>
+                    previousNotification
+                      ? {
+                          ...previousNotification,
+                          message: event.target.value,
+                        }
+                      : previousNotification,
+                  )
+                }
+              />
+            </label>
+          </div>
+
+          <div className="modal-actions">
+            <button
+              className="modal-secondary-button"
+              onClick={() => setEditingNotification(null)}
+            >
+              Cancel
             </button>
 
             <button
-                className="delete-btn"
-                onClick={() => deleteNotification(deleteTarget.id)}
+              className="save-button"
+              onClick={saveEditedNotification}
             >
-                Delete
+              Save Changes
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* DELETE MODAL */}
+      {deleteTarget && (
+        <Modal
+          title="Delete Notification"
+          onClose={() => setDeleteTarget(null)}
+        >
+          <div className="delete-intro">
+            <div className="delete-icon">
+              <Trash2 size={18} />
             </div>
+
+            <div>
+              <h3>Delete this notification?</h3>
+              <p>
+                This will remove the notification from the current list.
+              </p>
+            </div>
+          </div>
+
+          <div className="confirm-preview">
+            <div className="preview-top">
+              <span>{deleteTarget.receiver}</span>
+              <small>{deleteTarget.dateLabel}</small>
+            </div>
+
+            <p>{deleteTarget.message}</p>
+          </div>
+
+          <div className="modal-actions">
+            <button
+              className="modal-secondary-button"
+              onClick={() => setDeleteTarget(null)}
+            >
+              Cancel
+            </button>
+
+            <button
+              className="delete-confirm-button"
+              onClick={() => deleteNotification(deleteTarget.id)}
+            >
+              Delete Notification
+            </button>
+          </div>
         </Modal>
       )}
 
@@ -413,183 +582,358 @@ export default function SuperProcessScreen() {
           box-sizing: border-box;
         }
 
+        :root {
+          --mobi-purple: #7456a3;
+          --mobi-purple-dark: #5f4588;
+          --mobi-purple-light: #f3eff8;
+
+          --page-bg: #f7f7f9;
+          --card-bg: #ffffff;
+
+          --text-primary: #202027;
+          --text-secondary: #757580;
+          --text-muted: #9898a3;
+
+          --border: #e8e8ed;
+          --border-soft: #eeeef2;
+
+          --success: #4f9467;
+          --success-light: #edf7f0;
+
+          --danger: #a75555;
+          --danger-light: #faf0f0;
+        }
+
+        body {
+          margin: 0;
+          background: var(--page-bg);
+        }
+
+        button,
+        input,
+        textarea,
+        select {
+          font: inherit;
+        }
+
+        button {
+          -webkit-tap-highlight-color: transparent;
+        }
+
         .super-page {
           min-height: 100vh;
           width: 100%;
-          background: #ffffff;
           display: grid;
-          grid-template-columns: 190px 1fr;
-          gap: 22px;
-          padding: 18px;
-          font-family: Inter, Poppins, Arial, sans-serif;
-          color: #111;
+          grid-template-columns: 230px minmax(0, 1fr);
+          background: var(--page-bg);
+          color: var(--text-primary);
+          font-family:
+            Inter,
+            Poppins,
+            Arial,
+            sans-serif;
         }
+
+        /* ==============================
+           SIDEBAR
+        ============================== */
 
         .sidebar {
+          height: 100vh;
           position: sticky;
-          top: 18px;
-          height: calc(100vh - 36px);
+          top: 0;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
+          justify-content: space-between;
+          padding: 28px 18px 22px;
+          background: #ffffff;
+          border-right: 1px solid var(--border);
         }
 
-        .burger-btn {
-          border: none;
-          background: transparent;
-          padding: 6px;
-          margin-bottom: 18px;
-          cursor: pointer;
+        .sidebar-top {
+          width: 100%;
         }
 
         .brand {
-          width: 100%;
-          text-align: center;
-          margin-bottom: 18px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 0 10px;
+          margin-bottom: 38px;
         }
 
         .brand img {
-          width: 92px;
-          height: auto;
+          width: 43px;
+          height: 43px;
           object-fit: contain;
         }
 
-        .welcome {
-          padding-left: 8px;
-          margin-bottom: 22px;
+        .brand-text {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
         }
 
-        .welcome h2 {
-          margin: 0;
-          font-size: 18px;
-          line-height: 1.1;
-          font-weight: 800;
+        .brand-name {
+          font-size: 17px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          color: var(--text-primary);
+        }
+
+        .brand-role {
+          margin-top: 2px;
+          font-size: 11px;
+          font-weight: 500;
+          color: var(--text-muted);
+        }
+
+        .welcome {
+          display: flex;
+          flex-direction: column;
+          padding: 0 12px;
+          margin-bottom: 24px;
+        }
+
+        .welcome span {
+          margin-bottom: 5px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.13em;
+          color: var(--text-muted);
+        }
+
+        .welcome strong {
+          font-size: 16px;
+          font-weight: 650;
+          color: var(--text-primary);
         }
 
         .nav-links {
-          width: 100%;
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 5px;
         }
 
         .nav-item {
+          position: relative;
           width: 100%;
-          height: 44px;
+          min-height: 46px;
           border: none;
-          border-radius: 8px;
+          border-radius: 10px;
           background: transparent;
+          color: #666672;
+          cursor: pointer;
           display: flex;
           align-items: center;
           gap: 12px;
-          padding: 0 12px;
-          cursor: pointer;
-          font-size: 15px;
-          font-weight: 800;
-          color: #111;
+          padding: 0 13px;
+          font-size: 14px;
+          font-weight: 550;
           text-align: left;
+          transition:
+            background 0.16s ease,
+            color 0.16s ease;
+        }
+
+        .nav-item:hover {
+          background: #f8f6fa;
+          color: var(--mobi-purple);
         }
 
         .nav-item.active {
-          color: #9a9fd3;
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
+          font-weight: 650;
         }
 
-        .process-card {
-          position: relative;
-          min-height: calc(100vh - 36px);
-          min-width: 0;
-          border-radius: 22px;
-          padding: 34px 44px;
-          background: #ead9eb;
-          box-shadow: inset 0 0 0 1px rgba(130, 87, 145, 0.18);
-          overflow-y: auto;
+        .nav-active-line {
+          display: none;
         }
 
-        .back-btn {
-            border: none;
-            background: white;
-            cursor: pointer;
-            z-index: 10;
-            width: 38px;
-            height: 38px;
-            border-radius: 999px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 12px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+        .nav-item.active .nav-active-line {
+          position: absolute;
+          left: 0;
+          top: 10px;
+          bottom: 10px;
+          display: block;
+          width: 3px;
+          border-radius: 0 4px 4px 0;
+          background: var(--mobi-purple);
         }
 
-        .menu-options {
-          width: min(860px, 100%);
-          margin: 18px auto 0;
+        .nav-icon {
+          width: 23px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
-        .process-option {
+        .logout-button {
           width: 100%;
-          min-height: 92px;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 0 13px;
           border: none;
-          border-radius: 26px 6px 26px 6px;
-          background: rgba(255,255,255,0.96);
-          padding: 22px 30px;
+          border-radius: 10px;
+          background: transparent;
+          color: #777781;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 550;
+          transition:
+            background 0.16s ease,
+            color 0.16s ease;
+        }
+
+        .logout-button:hover {
+          background: #faf2f2;
+          color: #a34e4e;
+        }
+
+        /* ==============================
+           MAIN CONTENT
+        ============================== */
+
+        .process-content {
+          width: 100%;
+          min-width: 0;
+          max-width: 1500px;
+          margin: 0 auto;
+          padding: 35px 42px 55px;
+        }
+
+        .page-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 24px;
+          margin-bottom: 30px;
+        }
+
+        .page-eyebrow,
+        .section-eyebrow {
+          display: block;
+          margin-bottom: 8px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.14em;
+          color: var(--mobi-purple);
+        }
+
+        .page-header h1 {
+          margin: 0;
+          font-size: 30px;
+          line-height: 1.15;
+          font-weight: 700;
+          letter-spacing: -0.025em;
+          color: var(--text-primary);
+        }
+
+        .page-header > div:first-child > p {
+          max-width: 610px;
+          margin: 9px 0 0;
+          font-size: 13px;
+          line-height: 1.6;
+          color: var(--text-secondary);
+        }
+
+        .admin-profile {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 5px 0;
+        }
+
+        .admin-avatar {
+          width: 39px;
+          height: 39px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
+          font-size: 14px;
+          font-weight: 700;
+        }
+
+        .admin-info {
+          display: flex;
+          flex-direction: column;
+          min-width: 85px;
+        }
+
+        .admin-info strong {
+          font-size: 13px;
+          font-weight: 650;
+          color: var(--text-primary);
+        }
+
+        .admin-info span {
+          margin-top: 3px;
+          font-size: 11px;
+          color: var(--text-muted);
+        }
+
+        /* ==============================
+           NOTIFICATION PANEL
+        ============================== */
+
+        .notification-panel {
+          overflow: hidden;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: var(--card-bg);
+        }
+
+        .panel-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          text-align: left;
-          cursor: pointer;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          gap: 24px;
+          padding: 23px 24px 21px;
+          border-bottom: 1px solid var(--border-soft);
         }
 
-        .process-option h2 {
-          margin: 0 0 7px;
-          font-size: 20px;
-          font-weight: 900;
-        }
-
-        .process-option p {
+        .panel-header h2 {
           margin: 0;
-          font-size: 15px;
-          color: #333;
+          font-size: 18px;
+          font-weight: 650;
+          letter-spacing: -0.015em;
+          color: var(--text-primary);
         }
 
-        .notification-panel {
-          width: min(980px, 100%);
-          margin: 0 auto;
-          background: rgba(255,255,255,0.96);
-          border-radius: 10px;
-          padding: 30px 34px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        }
-
-        .notification-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 18px;
-          margin-bottom: 14px;
-        }
-
-        .notification-header h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: 900;
-        }
-
-        .notification-header p {
-          margin: 7px 0 0;
-          font-size: 12px;
-          color: #333;
+        .panel-header p {
+          max-width: 600px;
+          margin: 6px 0 0;
+          font-size: 11px;
+          line-height: 1.5;
+          color: var(--text-secondary);
         }
 
         .search-box {
-          width: min(300px, 100%);
-          height: 30px;
-          background: #f1d9f1;
-          border-radius: 999px;
+          width: min(310px, 100%);
+          height: 38px;
+          flex-shrink: 0;
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 0 13px;
+          gap: 9px;
+          padding: 0 12px;
+          border: 1px solid var(--border);
+          border-radius: 9px;
+          background: #fafafd;
+          color: var(--text-muted);
+          transition:
+            border-color 0.15s ease,
+            background 0.15s ease;
+        }
+
+        .search-box:focus-within {
+          border-color: #cfc4df;
+          background: #ffffff;
         }
 
         .search-box input {
@@ -597,408 +941,953 @@ export default function SuperProcessScreen() {
           border: none;
           outline: none;
           background: transparent;
-          font-size: 12px;
+          color: var(--text-primary);
+          font-size: 11px;
         }
 
-        .toolbar {
+        .search-box input::placeholder {
+          color: #aaa9b3;
+        }
+
+        /* ==============================
+           TOOLBAR
+        ============================== */
+
+        .notification-toolbar {
           display: flex;
+          align-items: flex-end;
           justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 20px;
-          flex-wrap: wrap;
+          gap: 20px;
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--border-soft);
+          background: #fafafd;
         }
 
-        .receiver-tabs {
-          background: #df6433;
-          border-radius: 999px;
-          padding: 3px;
+        .toolbar-group {
+          min-width: 0;
+        }
+
+        .date-group {
+          flex-shrink: 0;
+        }
+
+        .toolbar-label {
+          display: block;
+          margin-bottom: 7px;
+          color: var(--text-muted);
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+        }
+
+        .receiver-tabs,
+        .date-tabs {
           display: flex;
-          flex-wrap: wrap;
-          width: fit-content;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .receiver-tab,
+        .date-tab {
+          min-height: 32px;
+          border-radius: 7px;
+          cursor: pointer;
+          font-size: 9px;
+          font-weight: 620;
+          transition:
+            background 0.15s ease,
+            border-color 0.15s ease,
+            color 0.15s ease;
         }
 
         .receiver-tab {
-          border: none;
-          border-radius: 999px;
+          padding: 0 11px;
+          border: 1px solid transparent;
           background: transparent;
-          color: white;
-          padding: 7px 12px;
-          font-size: 11px;
-          font-weight: 800;
-          cursor: pointer;
+          color: var(--text-secondary);
+        }
+
+        .receiver-tab:hover {
+          background: #f1edf6;
+          color: var(--mobi-purple);
         }
 
         .receiver-tab.active {
-          background: rgba(255,255,255,0.24);
+          border-color: #ded8e8;
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
         }
 
         .date-tabs {
-          background: #888;
-          border-radius: 6px;
-          padding: 2px;
-          display: flex;
+          padding: 3px;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: #ffffff;
         }
 
         .date-tab {
+          padding: 0 10px;
           border: none;
           background: transparent;
-          color: white;
-          padding: 8px 10px;
-          font-size: 11px;
-          font-weight: 800;
-          border-radius: 5px;
-          cursor: pointer;
+          color: var(--text-muted);
+        }
+
+        .date-tab:hover {
+          color: var(--text-primary);
         }
 
         .date-tab.active {
-          background: rgba(255,255,255,0.22);
+          background: #f1f1f5;
+          color: var(--text-primary);
+        }
+
+        /* ==============================
+           COMPOSE
+        ============================== */
+
+        .compose-section {
+          padding: 21px 22px;
+          border-bottom: 1px solid var(--border-soft);
+        }
+
+        .compose-heading {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          margin-bottom: 13px;
+        }
+
+        .compose-icon {
+          width: 36px;
+          height: 36px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 9px;
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
+        }
+
+        .compose-eyebrow,
+        .history-eyebrow {
+          display: block;
+          margin-bottom: 3px;
+          color: var(--mobi-purple);
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 0.09em;
+        }
+
+        .compose-heading h3,
+        .history-header h3 {
+          margin: 0;
+          color: var(--text-primary);
+          font-size: 13px;
+          font-weight: 650;
+        }
+
+        .compose-box {
+          overflow: hidden;
+          border: 1px solid var(--border);
+          border-radius: 11px;
+          background: #fafafd;
+          transition:
+            border-color 0.15s ease,
+            background 0.15s ease;
+        }
+
+        .compose-box:focus-within {
+          border-color: #cfc4df;
+          background: #ffffff;
+        }
+
+        .compose-box textarea {
+          width: 100%;
+          min-height: 76px;
+          display: block;
+          padding: 13px 14px 10px;
+          border: none;
+          outline: none;
+          resize: vertical;
+          background: transparent;
+          color: var(--text-primary);
+          font-size: 11px;
+          line-height: 1.55;
+        }
+
+        .compose-box textarea::placeholder {
+          color: #aaa9b3;
+        }
+
+        .compose-footer {
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 8px 9px 8px 14px;
+          border-top: 1px solid var(--border-soft);
+          background: #ffffff;
+        }
+
+        .compose-footer > span {
+          color: var(--text-muted);
+          font-size: 9px;
+        }
+
+        .compose-footer strong {
+          color: var(--text-secondary);
+          font-weight: 650;
+        }
+
+        .send-button {
+          min-height: 34px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 0 12px;
+          border: none;
+          border-radius: 8px;
+          background: var(--mobi-purple);
+          color: #ffffff;
+          cursor: pointer;
+          font-size: 9px;
+          font-weight: 650;
+          transition:
+            background 0.15s ease,
+            transform 0.15s ease;
+        }
+
+        .send-button:hover {
+          background: var(--mobi-purple-dark);
+        }
+
+        .send-button:active {
+          transform: translateY(1px);
+        }
+
+        /* ==============================
+           HISTORY
+        ============================== */
+
+        .history-section {
+          padding: 21px 22px 23px;
+        }
+
+        .history-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 13px;
+        }
+
+        .history-meta {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: var(--text-muted);
+          font-size: 9px;
+        }
+
+        .notification-table-header {
+          display: grid;
+          grid-template-columns:
+            150px
+            minmax(280px, 1fr)
+            90px
+            72px;
+          align-items: center;
+          gap: 14px;
+          padding: 10px 14px;
+          border: 1px solid var(--border);
+          border-bottom: none;
+          border-radius: 10px 10px 0 0;
+          background: #fafafd;
+          color: var(--text-muted);
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
         }
 
         .notification-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-bottom: 34px;
+          overflow: hidden;
+          border: 1px solid var(--border);
+          border-radius: 0 0 10px 10px;
+          background: #ffffff;
         }
 
         .notification-row {
-          min-height: 74px;
-          border-radius: 12px;
-          background: #ead9eb;
-          padding: 15px 18px;
+          min-height: 68px;
           display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 16px;
+          grid-template-columns:
+            150px
+            minmax(280px, 1fr)
+            90px
+            72px;
           align-items: center;
-          box-shadow: 0 4px 7px rgba(0,0,0,0.18);
+          gap: 14px;
+          padding: 11px 14px;
+          border-bottom: 1px solid var(--border-soft);
+          transition: background 0.14s ease;
         }
 
-        .notification-title {
+        .notification-row:last-child {
+          border-bottom: none;
+        }
+
+        .notification-row:hover {
+          background: #faf9fc;
+        }
+
+        .receiver-cell {
+          min-width: 0;
           display: flex;
-          align-items: baseline;
+          align-items: center;
           gap: 9px;
-          margin-bottom: 6px;
         }
 
-        .notification-title strong {
-          font-size: 16px;
-          font-weight: 900;
+        .receiver-icon {
+          width: 31px;
+          height: 31px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
         }
 
-        .notification-title span {
-          font-size: 11px;
-          color: #777;
+        .receiver-cell > div:last-child {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
         }
 
-        .notification-row p {
+        .receiver-cell strong {
+          overflow: hidden;
+          color: var(--text-primary);
+          font-size: 10px;
+          font-weight: 620;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .receiver-cell span {
+          margin-top: 3px;
+          color: var(--text-muted);
+          font-size: 8px;
+        }
+
+        .notification-message {
+          display: -webkit-box;
+          overflow: hidden;
           margin: 0;
-          font-size: 12px;
-          max-width: 620px;
-          line-height: 1.35;
+          color: var(--text-secondary);
+          font-size: 10px;
+          line-height: 1.5;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+        }
+
+        .date-cell {
+          color: var(--text-muted);
+          font-size: 9px;
+          white-space: nowrap;
         }
 
         .row-actions {
           display: flex;
-          gap: 7px;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 5px;
         }
 
-        .row-actions button {
-          border: none;
-          background: transparent;
-          color: #5f535f;
+        .action-button {
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--border);
+          border-radius: 7px;
+          background: #ffffff;
           cursor: pointer;
+          transition:
+            background 0.14s ease,
+            border-color 0.14s ease,
+            color 0.14s ease;
         }
 
-        .confirm-text {
-            margin: 0 0 14px;
-            font-size: 14px;
-            color: #333;
+        .action-button.edit {
+          color: var(--mobi-purple);
         }
 
-        .confirm-preview {
-            background: #f8f3f9;
-            border: 1px solid #ead4ee;
-            border-radius: 14px;
-            padding: 14px;
-            margin-bottom: 18px;
+        .action-button.edit:hover {
+          border-color: #d8cfe5;
+          background: var(--mobi-purple-light);
         }
 
-        .confirm-preview strong {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 14px;
+        .action-button.delete {
+          color: var(--danger);
         }
 
-        .confirm-preview p {
-            margin: 0;
-            font-size: 13px;
-            line-height: 1.45;
-            color: #555;
-        }
-
-        .confirm-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        .cancel-btn,
-        .delete-btn {
-            border: none;
-            border-radius: 999px;
-            padding: 10px 16px;
-            font-weight: 900;
-            cursor: pointer;
-        }
-
-        .cancel-btn {
-            background: #f5eef7;
-            color: #6f2f9d;
-        }
-
-        .delete-btn {
-            background: #fff0f0;
-            color: #b73232;
+        .action-button.delete:hover {
+          border-color: #edcece;
+          background: var(--danger-light);
         }
 
         .empty-state {
-          background: #ead9eb;
-          border-radius: 12px;
-          padding: 18px;
+          min-height: 170px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 24px;
+          color: var(--text-muted);
           text-align: center;
-          color: #666;
         }
 
-        .compose-area label {
-          display: block;
-          font-size: 12px;
-          margin-bottom: 12px;
+        .empty-state strong {
+          color: var(--text-secondary);
+          font-size: 11px;
+          font-weight: 620;
         }
 
-        .compose-box {
-          min-height: 58px;
-          background: #a99fc5;
-          border-radius: 6px;
-          display: flex;
-          align-items: center;
-          padding: 0 16px;
-          gap: 12px;
+        .empty-state span {
+          font-size: 9px;
         }
 
-        .compose-box input {
-          flex: 1;
-          border: none;
-          outline: none;
-          background: transparent;
-          color: white;
-          font-size: 13px;
-        }
-
-        .compose-box input::placeholder {
-          color: rgba(255,255,255,0.8);
-        }
-
-        .compose-box button {
-          border: none;
-          background: transparent;
-          color: white;
-          font-weight: 900;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
+        /* ==============================
+           MODAL
+        ============================== */
 
         .modal-backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.32);
+          z-index: 100;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 18px;
-          z-index: 50;
+          padding: 20px;
+          background: rgba(26, 24, 30, 0.36);
+          backdrop-filter: blur(3px);
         }
 
         .modal-card {
           width: min(520px, 100%);
-          background: white;
-          border-radius: 20px;
-          padding: 24px;
-          box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+          max-height: calc(100vh - 40px);
+          overflow-y: auto;
+          border: 1px solid rgba(255, 255, 255, 0.5);
+          border-radius: 16px;
+          background: #ffffff;
+          box-shadow: 0 22px 60px rgba(31, 25, 39, 0.16);
         }
 
         .modal-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 18px;
+          gap: 20px;
+          padding: 19px 21px;
+          border-bottom: 1px solid var(--border-soft);
         }
 
         .modal-header h2 {
           margin: 0;
-          font-size: 21px;
+          font-size: 16px;
+          font-weight: 650;
+          color: var(--text-primary);
         }
 
         .close-btn {
+          width: 32px;
+          height: 32px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           border: none;
-          background: #f5eef7;
-          border-radius: 999px;
-          width: 34px;
-          height: 34px;
+          border-radius: 8px;
+          background: #f6f6f8;
+          color: #71717a;
           cursor: pointer;
+          transition:
+            background 0.14s ease,
+            color 0.14s ease;
+        }
+
+        .close-btn:hover {
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
+        }
+
+        .modal-body {
+          padding: 22px;
+        }
+
+        .modal-intro,
+        .delete-intro {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding-bottom: 17px;
+          margin-bottom: 17px;
+          border-bottom: 1px solid var(--border-soft);
+        }
+
+        .modal-intro-icon,
+        .delete-icon {
+          width: 40px;
+          height: 40px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 10px;
+        }
+
+        .modal-intro-icon {
+          background: var(--mobi-purple-light);
+          color: var(--mobi-purple);
+        }
+
+        .delete-icon {
+          background: var(--danger-light);
+          color: var(--danger);
+        }
+
+        .modal-intro span {
+          display: block;
+          margin-bottom: 3px;
+          color: var(--mobi-purple);
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: 0.09em;
+        }
+
+        .modal-intro h3,
+        .delete-intro h3 {
+          margin: 0;
+          color: var(--text-primary);
+          font-size: 13px;
+          font-weight: 650;
+        }
+
+        .modal-intro p,
+        .delete-intro p {
+          margin: 4px 0 0;
+          color: var(--text-muted);
+          font-size: 9px;
+          line-height: 1.5;
+        }
+
+        .modal-form {
+          display: flex;
+          flex-direction: column;
+          gap: 13px;
         }
 
         .modal-label {
           display: flex;
           flex-direction: column;
           gap: 7px;
-          margin-bottom: 14px;
-          font-size: 13px;
-          font-weight: 900;
+        }
+
+        .modal-label > span {
+          color: var(--text-secondary);
+          font-size: 9px;
+          font-weight: 650;
         }
 
         .modal-label select,
         .modal-label textarea {
-          border: 1px solid #ddd;
-          border-radius: 12px;
-          padding: 11px 12px;
-          font-family: inherit;
+          width: 100%;
+          border: 1px solid var(--border);
+          border-radius: 9px;
           outline: none;
+          background: #fafafd;
+          color: var(--text-primary);
+          font-size: 10px;
+          transition:
+            border-color 0.15s ease,
+            background 0.15s ease;
+        }
+
+        .modal-label select {
+          height: 39px;
+          padding: 0 11px;
         }
 
         .modal-label textarea {
           min-height: 110px;
+          padding: 11px;
           resize: vertical;
+          line-height: 1.55;
         }
 
-        .save-btn {
-          width: 100%;
-          border: none;
-          border-radius: 999px;
-          padding: 12px 16px;
-          background: #8d5ac4;
-          color: white;
-          font-weight: 900;
-          cursor: pointer;
+        .modal-label select:focus,
+        .modal-label textarea:focus {
+          border-color: #cfc4df;
+          background: #ffffff;
         }
+
+        .confirm-preview {
+          padding: 13px 14px;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: #fafafd;
+        }
+
+        .preview-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 8px;
+        }
+
+        .preview-top span {
+          color: var(--mobi-purple);
+          font-size: 9px;
+          font-weight: 700;
+        }
+
+        .preview-top small {
+          color: var(--text-muted);
+          font-size: 8px;
+        }
+
+        .confirm-preview p {
+          margin: 0;
+          color: var(--text-secondary);
+          font-size: 10px;
+          line-height: 1.55;
+        }
+
+        .modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin-top: 18px;
+          padding-top: 17px;
+          border-top: 1px solid var(--border-soft);
+        }
+
+        .modal-secondary-button,
+        .save-button,
+        .delete-confirm-button {
+          min-height: 36px;
+          padding: 0 13px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 10px;
+          font-weight: 650;
+        }
+
+        .modal-secondary-button {
+          border: 1px solid var(--border);
+          background: #ffffff;
+          color: var(--text-secondary);
+        }
+
+        .modal-secondary-button:hover {
+          background: #f7f7f9;
+        }
+
+        .save-button {
+          border: 1px solid var(--mobi-purple);
+          background: var(--mobi-purple);
+          color: #ffffff;
+        }
+
+        .save-button:hover {
+          background: var(--mobi-purple-dark);
+        }
+
+        .delete-confirm-button {
+          border: 1px solid #edcece;
+          background: var(--danger-light);
+          color: var(--danger);
+        }
+
+        .delete-confirm-button:hover {
+          border-color: #ddb8b8;
+          background: #f7e7e7;
+        }
+
+        /* ==============================
+           RESPONSIVE
+        ============================== */
 
         @media (max-width: 1100px) {
           .super-page {
-            grid-template-columns: 165px 1fr;
-            gap: 16px;
+            grid-template-columns: 205px minmax(0, 1fr);
           }
 
-          .process-card {
-            padding: 28px 24px;
+          .process-content {
+            padding: 30px 25px 45px;
+          }
+
+          .notification-table-header,
+          .notification-row {
+            grid-template-columns:
+              125px
+              minmax(200px, 1fr)
+              78px
+              68px;
+            gap: 10px;
           }
         }
 
-        @media (max-width: 760px) {
+        @media (max-width: 820px) {
           .super-page {
-            grid-template-columns: 70px 1fr;
-            padding: 10px;
-            gap: 10px;
+            grid-template-columns: 76px minmax(0, 1fr);
           }
 
           .sidebar {
-            top: 10px;
-            height: calc(100vh - 20px);
             align-items: center;
+            padding: 22px 10px;
+          }
+
+          .brand {
+            justify-content: center;
+            padding: 0;
+            margin-bottom: 30px;
           }
 
           .brand img {
-            width: 48px;
+            width: 42px;
+            height: 42px;
           }
 
-          .welcome {
+          .brand-text,
+          .welcome,
+          .nav-item > span:last-child,
+          .logout-button span {
             display: none;
           }
 
-          .nav-item {
+          .nav-item,
+          .logout-button {
             width: 48px;
             height: 48px;
+            min-height: 48px;
             justify-content: center;
             padding: 0;
           }
 
-          .nav-item span {
-            display: none;
+          .nav-item {
+            margin: 0 auto;
           }
 
-          .process-card {
-            min-height: calc(100vh - 20px);
-            padding: 22px 12px;
-            border-radius: 18px;
+          .nav-icon {
+            width: auto;
           }
 
-          .process-option {
-            padding: 18px;
-            border-radius: 18px;
+          .nav-item.active .nav-active-line {
+            left: -10px;
           }
 
-          .process-option h2 {
-            font-size: 15px;
+          .logout-button {
+            margin: 0 auto;
           }
 
-          .process-option p {
-            font-size: 12px;
+          .process-content {
+            padding: 26px 18px 40px;
           }
 
-          .notification-panel {
-            padding: 20px 16px;
-          }
-
-          .notification-header {
+          .panel-header {
+            align-items: flex-start;
             flex-direction: column;
-          }
-
-          .notification-header h1 {
-            font-size: 20px;
+            gap: 15px;
           }
 
           .search-box {
             width: 100%;
           }
 
-          .toolbar {
+          .notification-toolbar {
             align-items: flex-start;
+            flex-direction: column;
           }
 
-          .date-tabs,
-          .receiver-tabs {
+          .date-group {
+            width: 100%;
+          }
+
+          .receiver-tabs,
+          .date-tabs {
             width: 100%;
             overflow-x: auto;
-            flex-wrap: nowrap;
           }
 
           .receiver-tab,
           .date-tab {
-            white-space: nowrap;
+            flex-shrink: 0;
+          }
+
+          .notification-table-header {
+            display: none;
           }
 
           .notification-row {
-            grid-template-columns: 1fr;
+            grid-template-columns: 120px minmax(0, 1fr) auto;
           }
 
-          .row-actions {
-            justify-content: flex-end;
+          .date-cell {
+            display: none;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .super-page {
+            display: block;
           }
 
-          .compose-box {
+          .sidebar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            top: auto;
+            z-index: 50;
+            width: 100%;
+            height: 67px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            padding: 8px 13px;
+            border-top: 1px solid var(--border);
+            border-right: none;
+          }
+
+          .sidebar-top {
+            display: contents;
+          }
+
+          .brand,
+          .welcome {
+            display: none;
+          }
+
+          .nav-links {
+            flex-direction: row;
+            gap: 6px;
+          }
+
+          .nav-item,
+          .logout-button {
+            width: 46px;
+            height: 46px;
+          }
+
+          .nav-item.active .nav-active-line {
+            left: 12px;
+            right: 12px;
+            bottom: -8px;
+            top: auto;
+            width: auto;
+            height: 3px;
+            border-radius: 3px 3px 0 0;
+          }
+
+          .process-content {
+            padding: 22px 13px 95px;
+          }
+
+          .page-header {
+            margin-bottom: 22px;
+          }
+
+          .page-header h1 {
+            font-size: 25px;
+          }
+
+          .admin-profile {
+            display: none;
+          }
+
+          .notification-panel {
+            border-radius: 12px;
+          }
+
+          .panel-header {
+            padding: 19px 17px;
+          }
+
+          .notification-toolbar {
+            padding: 14px 13px;
+          }
+
+          .receiver-tabs {
+            gap: 3px;
+          }
+
+          .compose-section,
+          .history-section {
+            padding: 17px 13px;
+          }
+
+          .compose-footer {
             align-items: stretch;
             flex-direction: column;
+            padding: 10px;
+          }
+
+          .send-button {
+            width: 100%;
+          }
+
+          .history-header {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 8px;
+          }
+
+          .notification-row {
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px 12px;
             padding: 12px;
           }
 
-          .compose-box input {
-            width: 100%;
-            min-height: 36px;
+          .receiver-cell {
+            grid-column: 1;
           }
 
-          .compose-box button {
-            justify-content: flex-end;
+          .notification-message {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            -webkit-line-clamp: 3;
+          }
+
+          .row-actions {
+            grid-column: 2;
+            grid-row: 1;
+          }
+
+          .modal-backdrop {
+            padding: 12px;
+          }
+
+          .modal-body {
+            padding: 18px;
+          }
+
+          .modal-actions {
+            flex-direction: column-reverse;
+          }
+
+          .modal-secondary-button,
+          .save-button,
+          .delete-confirm-button {
+            width: 100%;
           }
         }
       `}</style>
@@ -1006,26 +1895,39 @@ export default function SuperProcessScreen() {
   );
 }
 
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
+type ModalProps = {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   onClose: () => void;
-}) {
+};
+
+function Modal({ title, children, onClose }: ModalProps) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card">
+    <div
+      className="modal-backdrop"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="close-btn" onClick={onClose}>
-            <X size={18} />
+
+          <button
+            className="close-btn"
+            onClick={onClose}
+            aria-label="Close modal"
+          >
+            <X size={17} />
           </button>
         </div>
 
-        {children}
+        <div className="modal-body">{children}</div>
       </div>
     </div>
   );
