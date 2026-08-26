@@ -7,18 +7,56 @@ import {
   getActivityById,
 } from "../services/activityService";
 
-export async function createActivity(req: Request, res: Response) {
+export async function createActivity(
+  req: Request,
+  res: Response,
+) {
   try {
-    const activity = await createActivityWithSteps(req.body);
+    /*
+      TEMPORARY CENTER ID
 
-    res.status(201).json({
-      message: "Activity created successfully",
+      Later this should come from the authenticated
+      Center Admin or Therapist account.
+
+      For now, we use the same AMTC center ID used
+      in your learner backend.
+    */
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    /*
+      The frontend should not decide which center owns
+      the activity.
+
+      The backend attaches center_id here so the activity
+      can later be safely matched with learner assignments.
+    */
+    const activity =
+      await createActivityWithSteps({
+        ...req.body,
+
+        center_id:
+          CENTER_ID,
+      });
+
+    return res.status(201).json({
+      message:
+        "Activity created successfully",
+
       activity,
     });
   } catch (error: any) {
-    res.status(500).json({
-      message: "Failed to create activity",
-      error: error.message,
+    console.error(
+      "Create activity error:",
+      error,
+    );
+
+    return res.status(500).json({
+      message:
+        "Failed to create activity",
+
+      error:
+        error.message,
     });
   }
 }

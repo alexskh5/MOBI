@@ -1,3 +1,5 @@
+// MOBI/mobi-web/src/pages/center/dashboard/AddLearner.tsx
+
 import {
   useEffect,
   useMemo,
@@ -23,6 +25,13 @@ import {
   UsersRound,
 } from "lucide-react";
 import CenterLayout from "../../../layouts/CenterLayout";
+import {
+  enrollLearner,
+} from "../../../services/learner/learnerApi";
+
+import type {
+  EnrollLearnerRequest,
+} from "../../../services/learner/learnerApi";
 
 /* =========================================================
    TYPES
@@ -81,15 +90,17 @@ interface LearnerForm {
 }
 
 interface GuardianForm {
-  fullName: string;
-  relationship: string;
-  phoneNumber: string;
-  email: string;
-  sameAddressAsLearner: boolean;
-  homeAddress: string;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
-  authorizedForUpdates: boolean;
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    relationship: string;
+    phoneNumber: string;
+    email: string;
+    sameAddressAsLearner: boolean;
+    homeAddress: string;
+    emergencyContactName: string;
+    emergencyContactPhone: string;
+    authorizedForUpdates: boolean;
 }
 
 interface DoctorForm {
@@ -114,12 +125,15 @@ interface AttentionArea {
    CONFIGURATION
 ========================================================= */
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  "http://localhost:5001/api";
+/*
+  Version 4 is used because the guardian name structure changed
+  from one fullName field to separate name fields.
 
+  Using a new key prevents an old saved draft from causing
+  undefined field errors.
+*/
 const DRAFT_STORAGE_KEY =
-  "mobi-learner-intake-draft-v3";
+  "mobi-learner-intake-draft-v4";
 
 const inputClassName =
   "block w-full min-w-0 max-w-full rounded-xl border border-[#DDCDE3] bg-white px-3 py-3 text-sm text-[#302936] outline-none transition placeholder:text-[#9B929F] focus:border-[#76508C] focus:ring-4 focus:ring-[#76508C]/10 sm:rounded-2xl sm:px-4";
@@ -246,14 +260,20 @@ const initialForm: EnrollmentForm = {
   },
 
   guardian: {
-    fullName: "",
+    firstName: "",
+    middleName: "",
+    lastName: "",
+
     relationship: "",
     phoneNumber: "",
     email: "",
+
     sameAddressAsLearner: true,
     homeAddress: "",
+
     emergencyContactName: "",
     emergencyContactPhone: "",
+
     authorizedForUpdates: true,
   },
 
@@ -1035,6 +1055,15 @@ const AddLearner = () => {
     .filter(Boolean)
     .join(" ");
 
+  const guardianFullName = [
+    form.guardian.firstName,
+    form.guardian.middleName,
+    form.guardian.lastName,
+  ]
+    .map((namePart) => namePart.trim())
+    .filter(Boolean)
+    .join(" ");
+
   const answeredQuestionCount =
     useMemo(
       () =>
@@ -1389,46 +1418,58 @@ const AddLearner = () => {
   };
 
   const validateGuardianStep = () => {
-    if (
-      !form.guardian.fullName.trim() ||
-      !form.guardian.relationship ||
-      !form.guardian.phoneNumber.trim() ||
-      !form.guardian.email.trim()
-    ) {
-      setFormError(
-        "Please complete the guardian's name, relationship, phone number, and email address.",
-      );
+  /*
+    Middle name remains optional.
 
-      return false;
-    }
+    First name and last name are required because the
+    center_parents table marks both columns as NOT NULL.
+  */
+  if (
+    !form.guardian.firstName.trim() ||
+    !form.guardian.lastName.trim() ||
+    !form.guardian.relationship ||
+    !form.guardian.phoneNumber.trim() ||
+    !form.guardian.email.trim()
+  ) {
+    setFormError(
+      "Please complete the guardian's first name, last name, relationship, phone number, and email address.",
+    );
 
-    if (
-      !form.guardian
-        .sameAddressAsLearner &&
-      !form.guardian.homeAddress.trim()
-    ) {
-      setFormError(
-        "Please enter the guardian's home address.",
-      );
+    return false;
+  }
 
-      return false;
-    }
+  /*
+    When the guardian does not use the learner's address,
+    a separate guardian address must be provided.
+  */
+  if (
+    !form.guardian.sameAddressAsLearner &&
+    !form.guardian.homeAddress.trim()
+  ) {
+    setFormError(
+      "Please enter the guardian's home address.",
+    );
 
-    if (
-      !form.guardian
-        .authorizedForUpdates
-    ) {
-      setFormError(
-        "Guardian authorization is required before enrollment.",
-      );
+    return false;
+  }
 
-      return false;
-    }
+  /*
+    Enrollment requires permission for clinic communication.
+  */
+  if (
+    !form.guardian.authorizedForUpdates
+  ) {
+    setFormError(
+      "Guardian authorization is required before enrollment.",
+    );
 
-    setFormError("");
+    return false;
+  }
 
-    return true;
-  };
+  setFormError("");
+
+  return true;
+};
 
   const validateDoctorStep = () => {
     if (!form.doctor.doctorId) {
@@ -1870,22 +1911,50 @@ const AddLearner = () => {
         }),
       );
 
-    const payload = {
+    const payload: EnrollLearnerRequest = {
       learner: {
         ...form.learner,
         calculatedAge: learnerAge,
       },
 
       guardian: {
-        ...form.guardian,
+        firstName:
+          form.guardian.firstName.trim(),
+
+        middleName:
+          form.guardian.middleName.trim() || null,
+
+        lastName:
+          form.guardian.lastName.trim(),
+
+        relationship:
+          form.guardian.relationship,
+
+        phoneNumber:
+          form.guardian.phoneNumber.trim(),
+
+        email:
+          form.guardian.email.trim().toLowerCase(),
+
+        sameAddressAsLearner:
+          form.guardian.sameAddressAsLearner,
 
         homeAddress:
-          form.guardian
-            .sameAddressAsLearner
-            ? form.learner
-                .homeAddress
-            : form.guardian
-                .homeAddress,
+          form.guardian.sameAddressAsLearner
+            ? form.learner.homeAddress.trim() ||
+              null
+            : form.guardian.homeAddress.trim(),
+
+        emergencyContactName:
+          form.guardian.emergencyContactName.trim() ||
+          null,
+
+        emergencyContactPhone:
+          form.guardian.emergencyContactPhone.trim() ||
+          null,
+
+        authorizedForUpdates:
+          form.guardian.authorizedForUpdates,
       },
 
       doctor: {
@@ -1935,39 +2004,38 @@ const AddLearner = () => {
     };
 
     try {
-      const requestBody =
-        new FormData();
+      // const requestBody =
+      //   new FormData();
 
-      requestBody.append(
-        "payload",
-        JSON.stringify(payload),
+      // requestBody.append(
+      //   "payload",
+      //   JSON.stringify(payload),
+      // );
+
+      // if (profilePhoto) {
+      //   requestBody.append(
+      //     "profile_photo",
+      //     profilePhoto,
+      //   );
+      // }
+
+      /*
+        learnerApi.ts handles:
+        - FormData creation
+        - JSON payload
+        - optional learner photo
+        - POST request
+      */
+
+      const result = await enrollLearner(
+        payload,
+        profilePhoto,
       );
 
-      if (profilePhoto) {
-        requestBody.append(
-          "profile_photo",
-          profilePhoto,
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/learners/enroll`,
-        {
-          method: "POST",
-          body: requestBody,
-        },
+      console.log(
+        "Learner enrollment response:",
+        result,
       );
-
-      const result = await response
-        .json()
-        .catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(
-          result?.message ||
-            "The learner could not be enrolled.",
-        );
-      }
 
       localStorage.removeItem(
         DRAFT_STORAGE_KEY,
@@ -2528,25 +2596,58 @@ const AddLearner = () => {
 
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
         <FormField
-          label="Guardian full name"
-          required
-        >
-          <input
-            value={
-              form.guardian.fullName
-            }
-            onChange={(event) =>
-              updateGuardian(
-                "fullName",
-                event.target.value,
-              )
-            }
-            placeholder="Full name"
-            className={
-              inputClassName
-            }
-          />
-        </FormField>
+  label="Guardian first name"
+  required
+>
+  <input
+    type="text"
+    value={form.guardian.firstName}
+    onChange={(event) =>
+      updateGuardian(
+        "firstName",
+        event.target.value,
+      )
+    }
+    placeholder="First name"
+    autoComplete="given-name"
+    className={inputClassName}
+  />
+</FormField>
+
+<FormField label="Guardian middle name">
+  <input
+    type="text"
+    value={form.guardian.middleName}
+    onChange={(event) =>
+      updateGuardian(
+        "middleName",
+        event.target.value,
+      )
+    }
+    placeholder="Middle name"
+    autoComplete="additional-name"
+    className={inputClassName}
+  />
+</FormField>
+
+<FormField
+  label="Guardian last name"
+  required
+>
+  <input
+    type="text"
+    value={form.guardian.lastName}
+    onChange={(event) =>
+      updateGuardian(
+        "lastName",
+        event.target.value,
+      )
+    }
+    placeholder="Last name"
+    autoComplete="family-name"
+    className={inputClassName}
+  />
+</FormField>
 
         <FormField
           label="Relationship to learner"
@@ -2602,10 +2703,7 @@ const AddLearner = () => {
         >
           <input
             type="tel"
-            value={
-              form.guardian
-                .phoneNumber
-            }
+            value={form.guardian.phoneNumber}
             onChange={(event) =>
               updateGuardian(
                 "phoneNumber",
@@ -2613,9 +2711,8 @@ const AddLearner = () => {
               )
             }
             placeholder="+63"
-            className={
-              inputClassName
-            }
+            autoComplete="tel"
+            className={inputClassName}
           />
         </FormField>
 
@@ -2625,9 +2722,7 @@ const AddLearner = () => {
         >
           <input
             type="email"
-            value={
-              form.guardian.email
-            }
+            value={form.guardian.email}
             onChange={(event) =>
               updateGuardian(
                 "email",
@@ -2635,9 +2730,8 @@ const AddLearner = () => {
               )
             }
             placeholder="guardian@email.com"
-            className={
-              inputClassName
-            }
+            autoComplete="email"
+            className={inputClassName}
           />
         </FormField>
 
@@ -3199,11 +3293,8 @@ const AddLearner = () => {
             </div>
 
             <div className="mt-5 min-w-0 space-y-2 text-sm">
-              <p className="break-words font-semibold text-[#352D39]">
-                {
-                  form.guardian
-                    .fullName
-                }
+             <p className="break-words font-semibold text-[#352D39]">
+                {guardianFullName || "Guardian name unavailable"}
               </p>
 
               <p className="capitalize text-[#766D7A]">

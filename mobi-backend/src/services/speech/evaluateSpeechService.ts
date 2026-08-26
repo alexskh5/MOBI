@@ -1,3 +1,4 @@
+// mobi-backend/src/services/speech/evaluateSpeechService.ts
 import { levenshteinDistance } from "./levenshtein";
 import { phoneticMatch } from "./phonetic";
 
@@ -86,23 +87,56 @@ for (const accepted of allAccepted) {
     }
   }
 
-  // 5. Levenshtein per word
-  for (const word of spokenWords) {
-    for (const answer of expected) {
-      const distance = levenshteinDistance(word, answer);
+// 5. Levenshtein approximation
+for (const word of spokenWords) {
+  for (const answer of expected) {
+    const distance =
+      levenshteinDistance(
+        word,
+        answer,
+      );
 
-      if (distance <= 0) {
-        return {
-          accepted: true,
-          method: "levenshtein",
-          distance,
-          matched_word: answer,
-          communication_attempt: true,
-          should_score: true,
-        };
-      }
+    /*
+      Do not automatically mark close pronunciation
+      as a fully achieved target.
+
+      A close response is still meaningful evidence
+      of a communication attempt.
+    */
+    const maximumDistance =
+      answer.length <= 3
+        ? 1
+        : 2;
+
+    if (
+      distance <=
+        maximumDistance &&
+      distance > 0
+    ) {
+      return {
+        accepted:
+          false,
+
+        method:
+          "levenshtein_approximation",
+
+        distance,
+
+        matched_word:
+          answer,
+
+        communication_attempt:
+          true,
+
+        should_score:
+          false,
+
+        approximation:
+          true,
+      };
     }
   }
+}
 
   // 6. Phonetic match
 for (const word of spokenWords) {

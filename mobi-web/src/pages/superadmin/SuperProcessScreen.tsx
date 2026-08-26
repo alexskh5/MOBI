@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 import { useMemo, useState, type ReactNode } from "react";
+=======
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 import { useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -16,52 +21,103 @@ import {
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
+import {
+  createSuperAdminNotification,
+  deleteSuperAdminNotification,
+  getSuperAdminNotifications,
+  updateSuperAdminNotification,
+} from "../../services/super_admin/superAdminApi";
 
 type ReceiverType = "Center" | "Parents" | "Doctor" | "Therapist" | "All";
 type DateFilter = "Today" | "This Week" | "This Month";
 
+type ApiNotification = {
+  id: string;
+  receiver?: ReceiverType;
+  receivers?: ReceiverType[];
+  message: string;
+  created_at: string;
+  updated_at?: string;
+};
+
 type NotificationItem = {
-  id: number;
-  receiver: ReceiverType;
+  id: string;
+  receivers: ReceiverType[];
   message: string;
   dateLabel: string;
   createdAt: string;
 };
 
-const initialNotifications: NotificationItem[] = [
-  {
-    id: 1,
-    receiver: "Parents",
-    message:
-      "Hello, parents! Catch up where you left. Continue learning or monitor child's progress today.",
-    dateLabel: "Just now",
-    createdAt: "2026-06-28",
-  },
-  {
-    id: 2,
-    receiver: "Parents",
-    message:
-      "Hello, parents! Catch up where you left. Continue learning or monitor child's progress today.",
-    dateLabel: "Friday",
-    createdAt: "2026-06-27",
-  },
-  {
-    id: 3,
-    receiver: "Parents",
-    message:
-      "Hello, parents! Catch up where you left. Continue learning or monitor child's progress today.",
-    dateLabel: "Wednesday",
-    createdAt: "2026-06-25",
-  },
-  {
-    id: 4,
-    receiver: "Parents",
-    message:
-      "Hello, parents! Catch up where you left. Continue learning or monitor child's progress today.",
-    dateLabel: "Monday",
-    createdAt: "2026-06-23",
-  },
-];
+type Notice = {
+  title: string;
+  message: string;
+};
+
+function getDateLabel(dateValue: string) {
+  const date = new Date(dateValue);
+  const now = new Date();
+
+  const isToday = date.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function isWithinDateFilter(dateValue: string, filter: DateFilter) {
+  const date = new Date(dateValue);
+  const now = new Date();
+
+  if (filter === "Today") {
+    return date.toDateString() === now.toDateString();
+  }
+
+  if (filter === "This Week") {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
+
+    return date >= sevenDaysAgo && date <= now;
+  }
+
+  if (filter === "This Month") {
+    return (
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear()
+    );
+  }
+
+  return true;
+}
+
+function mapNotification(notification: ApiNotification): NotificationItem {
+  return {
+    id: notification.id,
+    receivers:
+      notification.receivers && notification.receivers.length > 0
+        ? notification.receivers
+        : notification.receiver
+        ? [notification.receiver]
+        : [],
+    message: notification.message,
+    dateLabel: getDateLabel(notification.created_at),
+    createdAt: notification.created_at,
+  };
+}
+
+function formatReceivers(receivers: ReceiverType[]) {
+  if (receivers.includes("All")) return "All";
+  if (receivers.length === 0) return "No receiver";
+  return receivers.join(", ");
+}
 
 const receiverOptions: ReceiverType[] = [
   "Center",
@@ -78,79 +134,207 @@ export default function SuperProcessScreen() {
 
   // Process now opens directly to the notification workspace.
   const [receiverType, setReceiverType] = useState<ReceiverType>("Parents");
+  const [selectedReceivers, setSelectedReceivers] = useState<ReceiverType[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilter>("Today");
   const [searchQuery, setSearchQuery] = useState("");
   const [message, setMessage] = useState("");
+<<<<<<< HEAD
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(initialNotifications);
+=======
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
   const [editingNotification, setEditingNotification] =
     useState<NotificationItem | null>(null);
 
+<<<<<<< HEAD
   const [deleteTarget, setDeleteTarget] =
     useState<NotificationItem | null>(null);
+=======
+  const [deleteTarget, setDeleteTarget] = useState<NotificationItem | null>(
+    null
+  );
+
+  const [notice, setNotice] = useState<Notice | null>(null);
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
   const filteredNotifications = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return notifications.filter((notification) => {
       const matchesReceiver =
-        receiverType === "All" || notification.receiver === receiverType;
+        receiverType === "All" ||
+        notification.receivers.includes("All") ||
+        notification.receivers.includes(receiverType);
 
+<<<<<<< HEAD
       const matchesSearch =
         !normalizedQuery ||
         `${notification.receiver} ${notification.message} ${notification.dateLabel}`
           .toLowerCase()
           .includes(normalizedQuery);
+=======
+      const matchesDate = isWithinDateFilter(notification.createdAt, dateFilter);
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
-      return matchesReceiver && matchesSearch;
+      const matchesSearch =
+        `${formatReceivers(notification.receivers)} ${notification.message} ${notification.dateLabel}`
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+
+      return matchesReceiver && matchesDate && matchesSearch;
     });
-  }, [notifications, receiverType, searchQuery]);
+  }, [notifications, receiverType, dateFilter, searchQuery]);
 
+  async function loadNotifications() {
+    try {
+      setLoadingNotifications(true);
+      setNotificationError("");
+
+      const result = await getSuperAdminNotifications();
+
+      const mappedNotifications: NotificationItem[] = result.data.map(
+        (notification: ApiNotification) => mapNotification(notification)
+      );
+
+      setNotifications(mappedNotifications);
+    } catch (error: any) {
+      setNotificationError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to load system notifications."
+      );
+    } finally {
+      setLoadingNotifications(false);
+    }
+  }
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+<<<<<<< HEAD
   const sendNotification = () => {
-    if (!message.trim()) {
-      alert("Please write a notification first.");
+=======
+  const handleBack = () => {
+    setSearchQuery("");
+    setMessage("");
+    setSelectedReceivers([]);
+    setEditingNotification(null);
+    setDeleteTarget(null);
+    setNotice(null);
+
+    if (viewMode === "menu") {
+      navigate("/superadmin/SuperDashboardScreen");
       return;
     }
 
-    const newNotification: NotificationItem = {
-      id: Date.now(),
-      receiver: receiverType,
-      message: message.trim(),
-      dateLabel: "Just now",
-      createdAt: new Date().toISOString(),
-    };
+    setViewMode("menu");
+  };
 
+  const showNotice = (title: string, noticeMessage: string) => {
+    setNotice({
+      title,
+      message: noticeMessage,
+    });
+  };
+
+  const sendNotification = async () => {
+    if (selectedReceivers.length === 0) {
+      showNotice("Receiver required", "Please select at least one receiver.");
+      return;
+    }
+
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
+    if (!message.trim()) {
+      showNotice("Message required", "Please write a notification first.");
+      return;
+    }
+
+    try {
+      setIsSending(true);
+
+<<<<<<< HEAD
     setNotifications((previousNotifications) => [
       newNotification,
       ...previousNotifications,
     ]);
 
     setMessage("");
+=======
+      const result = await createSuperAdminNotification({
+        receivers: selectedReceivers,
+        message: message.trim(),
+      });
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
-    // BACKEND LATER:
-    // await api.post("/super-admin/system-notifications", newNotification);
+      const newNotification = mapNotification(result.data);
+
+      setNotifications((prev) => [newNotification, ...prev]);
+      setMessage("");
+      setSelectedReceivers([]);
+      showNotice("Notification sent", "Your system notification was sent successfully.");
+    } catch (error: any) {
+      showNotice(
+        "Send failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to send notification."
+      );
+    } finally {
+      setIsSending(false);
+    }
   };
 
+<<<<<<< HEAD
   const deleteNotification = (id: number) => {
     setNotifications((previousNotifications) =>
       previousNotifications.filter(
         (notification) => notification.id !== id,
       ),
     );
+=======
+  const deleteNotification = async (id: string) => {
+    try {
+      setIsDeleting(true);
 
-    setDeleteTarget(null);
+      await deleteSuperAdminNotification(id);
 
-    // BACKEND LATER:
-    // await api.delete(`/super-admin/system-notifications/${id}`);
+      setNotifications((prev) =>
+        prev.filter((notification) => notification.id !== id)
+      );
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
+
+      setDeleteTarget(null);
+      showNotice("Notification deleted", "The notification was deleted successfully.");
+    } catch (error: any) {
+      showNotice(
+        "Delete failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to delete notification."
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const saveEditedNotification = () => {
-    if (!editingNotification?.message.trim()) {
-      alert("Notification message cannot be empty.");
+  const saveEditedNotification = async () => {
+    if (!editingNotification) return;
+
+    if (editingNotification.receivers.length === 0) {
+      showNotice("Receiver required", "Please select at least one receiver.");
       return;
     }
 
+<<<<<<< HEAD
     setNotifications((previousNotifications) =>
       previousNotifications.map((notification) =>
         notification.id === editingNotification.id
@@ -161,14 +345,59 @@ export default function SuperProcessScreen() {
           : notification,
       ),
     );
+=======
+    if (!editingNotification.message.trim()) {
+      showNotice("Message required", "Notification message cannot be empty.");
+      return;
+    }
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
-    setEditingNotification(null);
+    try {
+      setIsSavingEdit(true);
 
-    // BACKEND LATER:
-    // await api.patch(
-    //   `/super-admin/system-notifications/${editingNotification.id}`,
-    //   editingNotification
-    // );
+      const result = await updateSuperAdminNotification(editingNotification.id, {
+        receivers: editingNotification.receivers,
+        message: editingNotification.message.trim(),
+      });
+
+      const updatedNotification = mapNotification(result.data);
+
+      setNotifications((prev) =>
+        prev.map((notification) =>
+          notification.id === updatedNotification.id
+            ? updatedNotification
+            : notification
+        )
+      );
+
+      setEditingNotification(null);
+      showNotice("Notification updated", "Your changes were saved successfully.");
+    } catch (error: any) {
+      showNotice(
+        "Update failed",
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to update notification."
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const toggleReceiver = (receiver: ReceiverType) => {
+    setSelectedReceivers((prev) => {
+      if (receiver === "All") {
+        return prev.includes("All") ? [] : ["All"];
+      }
+
+      const withoutAll = prev.filter((item) => item !== "All");
+
+      if (withoutAll.includes(receiver)) {
+        return withoutAll.filter((item) => item !== receiver);
+      }
+
+      return [...withoutAll, receiver];
+    });
   };
 
   return (
@@ -384,8 +613,23 @@ export default function SuperProcessScreen() {
             </div>
 
             <div className="notification-list">
-              {filteredNotifications.length > 0 ? (
+              {loadingNotifications && (
+                <div className="empty-state">
+                  <p>Loading notifications...</p>
+                </div>
+              )}
+
+              {notificationError && (
+                <div className="empty-state">
+                  <p>{notificationError}</p>
+                </div>
+              )}
+
+              {!loadingNotifications &&
+              !notificationError &&
+              filteredNotifications.length > 0 ? (
                 filteredNotifications.map((notification) => (
+<<<<<<< HEAD
                   <article
                     key={notification.id}
                     className="notification-row"
@@ -393,6 +637,13 @@ export default function SuperProcessScreen() {
                     <div className="receiver-cell">
                       <div className="receiver-icon">
                         <Bell size={15} />
+=======
+                  <article key={notification.id} className="notification-row">
+                    <div>
+                      <div className="notification-title">
+                        <strong>{formatReceivers(notification.receivers)}</strong>
+                        <span>{notification.dateLabel}</span>
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
                       </div>
 
                       <div>
@@ -434,6 +685,7 @@ export default function SuperProcessScreen() {
                     </div>
                   </article>
                 ))
+<<<<<<< HEAD
               ) : (
                 <div className="empty-state">
                   <Search size={20} />
@@ -444,12 +696,70 @@ export default function SuperProcessScreen() {
                 </div>
               )}
             </div>
+=======
+              ) : null}
+
+              {!loadingNotifications &&
+                !notificationError &&
+                filteredNotifications.length === 0 && (
+                  <div className="empty-state">
+                    <p>No notifications found.</p>
+                  </div>
+                )}
+            </div>
+
+            <div className="compose-area">
+              <label>Write notification here</label>
+
+              <div className="compose-box">
+                <div className="compose-receiver-section">
+                  <span className="compose-mini-title">Send to</span>
+
+                  <div className="compose-checklist">
+                    {(["Center", "Parents", "Doctor", "Therapist", "All"] as ReceiverType[]).map(
+                      (receiver) => (
+                        <label
+                          key={receiver}
+                          className={
+                            selectedReceivers.includes(receiver)
+                              ? "compose-check active"
+                              : "compose-check"
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedReceivers.includes(receiver)}
+                            onChange={() => toggleReceiver(receiver)}
+                          />
+                          <span>{receiver}</span>
+                        </label>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="compose-message-row">
+                  <input
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    placeholder="Type here..."
+                  />
+
+                  <button onClick={sendNotification} disabled={isSending}>
+                    <span>{isSending ? "SENDING..." : "SEND"}</span>
+                    <Send size={15} />
+                  </button>
+                </div>
+              </div>
+            </div>
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
           </div>
         </section>
       </section>
 
       {/* EDIT MODAL */}
       {editingNotification && (
+<<<<<<< HEAD
         <Modal
           title="Edit Notification"
           onClose={() => setEditingNotification(null)}
@@ -518,10 +828,103 @@ export default function SuperProcessScreen() {
               className="modal-secondary-button"
               onClick={() => setEditingNotification(null)}
             >
+=======
+        <Modal title="Edit Notification" onClose={() => setEditingNotification(null)}>
+          <label className="modal-label">
+            Receiver
+            <div className="compose-receivers">
+              {(["Center", "Parents", "Doctor", "Therapist", "All"] as ReceiverType[]).map(
+                (receiver) => (
+                  <button
+                    key={receiver}
+                    type="button"
+                    className={
+                      editingNotification.receivers.includes(receiver)
+                        ? "compose-receiver active"
+                        : "compose-receiver"
+                    }
+                    onClick={() =>
+                      setEditingNotification((prev) => {
+                        if (!prev) return prev;
+
+                        if (receiver === "All") {
+                          return {
+                            ...prev,
+                            receivers: prev.receivers.includes("All") ? [] : ["All"],
+                          };
+                        }
+
+                        const withoutAll = prev.receivers.filter(
+                          (item) => item !== "All"
+                        );
+
+                        if (withoutAll.includes(receiver)) {
+                          return {
+                            ...prev,
+                            receivers: withoutAll.filter((item) => item !== receiver),
+                          };
+                        }
+
+                        return {
+                          ...prev,
+                          receivers: [...withoutAll, receiver],
+                        };
+                      })
+                    }
+                  >
+                    {receiver}
+                  </button>
+                )
+              )}
+            </div>
+          </label>
+
+          <label className="modal-label">
+            Message
+            <textarea
+              value={editingNotification.message}
+              onChange={(event) =>
+                setEditingNotification((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        message: event.target.value,
+                      }
+                    : prev
+                )
+              }
+            />
+          </label>
+
+          <button
+            className="save-btn"
+            onClick={saveEditedNotification}
+            disabled={isSavingEdit}
+          >
+            {isSavingEdit ? "Saving..." : "Save Changes"}
+          </button>
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <Modal title="Delete Notification" onClose={() => setDeleteTarget(null)}>
+          <p className="confirm-text">
+            Are you sure you want to delete this notification?
+          </p>
+
+          <div className="confirm-preview">
+            <strong>{formatReceivers(deleteTarget.receivers)}</strong>
+            <p>{deleteTarget.message}</p>
+          </div>
+
+          <div className="confirm-actions">
+            <button className="cancel-btn" onClick={() => setDeleteTarget(null)}>
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
               Cancel
             </button>
 
             <button
+<<<<<<< HEAD
               className="save-button"
               onClick={saveEditedNotification}
             >
@@ -574,7 +977,24 @@ export default function SuperProcessScreen() {
               Delete Notification
             </button>
           </div>
+=======
+              className="delete-btn"
+              onClick={() => deleteNotification(deleteTarget.id)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
         </Modal>
+      )}
+
+      {notice && (
+        <NoticeModal
+          title={notice.title}
+          message={notice.message}
+          onClose={() => setNotice(null)}
+        />
       )}
 
       <style>{`
@@ -751,6 +1171,7 @@ export default function SuperProcessScreen() {
           display: none;
         }
 
+<<<<<<< HEAD
         .nav-item.active .nav-active-line {
           position: absolute;
           left: 0;
@@ -760,6 +1181,21 @@ export default function SuperProcessScreen() {
           width: 3px;
           border-radius: 0 4px 4px 0;
           background: var(--mobi-purple);
+=======
+        .back-btn {
+          border: none;
+          background: white;
+          cursor: pointer;
+          z-index: 10;
+          width: 38px;
+          height: 38px;
+          border-radius: 999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 12px;
+          box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
         }
 
         .nav-icon {
@@ -1324,6 +1760,7 @@ export default function SuperProcessScreen() {
             color 0.14s ease;
         }
 
+<<<<<<< HEAD
         .action-button.edit {
           color: var(--mobi-purple);
         }
@@ -1340,6 +1777,66 @@ export default function SuperProcessScreen() {
         .action-button.delete:hover {
           border-color: #edcece;
           background: var(--danger-light);
+=======
+        .row-actions button:disabled,
+        .compose-message-row button:disabled,
+        .save-btn:disabled,
+        .delete-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .confirm-text {
+          margin: 0 0 14px;
+          font-size: 14px;
+          color: #333;
+        }
+
+        .confirm-preview {
+          background: #f8f3f9;
+          border: 1px solid #ead4ee;
+          border-radius: 14px;
+          padding: 14px;
+          margin-bottom: 18px;
+        }
+
+        .confirm-preview strong {
+          display: block;
+          margin-bottom: 6px;
+          font-size: 14px;
+        }
+
+        .confirm-preview p {
+          margin: 0;
+          font-size: 13px;
+          line-height: 1.45;
+          color: #555;
+        }
+
+        .confirm-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .cancel-btn,
+        .delete-btn {
+          border: none;
+          border-radius: 999px;
+          padding: 10px 16px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .cancel-btn {
+          background: #f5eef7;
+          color: #6f2f9d;
+        }
+
+        .delete-btn {
+          background: #fff0f0;
+          color: #b73232;
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
         }
 
         .empty-state {
@@ -1354,6 +1851,7 @@ export default function SuperProcessScreen() {
           text-align: center;
         }
 
+<<<<<<< HEAD
         .empty-state strong {
           color: var(--text-secondary);
           font-size: 11px;
@@ -1367,8 +1865,158 @@ export default function SuperProcessScreen() {
         /* ==============================
            MODAL
         ============================== */
+=======
+        .empty-state p {
+          margin: 0;
+          font-size: 13px;
+        }
 
-        .modal-backdrop {
+        .compose-area label {
+          display: block;
+          font-size: 12px;
+          margin-bottom: 12px;
+        }
+
+        .compose-box {
+          min-height: 108px;
+          background: #a99fc5;
+          border-radius: 8px;
+          display: flex;
+          flex-direction: column;
+          padding: 13px 16px;
+          gap: 12px;
+        }
+
+        .compose-message-row input {
+          flex: 1;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: white;
+          font-size: 13px;
+        }
+
+        .compose-message-row input::placeholder {
+          color: rgba(255,255,255,0.8);
+        }
+
+        .compose-message-row button {
+          border: none;
+          background: transparent;
+          color: white;
+          font-weight: 900;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
+
+        .compose-receivers {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+
+        .compose-receiver {
+          border: none;
+          border-radius: 999px;
+          background: #f5eef7;
+          color: #6f2f9d;
+          padding: 8px 13px;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .compose-receiver.active {
+          background: #df6433;
+          color: white;
+        }
+
+
+        .compose-receiver-section {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .compose-mini-title {
+          color: white;
+          font-size: 12px;
+          font-weight: 900;
+          padding-top: 6px;
+          min-width: 48px;
+        }
+
+        .compose-checklist,
+        .modal-checklist {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .compose-check {
+          display: inline-flex !important;
+          align-items: center;
+          gap: 6px;
+          width: fit-content;
+          margin: 0 !important;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.16);
+          color: white;
+          padding: 7px 10px;
+          font-size: 11px !important;
+          font-weight: 900;
+          cursor: pointer;
+          border: 1px solid rgba(255,255,255,0.25);
+        }
+
+        .compose-check.active {
+          background: #df6433;
+          color: white;
+          border-color: #df6433;
+        }
+
+        .compose-check input {
+          accent-color: #df6433;
+          margin: 0;
+        }
+
+        .compose-message-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .compose-message-row input {
+          flex: 1;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: white;
+          font-size: 13px;
+        }
+
+        .compose-message-row input::placeholder {
+          color: rgba(255,255,255,0.8);
+        }
+
+        .compose-message-row button {
+          border: none;
+          background: transparent;
+          color: white;
+          font-weight: 900;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .modal-backdrop,
+        .notice-backdrop {
           position: fixed;
           inset: 0;
           z-index: 100;
@@ -1380,7 +2028,12 @@ export default function SuperProcessScreen() {
           backdrop-filter: blur(3px);
         }
 
-        .modal-card {
+        .notice-backdrop {
+          z-index: 70;
+        }
+
+        .modal-card,
+        .notice-card {
           width: min(520px, 100%);
           max-height: calc(100vh - 40px);
           overflow-y: auto;
@@ -1390,7 +2043,13 @@ export default function SuperProcessScreen() {
           box-shadow: 0 22px 60px rgba(31, 25, 39, 0.16);
         }
 
-        .modal-header {
+        .notice-card {
+          width: min(420px, 100%);
+          border: 1px solid #ead4ee;
+        }
+
+        .modal-header,
+        .notice-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -1399,11 +2058,30 @@ export default function SuperProcessScreen() {
           border-bottom: 1px solid var(--border-soft);
         }
 
-        .modal-header h2 {
+        .modal-header h2,
+        .notice-header h2 {
           margin: 0;
           font-size: 16px;
           font-weight: 650;
           color: var(--text-primary);
+        }
+
+        .notice-message {
+          margin: 0 0 20px;
+          font-size: 14px;
+          line-height: 1.5;
+          color: #444;
+        }
+
+        .notice-ok-btn {
+          width: 100%;
+          border: none;
+          border-radius: 999px;
+          background: #df6433;
+          color: white;
+          padding: 12px 16px;
+          font-weight: 900;
+          cursor: pointer;
         }
 
         .close-btn {
@@ -1857,6 +2535,7 @@ export default function SuperProcessScreen() {
             padding: 12px;
           }
 
+<<<<<<< HEAD
           .receiver-cell {
             grid-column: 1;
           }
@@ -1888,6 +2567,15 @@ export default function SuperProcessScreen() {
           .save-button,
           .delete-confirm-button {
             width: 100%;
+=======
+          .compose-message-row input {
+            width: 100%;
+            min-height: 36px;
+          }
+
+          .compose-message-row button {
+            justify-content: flex-end;
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
           }
         }
       `}</style>
@@ -1932,3 +2620,35 @@ function Modal({ title, children, onClose }: ModalProps) {
     </div>
   );
 }
+<<<<<<< HEAD
+=======
+
+function NoticeModal({
+  title,
+  message,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="notice-backdrop">
+      <div className="notice-card">
+        <div className="notice-header">
+          <h2>{title}</h2>
+          <button className="close-btn" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="notice-message">{message}</p>
+
+        <button className="notice-ok-btn" onClick={onClose}>
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+>>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3

@@ -1,5 +1,6 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import mobiLogo from "../../assets/mobiLogo.png";
+
 
 interface SidebarProps {
   setSidebarOpen: React.Dispatch<
@@ -10,6 +11,8 @@ interface SidebarProps {
 const Sidebar = ({
   setSidebarOpen,
 }: SidebarProps) => {
+  
+  const navigate = useNavigate();
 
   return (
     <div className="w-50 h-screen bg-white shadow-md flex flex-col justify-between p-6">
@@ -77,20 +80,41 @@ const Sidebar = ({
           </li>
 
           <li>
-            <NavLink to="#" className="hover:text-[#965deb] transition">
+            <NavLink
+              to="/center/notifications"
+              className={({ isActive }) =>
+                isActive
+                    ? "text-[#965deb] font-semibold"
+                    : "hover:text-[#965deb] transition"
+              }
+            >
               Notifications
             </NavLink>
           </li>
 
           <li>
-            <NavLink to="#" className="hover:text-[#965deb] transition">
+            <NavLink
+              to="/center/schedule"
+              className={({ isActive }) =>
+                isActive
+                    ? "text-[#965deb] font-semibold"
+                    : "hover:text-[#965deb] transition"
+              }
+            >
               Schedule
             </NavLink>
           </li>
 
           <li>
-            <NavLink to="#" className="hover:text-[#965deb] transition">
-              Settings
+            <NavLink
+              to="/center/collaboration"
+              className={({ isActive }) =>
+                isActive
+                    ? "text-[#965deb] font-semibold"
+                    : "hover:text-[#965deb] transition"
+              }
+            >
+              Collaboration
             </NavLink>
           </li>
         </ul>
@@ -98,7 +122,10 @@ const Sidebar = ({
 
       {/* BOTTOM SECTION */}
       <div>
-        <button className="text-xl text-left hover:text-red-500 transition ml-2 mb-2">
+        <button
+          onClick={() => navigate("/login")}
+          className="text-xl text-left hover:text-red-500 transition ml-2 mb-2"
+        >
           Log out
         </button>
       </div>

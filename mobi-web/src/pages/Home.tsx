@@ -1,4 +1,5 @@
 import Navbar from "../components/Navbar";
+
 import bg from "../assets/bg1.png";
 import childImg from "../assets/child1.png";
 import centerLogo from "../assets/centerLogo.png";
@@ -6,6 +7,7 @@ import centerLogo from "../assets/centerLogo.png";
 function Home() {
   return (
     <div
+      className="min-h-screen overflow-x-hidden"
       style={{
         backgroundImage: `url(${bg})`,
         backgroundRepeat: "repeat-y",
@@ -15,79 +17,263 @@ function Home() {
       <Navbar />
 
       {/* HERO SECTION */}
-      <section className="flex flex-col-reverse lg:flex-row items-center justify-between px-6 md:px-12 lg:px-28 pt-10 lg:pt-20 gap-10">
-        
+      <section
+        className="
+          mx-auto
+          flex
+          w-full
+          max-w-[1600px]
+          flex-col-reverse
+          items-center
+          justify-between
+          gap-8
+          px-5
+          pb-12
+          pt-10
+          sm:px-8
+          md:px-12
+          lg:flex-row
+          lg:gap-12
+          lg:px-20
+          lg:pb-20
+          lg:pt-16
+          xl:px-28
+        "
+      >
         {/* LEFT */}
-        <div className="max-w-xl text-center lg:text-left">
-          <h1 className="font-itim text-3xl sm:text-4xl md:text-5xl lg:text-7xl mb-6">
+        <div
+          className="
+            w-full
+            max-w-2xl
+            text-center
+            lg:w-1/2
+            lg:text-left
+          "
+        >
+          <h1
+            className="
+              font-itim
+              text-4xl
+              leading-tight
+              sm:text-5xl
+              md:text-6xl
+              lg:text-6xl
+              xl:text-7xl
+            "
+          >
             Get children to
             <br />
             learn with MOBI
           </h1>
 
-          <p className="inter text-base sm:text-lg md:text-xl lg:text-2xl mb-10">
+          <p
+            className="
+              inter
+              mt-5
+              text-base
+              leading-relaxed
+              sm:text-lg
+              md:text-xl
+              lg:mt-6
+              lg:text-xl
+              xl:text-2xl
+            "
+          >
             We always believe that every child deserves a voice. With our
             learning center and school partners, you can seek help to empower
             young learners using MOBI.
           </p>
 
-          <button className="font-itim text-base sm:text-lg lg:text-xl bg-gray-200 px-10 py-4 rounded-full hover:bg-gray-300 transition">
+          <button
+            type="button"
+            className="
+              mt-8
+              rounded-full
+              bg-gray-200
+              px-8
+              py-3
+              font-itim
+              text-base
+              transition
+              hover:bg-gray-300
+              sm:px-10
+              sm:py-4
+              sm:text-lg
+              lg:mt-10
+              lg:text-xl
+            "
+          >
             Connect with Us!
           </button>
         </div>
 
         {/* RIGHT */}
-        <div>
+        <div
+          className="
+            flex
+            w-full
+            items-center
+            justify-center
+            lg:w-1/2
+            lg:justify-end
+          "
+        >
           <img
             src={childImg}
-            alt="Child"
-            className="w-72 sm:w-96 md:w-[500px] lg:w-[900px] object-contain"
+            alt="Child learning with MOBI"
+            className="
+              h-auto
+              w-full
+              max-w-[320px]
+              object-contain
+              sm:max-w-[430px]
+              md:max-w-[520px]
+              lg:max-w-[620px]
+              xl:max-w-[760px]
+            "
           />
         </div>
       </section>
 
-      {/* CENTERS & SCHOOLS BANNER */}
+      {/* PARTNER CENTER BANNER */}
       <section
-        className="bg-[#A3B0D3]/70 py-6 sm:py-8 lg:py-10 text-center scroll-mt-28"
+        className="
+          scroll-mt-24
+          bg-[#A3B0D3]/70
+          px-5
+          py-7
+          text-center
+          sm:py-8
+          lg:py-10
+        "
       >
-        <h2 className="font-itim text-2xl sm:text-3xl md:text-4xl lg:text-5xl">
+        <h2 className="font-itim text-3xl sm:text-4xl lg:text-5xl">
           Our Partner Center
         </h2>
 
-        <p className="inter text-sm sm:text-lg md:text-xl lg:text-3xl mt-2">
+        <p className="inter mt-2 text-base sm:text-lg md:text-xl lg:text-2xl">
           You may use MOBI with:
         </p>
       </section>
 
       {/* CENTER SECTION */}
-        <section className="px-6 md:px-12 lg:px-28 py-16 lg:py-28 flex flex-col lg:flex-row items-center justify-between gap-10">
-        
+      <section
+        className="
+          mx-auto
+          flex
+          w-full
+          max-w-[1600px]
+          flex-col
+          items-center
+          justify-between
+          gap-10
+          px-5
+          py-14
+          sm:px-8
+          md:px-12
+          lg:flex-row
+          lg:gap-16
+          lg:px-20
+          lg:py-24
+          xl:px-28
+        "
+      >
         {/* LEFT */}
-        <div className="bg-white border border-gray-500 shadow-lg p-8">
-            <div className="border border-gray-400 p-10">
-              <img
-                src={centerLogo}
-                className="w-64 h-64 object-contain"
-              />
-            </div>
+        <div
+          className="
+            w-full
+            max-w-[420px]
+            shrink-0
+            border
+            border-gray-500
+            bg-white
+            p-4
+            shadow-lg
+            sm:p-6
+            lg:w-[380px]
+            xl:w-[420px]
+          "
+        >
+          <div
+            className="
+              flex
+              aspect-square
+              items-center
+              justify-center
+              border
+              border-gray-400
+              p-6
+              sm:p-8
+            "
+          >
+            <img
+              src={centerLogo}
+              alt="Abled Minds Therapy Center logo"
+              className="h-full w-full object-contain"
+            />
+          </div>
 
-            <p className="font-itim text-3xl text-center mt-6">
-              Abled Minds Therapy Center
-            </p>
+          <p
+            className="
+              mt-5
+              text-center
+              font-itim
+              text-2xl
+              sm:text-3xl
+            "
+          >
+            Abled Minds Therapy Center
+          </p>
         </div>
 
         {/* RIGHT */}
-        <div className="max-w-3xl text-center lg:text-left">
-          <h3 className="font-itim text-2xl sm:text-3xl md:text-4xl lg:text-6xl mb-3">
+        <div
+          className="
+            w-full
+            max-w-3xl
+            text-center
+            lg:text-left
+          "
+        >
+          <h3
+            className="
+              font-itim
+              text-3xl
+              leading-tight
+              sm:text-4xl
+              lg:text-5xl
+              xl:text-6xl
+            "
+          >
             Abled Minds Therapy Center
           </h3>
 
-          <p className="inter text-sm sm:text-base md:text-lg lg:text-xl mb-4">
-            Located at FCT-Tintay along H. Abellana St. Tintay, Talamban, Cebu
-            City, Philippines, 6000
+          <p
+            className="
+              inter
+              mt-4
+              text-sm
+              leading-relaxed
+              sm:text-base
+              md:text-lg
+              lg:text-xl
+            "
+          >
+            Located at FCT-Tintay along H. Abellana St. Tintay, Talamban,
+            Cebu City, Philippines, 6000
           </p>
 
-          <p className="inter text-base sm:text-lg md:text-xl lg:text-2xl leading-relaxed">
+          <p
+            className="
+              inter
+              mt-5
+              text-base
+              leading-relaxed
+              sm:text-lg
+              md:text-xl
+              lg:text-2xl
+            "
+          >
             Therapists from Abled Minds supported the development of the MOBI
             App by helping validate its features and providing professional
             guidance to ensure it is effective for therapy and learning
