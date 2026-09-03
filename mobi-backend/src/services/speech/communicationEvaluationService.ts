@@ -15,11 +15,17 @@ import type {
 export interface EvaluateCommunicationInput {
   transcript: string;
 
-  expectedAnswers:
-    string[];
+  expectedAnswers: string[];
 
-  acceptedVariations:
-    string[];
+  acceptedVariations: string[];
+
+  settings?: {
+    levenshteinThreshold?: number;
+
+    phoneticMatchingEnabled?: boolean;
+
+    acceptedVariationsEnabled?: boolean;
+  };
 }
 
 /* =========================================================
@@ -56,6 +62,7 @@ export function evaluateCommunication(
     transcript,
     expectedAnswers,
     acceptedVariations,
+    settings,
   } = input;
 
   const normalizedTranscript =
@@ -70,6 +77,8 @@ export function evaluateCommunication(
       expectedAnswers,
 
       acceptedVariations,
+
+      settings,
     });
 
   /*

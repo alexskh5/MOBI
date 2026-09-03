@@ -19,6 +19,12 @@ import {
   calculateMaximumConsecutiveSuccesses,
 } from "./masteryService";
 
+
+// import {
+//   completeActivityInLearningSession,
+// } from "./learningSessionService";
+
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -84,6 +90,15 @@ export interface StartActivitySessionInput {
   centerId: string;
   learnerId: string;
   activityId: string;
+
+  /*
+    Parent learning session.
+
+    null means this activity was opened independently
+    rather than as part of a broader learning session.
+  */
+  learningSessionId?: string | null;
+
 
   /*
     Present when the activity came from a therapist or
@@ -331,6 +346,7 @@ export async function startActivitySession(
     centerId,
     learnerId,
     activityId,
+    learningSessionId = null,
     assignmentId = null,
     sessionSource = "manual",
     selectionAlgorithm = null,
@@ -690,6 +706,9 @@ export async function startActivitySession(
 
       activity_id:
         activityId,
+      
+      learning_session_id:
+        learningSessionId,
 
       assignment_id:
         assignment?.id ??
@@ -1283,6 +1302,8 @@ export async function finishActivitySession(
     .eq("learner_id", learnerId)
     .single();
 
+  console.log("Loaded activity session:", session);
+
   if (sessionError || !session) {
     console.error(
       "Unable to fetch session before completion:",
@@ -1759,7 +1780,17 @@ const {
   */
   let banditOutcome = null;
 
-  if (status === "completed") {
+  /*
+  Thompson Sampling should learn only when MOBI has actual
+  scored learner-performance evidence.
+
+  A technically completed session with zero scored attempts
+  must not be treated as an unsuccessful activity outcome.
+  */
+  if (
+    status === "completed" &&
+    scoredAttempts.length > 0
+  ) {
     try {
       banditOutcome =
         await updateBanditOutcome({
@@ -1831,6 +1862,25 @@ try {
   );
 }
 
+// let learningSessionNext = null;
+
+// if (
+//   status === "completed" &&
+//   completedSession.learning_session_id
+// ) {
+//   try {
+//     learningSessionNext =
+//       await completeActivityInLearningSession(
+//         completedSession.learning_session_id,
+//       );
+//   } catch (error) {
+//     console.error(
+//       "Unable to evaluate next learning-session activity:",
+//       error,
+//     );
+//   }
+// }
+
   return {
   session:
     completedSession,
@@ -1879,5 +1929,6 @@ try {
   banditOutcome,
   progression,
   transactionalProgress,
+  // learningSessionNext,
 };
 }

@@ -8,7 +8,7 @@ import type {
 
 
 import {
-  finishActivitySession,
+  // finishActivitySession,
   getActivitySessionById,
   saveActivityAttempt,
   startActivitySession,
@@ -42,6 +42,10 @@ import {
 import type {
   SessionOrchestratorContext,
 } from "../services/activity/sessionOrchestratorService";
+
+import {
+  continueLearningSession,
+} from "../services/activity/learningSessionFlowService";
 // import {
 //   getOrCreateBanditState,
 //   sampleThompsonScore,
@@ -1033,116 +1037,239 @@ export async function finishSession(
       });
     }
 
-    const result =
-      await finishActivitySession({
-        centerId:
-          CENTER_ID,
+    // const result =
+    //   await finishActivitySession({
+    //     centerId:
+    //       CENTER_ID,
 
-        learnerId:
-          learnerId.trim(),
+    //     learnerId:
+    //       learnerId.trim(),
 
-        sessionId,
+    //     sessionId,
 
-        status:
-          normalizedStatus,
+    //     status:
+    //       normalizedStatus,
 
-        totalDurationSeconds:
-          typeof totalDurationSeconds ===
-            "number"
-            ? totalDurationSeconds
-            : 0,
+    //     totalDurationSeconds:
+    //       typeof totalDurationSeconds ===
+    //         "number"
+    //         ? totalDurationSeconds
+    //         : 0,
 
-        inactivitySeconds:
-          typeof inactivitySeconds ===
-            "number"
-            ? inactivitySeconds
-            : 0,
+    //     inactivitySeconds:
+    //       typeof inactivitySeconds ===
+    //         "number"
+    //         ? inactivitySeconds
+    //         : 0,
 
-        gazePresentSeconds:
-          typeof gazePresentSeconds ===
-            "number"
-            ? gazePresentSeconds
-            : 0,
+    //     gazePresentSeconds:
+    //       typeof gazePresentSeconds ===
+    //         "number"
+    //         ? gazePresentSeconds
+    //         : 0,
 
-        gazeAwaySeconds:
-          typeof gazeAwaySeconds ===
-            "number"
-            ? gazeAwaySeconds
-            : 0,
+    //     gazeAwaySeconds:
+    //       typeof gazeAwaySeconds ===
+    //         "number"
+    //         ? gazeAwaySeconds
+    //         : 0,
 
-        gazeDetectionAvailable:
-          typeof gazeDetectionAvailable ===
-            "boolean"
-            ? gazeDetectionAvailable
-            : false,
+    //     gazeDetectionAvailable:
+    //       typeof gazeDetectionAvailable ===
+    //         "boolean"
+    //         ? gazeDetectionAvailable
+    //         : false,
 
-        breakCount:
-          typeof breakCount ===
-            "number"
-            ? breakCount
-            : 0,
+    //     breakCount:
+    //       typeof breakCount ===
+    //         "number"
+    //         ? breakCount
+    //         : 0,
 
-        breakSuggested:
-          typeof breakSuggested ===
-            "boolean"
-            ? breakSuggested
-            : false,
+    //     breakSuggested:
+    //       typeof breakSuggested ===
+    //         "boolean"
+    //         ? breakSuggested
+    //         : false,
 
-        engagementOverrideTriggered:
-          typeof engagementOverrideTriggered ===
-            "boolean"
-            ? engagementOverrideTriggered
-            : false,
+    //     engagementOverrideTriggered:
+    //       typeof engagementOverrideTriggered ===
+    //         "boolean"
+    //         ? engagementOverrideTriggered
+    //         : false,
 
-        engagementOverrideReason:
-          typeof engagementOverrideReason ===
-            "string"
-            ? engagementOverrideReason
-            : null,
+    //     engagementOverrideReason:
+    //       typeof engagementOverrideReason ===
+    //         "string"
+    //         ? engagementOverrideReason
+    //         : null,
 
-        skippedBy:
-          typeof skippedBy ===
-            "string"
-            ? skippedBy
-            : null,
+    //     skippedBy:
+    //       typeof skippedBy ===
+    //         "string"
+    //         ? skippedBy
+    //         : null,
 
-        skipReason:
-          typeof skipReason ===
-            "string"
-            ? skipReason
-            : null,
+    //     skipReason:
+    //       typeof skipReason ===
+    //         "string"
+    //         ? skipReason
+    //         : null,
 
-        stoppedBy:
-          typeof stoppedBy ===
-            "string"
-            ? stoppedBy
-            : null,
+    //     stoppedBy:
+    //       typeof stoppedBy ===
+    //         "string"
+    //         ? stoppedBy
+    //         : null,
 
-        stopReason:
-          typeof stopReason ===
-            "string"
-            ? stopReason
-            : null,
+    //     stopReason:
+    //       typeof stopReason ===
+    //         "string"
+    //         ? stopReason
+    //         : null,
 
-        recommendedNextAction:
-          recommendedNextAction ===
-            null
-            ? null
-            : recommendedNextAction as
-                | RecommendedNextAction
-                | undefined,
+    //     recommendedNextAction:
+    //       recommendedNextAction ===
+    //         null
+    //         ? null
+    //         : recommendedNextAction as
+    //             | RecommendedNextAction
+    //             | undefined,
 
-        therapistSessionNotes:
-          typeof therapistSessionNotes ===
-            "string"
-            ? therapistSessionNotes
-            : null,
-      });
+    //     therapistSessionNotes:
+    //       typeof therapistSessionNotes ===
+    //         "string"
+    //         ? therapistSessionNotes
+    //         : null,
+    //   });
+
+    const learningSessionId =
+  typeof req.body.learningSessionId ===
+    "string" &&
+  req.body.learningSessionId.trim()
+    ? req.body.learningSessionId.trim()
+    : null;
+
+if (!learningSessionId) {
+  return res.status(400).json({
+    success: false,
+    message:
+      "A valid learningSessionId is required.",
+  });
+}
+
+const result =
+  await continueLearningSession({
+    learningSessionId,
+
+    centerId:
+      CENTER_ID,
+
+    learnerId:
+      learnerId.trim(),
+
+    sessionId,
+
+    status:
+      normalizedStatus,
+
+    totalDurationSeconds:
+      typeof totalDurationSeconds ===
+        "number"
+        ? totalDurationSeconds
+        : 0,
+
+    inactivitySeconds:
+      typeof inactivitySeconds ===
+        "number"
+        ? inactivitySeconds
+        : 0,
+
+    gazePresentSeconds:
+      typeof gazePresentSeconds ===
+        "number"
+        ? gazePresentSeconds
+        : 0,
+
+    gazeAwaySeconds:
+      typeof gazeAwaySeconds ===
+        "number"
+        ? gazeAwaySeconds
+        : 0,
+
+    gazeDetectionAvailable:
+      typeof gazeDetectionAvailable ===
+        "boolean"
+        ? gazeDetectionAvailable
+        : false,
+
+    breakCount:
+      typeof breakCount ===
+        "number"
+        ? breakCount
+        : 0,
+
+    breakSuggested:
+      typeof breakSuggested ===
+        "boolean"
+        ? breakSuggested
+        : false,
+
+    engagementOverrideTriggered:
+      typeof engagementOverrideTriggered ===
+        "boolean"
+        ? engagementOverrideTriggered
+        : false,
+
+    engagementOverrideReason:
+      typeof engagementOverrideReason ===
+        "string"
+        ? engagementOverrideReason
+        : null,
+
+    skippedBy:
+      typeof skippedBy ===
+        "string"
+        ? skippedBy
+        : null,
+
+    skipReason:
+      typeof skipReason ===
+        "string"
+        ? skipReason
+        : null,
+
+    stoppedBy:
+      typeof stoppedBy ===
+        "string"
+        ? stoppedBy
+        : null,
+
+    stopReason:
+      typeof stopReason ===
+        "string"
+        ? stopReason
+        : null,
+
+    recommendedNextAction:
+      recommendedNextAction ===
+        null
+        ? null
+        : recommendedNextAction as
+            | RecommendedNextAction
+            | undefined,
+
+    therapistSessionNotes:
+      typeof therapistSessionNotes ===
+        "string"
+        ? therapistSessionNotes
+        : null,
+  });
 
     return res.status(200).json({
       success: true,
       message:
-        "Activity session finished successfully.",
+        "Activity session finished and next activity recommendation evaluated successfully.",
       ...result,
     });
   } catch (error) {
@@ -2077,6 +2204,20 @@ export async function respondToActivity(
                 )
               : [],
 
+          evaluationSettings: {
+            levenshteinThreshold:
+              session.effective_settings
+                ?.levenshteinThreshold,
+
+            phoneticMatchingEnabled:
+              session.effective_settings
+                ?.phoneticMatchingEnabled,
+
+            acceptedVariationsEnabled:
+              session.effective_settings
+                ?.acceptedVariationsEnabled,
+          },
+
           engagement: {
             gazeDetectionAvailable:
               typeof gazeDetectionAvailable ===
@@ -2160,12 +2301,38 @@ export async function respondToActivity(
     const communication =
       runtimeResult.communication;
 
+    /*
+    MOBI scoring rule:
+
+    Correct target response:
+        score as correct.
+
+    Clear communication attempt that does not match the target:
+        score as incorrect.
+
+    Approximation:
+        preserve as meaningful communication evidence,
+        but do not score it as wrong.
+
+    No response:
+        do not score.
+    */
+    const hasDefinedTarget =
+    expectedAnswers.length > 0;
+
     const shouldScore =
-      communication.targetAchieved;
+    hasDefinedTarget &&
+    (
+        communication.targetAchieved ||
+        (
+        communication.communicationAttempt &&
+        !communication.approximationDetected
+        )
+    );
 
     const isCorrect =
-      communication.targetAchieved
-        ? true
+    shouldScore
+        ? communication.targetAchieved
         : null;
 
     const feedbackType:
@@ -2215,6 +2382,38 @@ export async function respondToActivity(
         matchedAnswer:
           communication
             .matchedAnswer,
+
+        levenshteinThresholdUsed:
+          typeof session.effective_settings
+            ?.levenshteinThreshold === "number"
+            ? session.effective_settings
+                .levenshteinThreshold
+            : 2,
+
+        phoneticMatchingEnabled:
+          session.effective_settings
+            ?.phoneticMatchingEnabled !== false,
+
+        acceptedVariationsEnabled:
+          session.effective_settings
+            ?.acceptedVariationsEnabled !== false,
+
+        evaluationSettings: {
+          levenshteinThreshold:
+            typeof session.effective_settings
+              ?.levenshteinThreshold === "number"
+              ? session.effective_settings
+                  .levenshteinThreshold
+              : 2,
+
+          phoneticMatchingEnabled:
+            session.effective_settings
+              ?.phoneticMatchingEnabled !== false,
+
+          acceptedVariationsEnabled:
+            session.effective_settings
+              ?.acceptedVariationsEnabled !== false,
+        },
 
         communicationAttempt:
           communication

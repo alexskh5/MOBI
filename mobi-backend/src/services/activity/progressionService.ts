@@ -1,3 +1,5 @@
+//mobi-backend/src/services/activity/progressionService.ts
+
 import { supabase } from "../../config/supabase";
 
 /* =========================================================
@@ -23,6 +25,21 @@ export interface ProgressionRecommendation {
   therapistApprovalRequired: boolean;
 
   eligibleForProgression: boolean;
+
+  /*
+    New progression metrics.
+
+    These are informative and can later power therapist
+    dashboards without changing the API.
+  */
+
+  communicationAttemptRate: number;
+
+  approximationRate: number;
+
+  masteryPercentage: number;
+
+  recommendationReason: string;
 
   recommendedNextAction:
     | "remain"
@@ -157,6 +174,33 @@ if (!profile) {
   const masteredSessions =
     sessions ?? [];
 
+  /* =======================================================
+   GET LEARNER ATTEMPTS
+  ======================================================= */
+
+  const {
+    data: sessionsWithAttempts,
+    error: attemptsError,
+  } = await supabase
+    .from("learner_activity_sessions")
+    .select(`
+      learner_activity_attempts (
+        communication_attempt,
+        approximation_detected
+      )
+    `)
+    .eq("center_id", centerId)
+    .eq("learner_id", learnerId);
+
+  if (attemptsError) {
+    throw attemptsError;
+  }
+
+  const learnerAttempts =
+    (sessionsWithAttempts ?? []).flatMap(
+      (session) => session.learner_activity_attempts ?? [],
+    );
+
     /*
     Progression requires DIFFERENT mastered activities,
     not repeated mastery of the same activity.
@@ -209,30 +253,103 @@ if (!profile) {
     averageSuccessRate >=
       requiredSuccessRate;
 
+  
   /* =======================================================
-     5. RETURN RECOMMENDATION
-  ======================================================= */
+   5. RETURN RECOMMENDATION
+======================================================= */
 
-  return {
-    currentSpeechLadder,
+const recommendedNextAction =
+  eligibleForProgression &&
+  therapistApprovalRequired
+    ? "therapist_review"
+    : "remain";
 
-    activitiesMastered,
+/*
+  Percentage of required activities already mastered.
+*/
+const masteryPercentage =
+  requiredActivities > 0
+    ? Number(
+        (
+          (activitiesMastered / requiredActivities) *
+          100
+        ).toFixed(2)
+      )
+    : 0;
 
-    requiredActivities,
+/*
+  Communication metrics are based on all recorded learner
+  attempts at the current point in time.
 
-    averageSuccessRate,
+  These metrics are informative and do not directly control
+  progression decisions.
+*/
 
-    requiredSuccessRate,
+const totalAttempts = learnerAttempts.length;
 
-    therapistApprovalRequired,
+const communicationAttempts =
+  learnerAttempts.filter(
+    (attempt) => attempt.communication_attempt === true,
+  ).length;
 
-    eligibleForProgression,
+const approximations =
+  learnerAttempts.filter(
+    (attempt) => attempt.approximation_detected === true,
+  ).length;
 
-    recommendedNextAction:
-      eligibleForProgression
-        ? therapistApprovalRequired
-          ? "therapist_review"
-          : "remain"
-        : "remain",
-  };
+const communicationAttemptRate =
+  totalAttempts > 0
+    ? Number(
+        (
+          (communicationAttempts / totalAttempts) *
+          100
+        ).toFixed(2),
+      )
+    : 0;
+
+const approximationRate =
+  communicationAttempts > 0
+    ? Number(
+        (
+          (approximations / communicationAttempts) *
+          100
+        ).toFixed(2),
+      )
+    : 0;
+
+/*
+  Human-readable explanation for therapists.
+*/
+const recommendationReason =
+  eligibleForProgression
+    ? therapistApprovalRequired
+      ? "Learner met the progression requirements and is ready for therapist review."
+      : "Learner met the progression requirements."
+    : "Learner should continue practicing the current speech ladder level.";
+
+return {
+  currentSpeechLadder,
+
+  activitiesMastered,
+
+  requiredActivities,
+
+  averageSuccessRate,
+
+  requiredSuccessRate,
+
+  therapistApprovalRequired,
+
+  eligibleForProgression,
+
+  communicationAttemptRate,
+
+  approximationRate,
+
+  masteryPercentage,
+
+  recommendationReason,
+
+  recommendedNextAction,
+};
 }

@@ -4,8 +4,18 @@ import { phoneticMatch } from "./phonetic";
 
 type EvaluateInput = {
   transcript: string;
+
   expectedAnswers: string[];
+
   acceptedVariations: string[];
+
+  settings?: {
+    levenshteinThreshold?: number;
+
+    phoneticMatchingEnabled?: boolean;
+
+    acceptedVariationsEnabled?: boolean;
+  };
 };
 
 function normalizeText(text: string) {
@@ -24,12 +34,27 @@ export function evaluateSpeech({
   transcript,
   expectedAnswers,
   acceptedVariations,
+  settings = {},
 }: EvaluateInput) {
   const spoken = normalizeText(transcript);
   const spokenWords = getWords(transcript);
 
+  const levenshteinThreshold =
+  typeof settings.levenshteinThreshold === "number"
+    ? Math.max(0, settings.levenshteinThreshold)
+    : 2;
+
+  const phoneticMatchingEnabled =
+    settings.phoneticMatchingEnabled !== false;
+
+  const acceptedVariationsEnabled =
+    settings.acceptedVariationsEnabled !== false;
+
   const expected = expectedAnswers.map(normalizeText);
-  const variations = acceptedVariations.map(normalizeText);
+  const variations =
+    acceptedVariationsEnabled
+      ? acceptedVariations.map(normalizeText)
+      : [];
 
   const allAccepted = [...expected, ...variations];
 
@@ -87,6 +112,7 @@ for (const accepted of allAccepted) {
     }
   }
 
+  
 // 5. Levenshtein approximation
 for (const word of spokenWords) {
   for (const answer of expected) {
@@ -105,8 +131,11 @@ for (const word of spokenWords) {
     */
     const maximumDistance =
       answer.length <= 3
-        ? 1
-        : 2;
+        ? Math.min(
+            1,
+            levenshteinThreshold,
+          )
+        : levenshteinThreshold;
 
     if (
       distance <=
@@ -139,19 +168,21 @@ for (const word of spokenWords) {
 }
 
   // 6. Phonetic match
-for (const word of spokenWords) {
-  for (const answer of expected) {
-    if (phoneticMatch(word, answer)) {
-      return {
-        accepted: true,
-        method: "phonetic_match",
-        matched_word: answer,
-        communication_attempt: true,
-        should_score: true,
-      };
+  if (phoneticMatchingEnabled) {
+    for (const word of spokenWords) {
+      for (const answer of expected) {
+        if (phoneticMatch(word, answer)) {
+          return {
+            accepted: true,
+            method: "phonetic_match",
+            matched_word: answer,
+            communication_attempt: true,
+            should_score: true,
+          };
+        }
+      }
     }
   }
-}
 
   return {
     accepted: false,

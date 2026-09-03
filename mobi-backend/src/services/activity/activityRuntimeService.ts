@@ -38,10 +38,24 @@ export interface ProcessLearnerResponseInput {
     string[];
 
   /*
-    Engagement evidence collected during this response.
+    Learner-specific speech evaluation settings.
+
+    These come from the effective settings snapshot stored
+    when the activity session started.
   */
-  engagement:
-    SessionEngagementEvidence;
+  evaluationSettings?: {
+    levenshteinThreshold?: number;
+
+    phoneticMatchingEnabled?: boolean;
+
+    acceptedVariationsEnabled?: boolean;
+  };
+
+/*
+  Engagement evidence collected during this response.
+*/
+engagement:
+  SessionEngagementEvidence;
 
   /*
     Activity/session state.
@@ -144,6 +158,9 @@ export function processLearnerResponse(
 
       acceptedVariations:
         response.acceptedVariations,
+
+      settings:
+        response.evaluationSettings,
     });
 
   /* =======================================================

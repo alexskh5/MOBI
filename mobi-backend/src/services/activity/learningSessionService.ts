@@ -1,4 +1,20 @@
+// mobi-backend/src/services/activity/learningSessionService.ts
+
+
 import { supabase } from "../../config/supabase";
+
+import {
+  startActivitySession,
+} from "./activitySessionService";
+
+
+import {
+  selectNextActivity,
+} from "./activitySelectionService";
+
+import {
+  evaluateLearnerProgression,
+} from "./progressionService";
 
 /* =========================================================
    TYPES
@@ -159,6 +175,27 @@ export async function startLearningSession(
       "Unable to start learning session.",
     );
   }
+/*
+  Automatically start the first activity session.
+
+  The therapist or parent already selected the first
+  activity when the learning session was created.
+*/
+
+await startActivitySession({
+  centerId,
+
+  learnerId,
+
+  activityId:
+    initialActivityId,
+
+  learningSessionId:
+    learningSession.id,
+
+  sessionSource:
+    "manual",
+});
 
   return learningSession;
 }
@@ -294,4 +331,222 @@ export async function endLearningSession(
   }
 
   return updatedSession;
+}
+
+
+/* =========================================================
+   COMPLETE ACTIVITY WITHIN LEARNING SESSION
+========================================================= */
+
+export async function completeActivityInLearningSession(
+  learningSessionId: string,
+) {
+
+  /* =======================================================
+     1. LOAD LEARNING SESSION
+  ======================================================= */
+
+  const {
+    data: learningSession,
+    error,
+  } = await supabase
+    .from("learner_learning_sessions")
+    .select("*")
+    .eq("id", learningSessionId)
+    .single();
+
+  if (
+    error ||
+    !learningSession
+  ) {
+    throw new Error(
+      "Learning session was not found.",
+    );
+  }
+
+  const {
+    center_id,
+    learner_id,
+  } = learningSession;
+
+  /* =======================================================
+   2. EVALUATE LEARNER PROGRESSION
+  ======================================================= */
+
+  const progression =
+    await evaluateLearnerProgression({
+      centerId:
+        center_id,
+
+      learnerId:
+        learner_id,
+    });
+
+  /* =======================================================
+   3. SELECT NEXT ACTIVITY
+  ======================================================= */
+
+  const nextActivity =
+    await selectNextActivity({
+      centerId: center_id,
+      learnerId: learner_id,
+    });
+
+  return {
+  learningSession,
+
+  progression,
+
+  nextActivity,
+};
+
+}
+
+
+
+/* =========================================================
+   START NEXT ACTIVITY AFTER ADULT CONFIRMATION
+========================================================= */
+
+export async function startNextActivityInLearningSession(
+  learningSessionId: string,
+) {
+
+  /* =======================================================
+     1. LOAD ACTIVE LEARNING SESSION
+  ======================================================= */
+
+  const {
+    data: learningSession,
+    error: learningSessionError,
+  } = await supabase
+    .from("learner_learning_sessions")
+    .select("*")
+    .eq("id", learningSessionId)
+    .single();
+
+  if (
+    learningSessionError ||
+    !learningSession
+  ) {
+    throw new Error(
+      "Learning session was not found.",
+    );
+  }
+
+  if (
+    learningSession.status !==
+    "in_progress"
+  ) {
+    throw new Error(
+      "Only an active learning session can start another activity.",
+    );
+  }
+
+  const centerId =
+    learningSession.center_id;
+
+  const learnerId =
+    learningSession.learner_id;
+
+  /* =======================================================
+     2. RE-EVALUATE THE NEXT ACTIVITY
+
+     We deliberately select again here instead of trusting
+     an activity ID sent by mobile.
+
+     This keeps adaptive selection controlled by backend
+     rules and avoids using a stale recommendation.
+  ======================================================= */
+
+  const selection =
+    await selectNextActivity({
+      centerId,
+      learnerId,
+    });
+
+  if (!selection) {
+    return {
+      started:
+        false,
+
+      learningSession,
+
+      selection:
+        null,
+
+      activitySession:
+        null,
+
+      message:
+        "No eligible next activity is currently available.",
+    };
+  }
+
+  /* =======================================================
+     3. MAP SELECTION SOURCE
+  ======================================================= */
+
+  let sessionSource:
+    | "assigned_required"
+    | "assigned_recommended"
+    | "adaptive";
+
+  if (
+    selection.source ===
+    "assigned_required"
+  ) {
+    sessionSource =
+      "assigned_required";
+  } else if (
+    selection.source ===
+    "assigned_recommended"
+  ) {
+    sessionSource =
+      "assigned_recommended";
+  } else {
+    sessionSource =
+      "adaptive";
+  }
+
+  /* =======================================================
+     4. START ACTIVITY INSIDE THIS LEARNING SESSION
+  ======================================================= */
+
+  const activitySession =
+    await startActivitySession({
+      centerId,
+
+      learnerId,
+
+      activityId:
+        selection.activityId,
+
+      learningSessionId,
+
+      assignmentId:
+        selection.assignmentId,
+
+      sessionSource,
+
+      selectionAlgorithm:
+        selection.selectionAlgorithm,
+
+      selectionReason:
+        selection.selectionReason,
+    });
+
+  return {
+    started:
+      true,
+
+    learningSession,
+
+    selection,
+
+    activitySession,
+
+    message:
+      "Recommended activity session started successfully.",
+  };
 }

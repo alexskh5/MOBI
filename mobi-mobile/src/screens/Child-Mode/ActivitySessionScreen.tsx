@@ -35,6 +35,8 @@ import {
   generateTTSAudio, 
   startActivitySession,  
   respondToActivitySession,
+  finishActivitySession,
+  getNextRecommendedActivity,
 } from '../../services/api';
 
 
@@ -102,6 +104,16 @@ export default function ActivitySessionScreen() {
 
   const steps = fullActivity?.steps || fullActivity?.activity_steps || [];
   const currentStep = steps[currentStepIndex];
+
+  const [
+  nextRecommendedActivity,
+  setNextRecommendedActivity,
+  ] = useState<any>(null);
+
+  const [
+    finishingSession,
+    setFinishingSession,
+  ] = useState(false);
 
   useEffect(() => {
     async function loadFullActivity() {
@@ -556,6 +568,97 @@ const cleanupRecording = async () => {
   setSpeakerStatus("idle");
 };
 
+const completeCurrentActivity = async () => {
+  if (!activitySessionId) {
+    console.log(
+      "Cannot finish activity: no backend session ID.",
+    );
+
+    setSessionStatus("completed");
+
+    return;
+  }
+
+  if (finishingSession) {
+    return;
+  }
+
+  try {
+    setFinishingSession(true);
+
+    console.log(
+      "FINISHING BACKEND ACTIVITY SESSION:",
+      activitySessionId,
+    );
+
+    const finishResult =
+      await finishActivitySession({
+        sessionId:
+          activitySessionId,
+
+        learnerId:
+          TEST_LEARNER_ID,
+
+        status:
+          "completed",
+
+        /*
+          Temporary values.
+
+          Later these will use real session timers,
+          inactivity tracking, and gaze information.
+        */
+        totalDurationSeconds:
+          0,
+
+        inactivitySeconds:
+          0,
+
+        gazePresentSeconds:
+          0,
+
+        gazeAwaySeconds:
+          0,
+
+        gazeDetectionAvailable:
+          false,
+      });
+
+    console.log(
+      "Finished activity session:",
+      finishResult,
+    );
+
+    const recommendation =
+      await getNextRecommendedActivity(
+        TEST_LEARNER_ID,
+      );
+
+    console.log(
+      "Next adaptive recommendation:",
+      recommendation,
+    );
+
+    setNextRecommendedActivity(
+      recommendation.nextActivity ??
+        null,
+    );
+
+    setSessionStatus(
+      "completed",
+    );
+  } catch (error) {
+    console.log(
+      "Failed to finish activity session:",
+      error,
+    );
+  } finally {
+    setFinishingSession(
+      false,
+    );
+  }
+};
+
   const goToNextStep = async () => {
     await cleanupRecording();
 
@@ -575,10 +678,15 @@ const cleanupRecording = async () => {
     }
 
     if (nextIndex < steps.length) {
-      setCurrentStepIndex(nextIndex);
-      playAppPrompt(steps[nextIndex]);
+      setCurrentStepIndex(
+        nextIndex,
+      );
+
+      playAppPrompt(
+        steps[nextIndex],
+      );
     } else {
-      setSessionStatus("completed");
+      await completeCurrentActivity();
     }
   };
 
@@ -596,11 +704,21 @@ const cleanupRecording = async () => {
       ? 'Listening to you...'
       : 'Tap the microphone when you are ready.';
 
-  const shouldShowVoiceControl =
-    currentStep?.step_type === 'ask' ||
-    currentStep?.step_type === 'conversation' ||
-    currentStep?.step_type === 'do_it';
+  // const shouldShowVoiceControl =
+  //   currentStep?.step_type === 'ask' ||
+  //   currentStep?.step_type === 'conversation' ||
+  //   currentStep?.step_type === 'do_it';
 
+  const shouldShowVoiceControl =
+  (
+    currentStep?.step_type === 'ask' ||
+    currentStep?.step_type === 'conversation'
+  ) &&
+  Array.isArray(
+    currentStep?.expected_answers,
+  ) &&
+  currentStep.expected_answers.length > 0;
+  
   const renderCurrentStep = () => {
     if (!currentStep) {
       return (

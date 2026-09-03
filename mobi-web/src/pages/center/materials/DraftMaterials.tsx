@@ -1,3 +1,6 @@
+// MOBI/mobi-web/src/pages/center/materials/DraftMaterials.tsx
+
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";

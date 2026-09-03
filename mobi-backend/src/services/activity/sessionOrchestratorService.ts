@@ -1,3 +1,14 @@
+//mobi-backend/src/services/activity/sessionOrchestratorService.ts
+
+
+
+import {
+  determineAdaptiveSupportAction,
+} from "./adaptivePolicyService";
+
+import {
+  determineAttemptOutcome,
+} from "./attemptOutcomeService";
 /* =========================================================
    SESSION ORCHESTRATOR SERVICE
 
@@ -631,186 +642,344 @@ export function decideAdaptiveAction(
     };
   }
 
-  /* =======================================================
-     6. TARGET ACHIEVED
-  ======================================================= */
+//   /* =======================================================
+//      6. TARGET ACHIEVED
+//   ======================================================= */
 
-  if (
-    input.communication.targetAchieved
-  ) {
-    return {
-      nextState:
-        getActivityWaitingState(
-          currentActivity
-            ?.deliveryMode ??
-          "screen",
-        ),
+//   if (
+//     input.communication.targetAchieved
+//   ) {
+//     return {
+//       nextState:
+//         getActivityWaitingState(
+//           currentActivity
+//             ?.deliveryMode ??
+//           "screen",
+//         ),
 
-      action:
-        "continue",
+//       action:
+//         "continue",
 
-      reason:
-        "Target response achieved.",
+//       reason:
+//         "Target response achieved.",
 
-      requiresAdultConfirmation:
-        false,
+//       requiresAdultConfirmation:
+//         false,
 
-      evidence: {
-        communication:
-          input.communication,
+//       evidence: {
+//         communication:
+//           input.communication,
 
-        engagement:
-          input.engagement,
-      },
-    };
-  }
+//         engagement:
+//           input.engagement,
+//       },
+//     };
+//   }
 
   
+// /* =======================================================
+//    7. TARGET-RELATED SPEECH APPROXIMATION
+
+//    Example:
+
+//      target = "ball"
+//      learner = "ba"
+
+//    The learner attempted a recognizable approximation of
+//    the target.
+
+//    This should be acknowledged positively without treating
+//    it as identical to exact target achievement.
+// ======================================================= */
+
+// if (
+//   input.communication
+//     .communicationAttempt &&
+//   input.communication
+//     .approximationDetected
+// ) {
+//   return {
+//     nextState:
+//       "adaptive_support",
+
+//     action:
+//       input.adaptiveSettings
+//         .oneMoreTryEnabled
+//         ? "one_more_try"
+//         : "continue",
+
+//     reason:
+//       "Target-related speech approximation detected. The communication attempt is acknowledged without requiring perfect pronunciation.",
+
+//     requiresAdultConfirmation:
+//       false,
+
+//     evidence: {
+//       communication:
+//         input.communication,
+
+//       engagement:
+//         input.engagement,
+//     },
+//   };
+// }
+
+// /* =======================================================
+//    8. OTHER COMMUNICATION ATTEMPT
+
+//    Example:
+
+//      target = "ball"
+//      learner = "cat"
+
+//    The learner DID communicate, so this should never be
+//    treated as silence or absence of communication.
+
+//    However, the response was not recognized as the current
+//    target or as an approximation of that target.
+// ======================================================= */
+
+// if (
+//   input.communication.communicationAttempt
+// ) {
+//   return {
+//     nextState:
+//       "adaptive_support",
+
+//     action:
+//       input.adaptiveSettings
+//         .oneMoreTryEnabled
+//         ? "one_more_try"
+//         : "continue",
+
+//     reason:
+//       "Communication attempt detected, but the response was not recognized as the current target. Provide another supportive opportunity.",
+
+//     requiresAdultConfirmation:
+//       false,
+
+//     evidence: {
+//       communication:
+//         input.communication,
+
+//       engagement:
+//         input.engagement,
+//     },
+//   };
+// }
+
+//   /* =======================================================
+//      9. NO COMMUNICATION ATTEMPT YET
+//   ======================================================= */
+
+//   if (
+//     input.adaptiveSettings
+//       .oneMoreTryEnabled
+//   ) {
+//     return {
+//       nextState:
+//         "adaptive_support",
+
+//       action:
+//         "one_more_try",
+
+//       reason:
+//         "No communication attempt detected yet. Provide another structured opportunity.",
+
+//       requiresAdultConfirmation:
+//         false,
+
+//       evidence: {
+//         communication:
+//           input.communication,
+
+//         engagement:
+//           input.engagement,
+//       },
+//     };
+//   }
+
+//   return {
+//     nextState:
+//       getActivityWaitingState(
+//         currentActivity
+//           ?.deliveryMode ??
+//         "screen",
+//       ),
+
+//     action:
+//       "continue",
+
+//     reason:
+//       "Continue the activity using the learner's configured support settings.",
+
+//     requiresAdultConfirmation:
+//       false,
+
+//     evidence: {
+//       communication:
+//         input.communication,
+
+//       engagement:
+//         input.engagement,
+//     },
+//   };
+// }
+
+
+
 /* =======================================================
-   7. TARGET-RELATED SPEECH APPROXIMATION
+   6. DETERMINE STANDARDIZED ATTEMPT OUTCOME
 
-   Example:
+   The orchestrator no longer needs to interpret multiple
+   communication booleans directly.
 
-     target = "ball"
-     learner = "ba"
-
-   The learner attempted a recognizable approximation of
-   the target.
-
-   This should be acknowledged positively without treating
-   it as identical to exact target achievement.
+   The Attempt Outcome service translates the response into
+   one standardized outcome.
 ======================================================= */
 
-if (
-  input.communication
-    .communicationAttempt &&
-  input.communication
-    .approximationDetected
-) {
-  return {
-    nextState:
-      "adaptive_support",
+const attemptOutcome =
+  determineAttemptOutcome({
+    communication:
+      input.communication,
 
-    action:
-      input.adaptiveSettings
-        .oneMoreTryEnabled
-        ? "one_more_try"
-        : "continue",
+    /*
+      If matchedAnswer exists, or the evaluator was working
+      against a target, the response is target-evaluable.
 
-    reason:
-      "Target-related speech approximation detected. The communication attempt is acknowledged without requiring perfect pronunciation.",
-
-    requiresAdultConfirmation:
-      false,
-
-    evidence: {
-      communication:
-        input.communication,
-
-      engagement:
-        input.engagement,
-    },
-  };
-}
+      We will make this even more explicit later by passing
+      hasDefinedTarget directly from the runtime.
+    */
+    hasDefinedTarget:
+      input.communication
+        .matchedAnswer !== null ||
+      input.communication
+        .targetAchieved ||
+      input.communication
+        .approximationDetected,
+  });
 
 /* =======================================================
-   8. OTHER COMMUNICATION ATTEMPT
+   7. APPLY ADAPTIVE SUPPORT POLICY
 
-   Example:
+   The policy decides WHAT support is appropriate.
 
-     target = "ball"
-     learner = "cat"
-
-   The learner DID communicate, so this should never be
-   treated as silence or absence of communication.
-
-   However, the response was not recognized as the current
-   target or as an approximation of that target.
+   The orchestrator remains responsible for WHEN session-
+   level events such as stopping, breaks, or completion
+   override this policy.
 ======================================================= */
 
-if (
-  input.communication.communicationAttempt
-) {
-  return {
-    nextState:
-      "adaptive_support",
+const supportAction =
+  determineAdaptiveSupportAction(
+    attemptOutcome,
+    {
+      oneMoreTryEnabled:
+        input.adaptiveSettings
+          .oneMoreTryEnabled,
 
-    action:
-      input.adaptiveSettings
-        .oneMoreTryEnabled
-        ? "one_more_try"
-        : "continue",
+      /*
+        These are temporarily enabled here.
 
-    reason:
-      "Communication attempt detected, but the response was not recognized as the current target. Provide another supportive opportunity.",
+        Later they should come from the learner/session
+        settings snapshot, just like oneMoreTryEnabled.
+      */
+      allowHint:
+        true,
 
-    requiresAdultConfirmation:
-      false,
-
-    evidence: {
-      communication:
-        input.communication,
-
-      engagement:
-        input.engagement,
+      allowRepeatPrompt:
+        true,
     },
-  };
-}
+  );
 
-  /* =======================================================
-     9. NO COMMUNICATION ATTEMPT YET
-  ======================================================= */
+/* =======================================================
+   8. MAP POLICY ACTION TO SESSION STATE
+======================================================= */
 
-  if (
-    input.adaptiveSettings
-      .oneMoreTryEnabled
-  ) {
-    return {
-      nextState:
-        "adaptive_support",
+let nextState:
+  LearningSessionOrchestratorState;
 
-      action:
-        "one_more_try",
+switch (supportAction) {
+  case "suggest_break":
+    nextState =
+      "break_recommended";
+    break;
 
-      reason:
-        "No communication attempt detected yet. Provide another structured opportunity.",
+  case "end_session":
+    nextState =
+      "stopping";
+    break;
 
-      requiresAdultConfirmation:
-        false,
+  case "recommend_next_activity":
+    nextState =
+      "next_activity_ready";
+    break;
 
-      evidence: {
-        communication:
-          input.communication,
-
-        engagement:
-          input.engagement,
-      },
-    };
-  }
-
-  return {
-    nextState:
+  case "continue":
+    nextState =
       getActivityWaitingState(
         currentActivity
           ?.deliveryMode ??
         "screen",
-      ),
+      );
+    break;
 
-    action:
-      "continue",
+  default:
+    nextState =
+      "adaptive_support";
+    break;
+}
 
-    reason:
-      "Continue the activity using the learner's configured support settings.",
+/* =======================================================
+   9. BUILD HUMAN-READABLE REASON
+======================================================= */
 
-    requiresAdultConfirmation:
-      false,
+const reasonByOutcome:
+  Record<
+    ReturnType<
+      typeof determineAttemptOutcome
+    >,
+    string
+  > = {
+    target_achieved:
+      "Target response achieved.",
 
-    evidence: {
-      communication:
-        input.communication,
+    target_approximation:
+      "Target-related speech approximation detected. Provide support without treating the approximation as full target achievement.",
 
-      engagement:
-        input.engagement,
-    },
+    other_communication:
+      "Communication attempt detected, but the response was not recognized as the current target.",
+
+    no_communication:
+      "No communication attempt detected yet. Provide another structured opportunity.",
+
+    not_evaluable:
+      "Meaningful communication was detected on a response without a defined target.",
   };
+
+/* =======================================================
+   10. RETURN POLICY-BASED DECISION
+======================================================= */
+
+return {
+  nextState,
+
+  action:
+    supportAction,
+
+  reason:
+    reasonByOutcome[
+      attemptOutcome
+    ],
+
+  requiresAdultConfirmation:
+    false,
+
+  evidence: {
+    communication:
+      input.communication,
+
+    engagement:
+      input.engagement,
+  },
+};
 }

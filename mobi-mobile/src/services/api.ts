@@ -41,7 +41,7 @@
 
 import * as FileSystem from "expo-file-system/legacy";
 
-const API_BASE_URL = "http://192.168.1.20:5050";
+const API_BASE_URL = "http://10.225.84.171:5050";
 
 export async function getActivities() {
   const response = await fetch(`${API_BASE_URL}/activities`);
