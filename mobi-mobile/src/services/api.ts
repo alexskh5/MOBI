@@ -36,12 +36,15 @@
 // // if error run command ipconfig getifaddr en0 on device terminal to get ip address then replace
 
 
-
 // mobi-mobile/src/services/api.ts
 
 import * as FileSystem from "expo-file-system/legacy";
 
-const API_BASE_URL = "http://192.168.1.20:5050";
+// <<<<<<< Updated upstream
+// const API_BASE_URL = "http://192.168.1.20:5050";
+// =======
+const API_BASE_URL = "http://192.168.1.4:5050";
+// >>>>>>> Stashed changes
 
 export async function getActivities() {
   const response = await fetch(`${API_BASE_URL}/activities`);
