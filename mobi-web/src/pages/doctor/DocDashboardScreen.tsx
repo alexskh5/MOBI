@@ -5,6 +5,17 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Menu,
+  MessageCircleMore,
+  Search,
+  SlidersHorizontal,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import DocSidebar from "../../components/doctor/DocSidebar";
 import {
   doctorPatients,
@@ -15,108 +26,12 @@ import {
 
 type StatusFilter = "all" | PatientStatus;
 
-function MenuIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-6 w-6"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="m20 20-4-4" />
-    </svg>
-  );
-}
-
-function UsersIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-6 w-6"
-      aria-hidden="true"
-    >
-      <circle cx="9" cy="8" r="3.5" />
-      <circle cx="17" cy="7" r="2.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 14h1a4 4 0 0 1 4 4v3" />
-    </svg>
-  );
-}
-
-function ActiveIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-6 w-6"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="m8 12 2.5 2.5L16.5 9" />
-    </svg>
-  );
-}
-
-function SpeechIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-6 w-6"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.5 8.5 0 1 1-4-7.2" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 3v6h-6" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h8M8 8h5M8 16h4" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
-    </svg>
-  );
-}
-
 interface SummaryCardProps {
   label: string;
   value: number;
   description: string;
   icon: ReactNode;
+  tone: "purple" | "green" | "orange";
 }
 
 function SummaryCard({
@@ -124,23 +39,40 @@ function SummaryCard({
   value,
   description,
   icon,
+  tone,
 }: SummaryCardProps) {
-  return (
-    <article className="rounded-2xl border border-[#eae5ef] bg-white p-5 shadow-[0_8px_28px_rgba(49,34,71,0.045)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-[#332a3d]">
-            {value}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-slate-400">
-            {description}
-          </p>
-        </div>
+  const toneClasses = {
+    purple: {
+      icon: "bg-[#f3eff8] text-[#7456a3]",
+    },
+    green: {
+      icon: "bg-[#edf7f0] text-[#4f9467]",
+    },
+    orange: {
+      icon: "bg-[#fff5eb] text-[#bd7a38]",
+    },
+  };
 
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f0e9f8] text-[#7f55b7]">
+  return (
+    <article className="min-h-[136px] rounded-[14px] border border-[#e8e8ed] bg-white p-5 transition hover:-translate-y-px hover:border-[#dedce4]">
+      <div className="flex items-center gap-2.5">
+        <div
+          className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] ${toneClasses[tone].icon}`}
+        >
           {icon}
         </div>
+
+        <span className="text-xs font-medium text-[#757580]">{label}</span>
+      </div>
+
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <strong className="text-[28px] font-bold leading-none tracking-[-0.02em] text-[#202027]">
+          {value}
+        </strong>
+
+        <p className="max-w-[155px] text-right text-[10px] leading-[1.45] text-[#9898a3]">
+          {description}
+        </p>
       </div>
     </article>
   );
@@ -157,8 +89,8 @@ function PatientAvatar({
     `${patient.firstName.charAt(0)}${patient.lastName.charAt(0)}`.toUpperCase();
 
   const sizeClass = large
-    ? "h-14 w-14 text-base"
-    : "h-11 w-11 text-sm";
+    ? "h-12 w-12 text-sm"
+    : "h-9 w-9 text-[10px]";
 
   if (patient.profilePicture) {
     return (
@@ -172,7 +104,7 @@ function PatientAvatar({
 
   return (
     <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-[#ebe1f7] font-bold text-[#7549ad]`}
+      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-[#f3eff8] font-bold text-[#7456a3]`}
     >
       {initials}
     </div>
@@ -184,15 +116,15 @@ function StatusBadge({ status }: { status: PatientStatus }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex min-h-[27px] items-center gap-1.5 rounded-full px-2.5 text-[9px] font-semibold ${
         active
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
+          ? "bg-[#edf7f0] text-[#4f9467]"
+          : "bg-[#f3f3f5] text-[#777781]"
       }`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-emerald-500" : "bg-slate-400"
+          active ? "bg-[#4f9467]" : "bg-[#9a9aa3]"
         }`}
       />
       {active ? "Active" : "Inactive"}
@@ -261,8 +193,13 @@ function DocDashboardScreen() {
     setSearchTerm(event.target.value);
   };
 
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+  };
+
   return (
-    <div className="min-h-screen bg-[#f7f5fa] font-professional">
+    <div className="min-h-screen bg-[#f7f7f9] font-professional text-[#202027]">
       {sidebarOpen && (
         <>
           <button
@@ -280,11 +217,11 @@ function DocDashboardScreen() {
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-40 hidden h-11 w-11 items-center justify-center rounded-xl border border-[#e5deeb] bg-white text-slate-600 shadow-md transition hover:bg-[#f3eef9] hover:text-[#8257bd] lg:flex"
+          className="fixed left-4 top-4 z-40 hidden h-11 w-11 items-center justify-center rounded-[10px] border border-[#e8e8ed] bg-white text-[#666672] transition hover:bg-[#f3eff8] hover:text-[#7456a3] lg:flex"
           aria-label="Open sidebar"
           title="Open sidebar"
         >
-          <MenuIcon />
+          <Menu size={19} />
         </button>
       )}
 
@@ -293,93 +230,114 @@ function DocDashboardScreen() {
           sidebarOpen ? "lg:pl-[280px]" : "lg:pl-0"
         }`}
       >
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#ebe6f1] bg-white/95 px-4 backdrop-blur lg:hidden">
+        {/* MOBILE HEADER */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#e8e8ed] bg-white/95 px-4 backdrop-blur lg:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-[#f1ebf8] hover:text-[#7549ad]"
+            className="flex h-10 w-10 items-center justify-center rounded-[10px] text-[#666672] transition hover:bg-[#f3eff8] hover:text-[#7456a3]"
             aria-label="Open sidebar"
           >
-            <MenuIcon />
+            <Menu size={20} />
           </button>
 
           <div>
-            <p className="text-sm font-bold text-[#342b3f]">
+            <p className="text-sm font-semibold text-[#202027]">
               My Patients
             </p>
-            <p className="text-xs text-slate-400">Doctor dashboard</p>
+            <p className="text-[10px] text-[#9898a3]">
+              Doctor workspace
+            </p>
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-10">
-          <section className="mb-7">
-            <p className="font-accent mb-2 text-sm font-semibold text-[#8257bd]">
-              Doctor workspace
-            </p>
+        <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-[42px] lg:py-[35px]">
+          {/* PAGE HEADER */}
+          <section className="mb-[30px]">
+            <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.14em] text-[#7456a3]">
+              Doctor Workspace
+            </span>
 
-            <h1 className="text-2xl font-bold tracking-tight text-[#302738] sm:text-3xl">
+            <h1 className="m-0 text-[30px] font-bold leading-[1.15] tracking-[-0.025em] text-[#202027]">
               My Patients
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              View the learners assigned to you and access their speech
-              training and social readiness progress.
+            <p className="mt-2 max-w-[650px] text-[13px] leading-[1.6] text-[#757580]">
+              Review the learners assigned to you and access their speech
+              training and early social readiness progress.
             </p>
           </section>
 
+          {/* SUMMARY */}
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <SummaryCard
-              label="Total patients"
+              label="Total Patients"
               value={patients.length}
-              description="All learners currently assigned to you"
-              icon={<UsersIcon />}
+              description="All learners currently assigned to your account"
+              icon={<Users size={20} />}
+              tone="purple"
             />
 
             <SummaryCard
-              label="Active patients"
+              label="Active Patients"
               value={activePatients}
               description="Learners currently receiving intervention"
-              icon={<ActiveIcon />}
+              icon={<CheckCircle2 size={20} />}
+              tone="green"
             />
 
             <SummaryCard
-              label="Social readiness"
+              label="Social Readiness"
               value={conversationPatients}
               description="Learners currently at conversation level"
-              icon={<SpeechIcon />}
+              icon={<MessageCircleMore size={20} />}
+              tone="orange"
             />
           </section>
 
-          <section className="mt-6 overflow-hidden rounded-2xl border border-[#e9e3ee] bg-white shadow-[0_10px_34px_rgba(50,35,72,0.045)]">
-            <div className="border-b border-[#eee9f2] p-4 sm:p-5">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-[#332a3d]">
-                    Patient list
-                  </h2>
+          {/* PATIENT PANEL */}
+          <section className="mt-6 overflow-hidden rounded-[14px] border border-[#e8e8ed] bg-white">
+            {/* PANEL HEADER */}
+            <div className="flex flex-col gap-4 border-b border-[#eeeef2] px-5 py-[21px] xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.14em] text-[#7456a3]">
+                  Assigned Learners
+                </span>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {filteredPatients.length}{" "}
-                    {filteredPatients.length === 1
-                      ? "patient found"
-                      : "patients found"}
-                  </p>
+                <h2 className="m-0 text-[18px] font-semibold tracking-[-0.015em] text-[#202027]">
+                  Patient List
+                </h2>
+
+                <p className="mt-1.5 text-[11px] leading-[1.5] text-[#757580]">
+                  {filteredPatients.length}{" "}
+                  {filteredPatients.length === 1
+                    ? "patient matches"
+                    : "patients match"}{" "}
+                  your current filters.
+                </p>
+              </div>
+
+              <div className="flex w-full flex-col gap-2.5 sm:flex-row xl:w-auto">
+                <div className="relative w-full sm:min-w-[300px] xl:w-[340px]">
+                  <Search
+                    size={15}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9898a3]"
+                  />
+
+                  <input
+                    type="search"
+                    value={searchTerm}
+                    onChange={handleSearch}
+                    placeholder="Search patient, guardian, level..."
+                    className="h-[38px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] pl-9 pr-3 text-[11px] text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
+                  />
                 </div>
 
-                <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
-                  <div className="relative w-full sm:min-w-[320px] xl:w-[390px]">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                      <SearchIcon />
-                    </div>
-
-                    <input
-                      type="search"
-                      value={searchTerm}
-                      onChange={handleSearch}
-                      placeholder="Search patient, guardian, level..."
-                      className="h-12 w-full rounded-xl border border-[#ddd6e5] bg-[#fcfbfd] pl-11 pr-4 text-sm text-[#332a3d] outline-none transition placeholder:text-slate-400 focus:border-[#9875c5] focus:bg-white focus:ring-4 focus:ring-[#9875c5]/10"
-                    />
-                  </div>
+                <div className="relative">
+                  <SlidersHorizontal
+                    size={14}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9898a3]"
+                  />
 
                   <select
                     value={statusFilter}
@@ -388,7 +346,7 @@ function DocDashboardScreen() {
                         event.target.value as StatusFilter,
                       )
                     }
-                    className="h-12 rounded-xl border border-[#ddd6e5] bg-[#fcfbfd] px-4 text-sm font-medium text-slate-600 outline-none transition focus:border-[#9875c5] focus:bg-white focus:ring-4 focus:ring-[#9875c5]/10"
+                    className="h-[38px] min-w-[145px] appearance-none rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] pl-9 pr-8 text-[11px] font-medium text-[#666672] outline-none transition focus:border-[#cfc4df] focus:bg-white"
                   >
                     <option value="all">All patients</option>
                     <option value="active">Active</option>
@@ -399,53 +357,52 @@ function DocDashboardScreen() {
             </div>
 
             {filteredPatients.length === 0 ? (
-              <div className="flex min-h-[320px] flex-col items-center justify-center px-5 py-12 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f0e9f8] text-[#7f55b7]">
-                  <UsersIcon />
+              <div className="flex min-h-[300px] flex-col items-center justify-center px-5 py-12 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f3eff8] text-[#7456a3]">
+                  <Users size={21} />
                 </div>
 
-                <h3 className="mt-5 text-lg font-bold text-[#332a3d]">
+                <h3 className="mt-4 text-sm font-semibold text-[#202027]">
                   No patients found
                 </h3>
 
-                <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                  No patient matches the current search or status
-                  filter.
+                <p className="mt-1.5 max-w-md text-[11px] leading-5 text-[#757580]">
+                  No assigned patient matches the current search or
+                  status filter.
                 </p>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setStatusFilter("all");
-                  }}
-                  className="mt-5 rounded-xl bg-[#8257bd] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#7047a8]"
+                  onClick={clearFilters}
+                  className="mt-4 min-h-[36px] rounded-[8px] border border-[#ded8e8] bg-white px-3.5 text-[10px] font-semibold text-[#7456a3] transition hover:bg-[#f3eff8]"
                 >
                   Clear filters
                 </button>
               </div>
             ) : (
               <>
+                {/* DESKTOP TABLE */}
                 <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[900px] border-collapse">
                     <thead>
-                      <tr className="bg-[#faf8fc] text-left">
+                      <tr className="bg-[#fafafd] text-left">
                         {[
                           "Patient",
                           "Age",
-                          "Current level",
+                          "Current Level",
                           "Guardian",
-                          "Last session",
+                          "Last Session",
                           "Status",
                         ].map((heading) => (
                           <th
                             key={heading}
-                            className="px-5 py-4 text-xs font-bold uppercase tracking-[0.08em] text-slate-400"
+                            className="px-5 py-3 text-[9px] font-bold uppercase tracking-[0.07em] text-[#9898a3]"
                           >
                             {heading}
                           </th>
                         ))}
-                        <th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-[0.08em] text-slate-400">
+
+                        <th className="px-5 py-3 text-right text-[9px] font-bold uppercase tracking-[0.07em] text-[#9898a3]">
                           Action
                         </th>
                       </tr>
@@ -455,9 +412,9 @@ function DocDashboardScreen() {
                       {filteredPatients.map((patient) => (
                         <tr
                           key={patient.id}
-                          className="border-t border-[#f0ebf3] transition hover:bg-[#fcfaff]"
+                          className="border-t border-[#eeeef2] transition hover:bg-[#faf9fc]"
                         >
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5">
                             <div className="flex items-center gap-3">
                               <PatientAvatar patient={patient} />
 
@@ -467,52 +424,52 @@ function DocDashboardScreen() {
                                   onClick={() =>
                                     openPatientProgress(patient)
                                   }
-                                  className="block max-w-[220px] truncate text-left text-sm font-bold text-[#332a3d] transition hover:text-[#8257bd] hover:underline"
+                                  className="block max-w-[220px] truncate text-left text-[11px] font-semibold text-[#202027] transition hover:text-[#7456a3]"
                                 >
                                   {getDoctorPatientFullName(patient)}
                                 </button>
 
-                                <p className="mt-0.5 text-xs text-slate-400">
+                                <p className="mt-1 text-[9px] text-[#9898a3]">
                                   {patient.learnerCode}
                                 </p>
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                          <td className="px-5 py-3.5 text-[10px] text-[#757580]">
                             {patient.age} years
                           </td>
 
-                          <td className="px-5 py-4">
-                            <span className="inline-flex rounded-lg bg-[#f0eaf8] px-2.5 py-1.5 text-xs font-semibold text-[#7049a5]">
+                          <td className="px-5 py-3.5">
+                            <span className="inline-flex rounded-[6px] bg-[#f3eff8] px-2 py-1 text-[9px] font-semibold text-[#7456a3]">
                               {patient.speechLevel}
                             </span>
                           </td>
 
-                          <td className="max-w-[190px] px-5 py-4 text-sm text-slate-600">
+                          <td className="max-w-[190px] px-5 py-3.5 text-[10px] text-[#757580]">
                             <span className="block truncate">
                               {patient.guardianName}
                             </span>
                           </td>
 
-                          <td className="px-5 py-4 text-sm text-slate-600">
+                          <td className="px-5 py-3.5 text-[10px] text-[#757580]">
                             {patient.lastSession ?? "No session yet"}
                           </td>
 
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5">
                             <StatusBadge status={patient.status} />
                           </td>
 
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-5 py-3.5 text-right">
                             <button
                               type="button"
                               onClick={() =>
                                 openPatientProgress(patient)
                               }
-                              className="inline-flex items-center gap-2 rounded-xl border border-[#dcd3e7] bg-white px-3.5 py-2 text-xs font-bold text-[#7049a5] transition hover:border-[#a486c8] hover:bg-[#f5f0fa]"
+                              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-[8px] border border-[#ded8e8] bg-white px-2.5 text-[9px] font-semibold text-[#7456a3] transition hover:border-[#cfc4df] hover:bg-[#f3eff8]"
                             >
-                              View progress
-                              <ArrowRightIcon />
+                              View Progress
+                              <ArrowRight size={13} />
                             </button>
                           </td>
                         </tr>
@@ -521,11 +478,12 @@ function DocDashboardScreen() {
                   </table>
                 </div>
 
-                <div className="divide-y divide-[#eee9f2] md:hidden">
+                {/* MOBILE CARDS */}
+                <div className="divide-y divide-[#eeeef2] md:hidden">
                   {filteredPatients.map((patient) => (
                     <article
                       key={patient.id}
-                      className="p-4 transition hover:bg-[#fcfaff]"
+                      className="p-4 transition hover:bg-[#faf9fc]"
                     >
                       <div className="flex items-start gap-3">
                         <PatientAvatar patient={patient} large />
@@ -538,45 +496,48 @@ function DocDashboardScreen() {
                                 onClick={() =>
                                   openPatientProgress(patient)
                                 }
-                                className="block max-w-full truncate text-left text-base font-bold text-[#332a3d] transition hover:text-[#8257bd]"
+                                className="block max-w-full truncate text-left text-sm font-semibold text-[#202027] transition hover:text-[#7456a3]"
                               >
                                 {getDoctorPatientFullName(patient)}
                               </button>
 
-                              <p className="mt-1 text-xs text-slate-400">
-                                {patient.learnerCode} • {patient.age}{" "}
-                                years old
+                              <p className="mt-1 text-[9px] text-[#9898a3]">
+                                {patient.learnerCode} • {patient.age} years
+                                old
                               </p>
                             </div>
 
                             <StatusBadge status={patient.status} />
                           </div>
 
-                          <div className="mt-4 grid grid-cols-2 gap-3">
-                            <div className="rounded-xl bg-[#faf8fc] p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                Current level
+                          <div className="mt-3 grid grid-cols-2 gap-2.5">
+                            <div className="rounded-[10px] border border-[#eeeef2] bg-[#fafafd] p-3">
+                              <p className="text-[8px] font-bold uppercase tracking-[0.06em] text-[#9898a3]">
+                                Current Level
                               </p>
-                              <p className="mt-1 truncate text-sm font-semibold text-[#5d486f]">
+
+                              <p className="mt-1 truncate text-[10px] font-semibold text-[#5f4588]">
                                 {patient.speechLevel}
                               </p>
                             </div>
 
-                            <div className="rounded-xl bg-[#faf8fc] p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                Last session
+                            <div className="rounded-[10px] border border-[#eeeef2] bg-[#fafafd] p-3">
+                              <p className="text-[8px] font-bold uppercase tracking-[0.06em] text-[#9898a3]">
+                                Last Session
                               </p>
-                              <p className="mt-1 truncate text-sm font-semibold text-[#5d486f]">
+
+                              <p className="mt-1 truncate text-[10px] font-semibold text-[#666672]">
                                 {patient.lastSession ?? "No session"}
                               </p>
                             </div>
                           </div>
 
-                          <div className="mt-3 rounded-xl border border-[#eee9f2] p-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          <div className="mt-2.5 rounded-[10px] border border-[#eeeef2] bg-white p-3">
+                            <p className="text-[8px] font-bold uppercase tracking-[0.06em] text-[#9898a3]">
                               Guardian
                             </p>
-                            <p className="mt-1 truncate text-sm font-medium text-slate-600">
+
+                            <p className="mt-1 truncate text-[10px] font-medium text-[#666672]">
                               {patient.guardianName}
                             </p>
                           </div>
@@ -586,10 +547,10 @@ function DocDashboardScreen() {
                             onClick={() =>
                               openPatientProgress(patient)
                             }
-                            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#8257bd] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#7047a8] active:scale-[0.99]"
+                            className="mt-3 inline-flex min-h-[36px] w-full items-center justify-center gap-2 rounded-[8px] bg-[#7456a3] px-4 text-[10px] font-semibold text-white transition hover:bg-[#5f4588] active:translate-y-px"
                           >
-                            View patient progress
-                            <ArrowRightIcon />
+                            View Patient Progress
+                            <ArrowRight size={14} />
                           </button>
                         </div>
                       </div>
@@ -599,6 +560,19 @@ function DocDashboardScreen() {
               </>
             )}
           </section>
+
+          {/* SMALL CONTEXT NOTE */}
+          <div className="mt-4 flex items-start gap-2 rounded-[10px] border border-[#e8e8ed] bg-white px-3.5 py-3 text-[#757580]">
+            <UserRound
+              size={15}
+              className="mt-0.5 shrink-0 text-[#7456a3]"
+            />
+
+            <p className="m-0 text-[9px] leading-[1.55]">
+              Patient access is limited to learners currently assigned to
+              your doctor account.
+            </p>
+          </div>
         </div>
       </main>
     </div>

@@ -9,6 +9,13 @@ import Home from "../pages/Home";
 import About from "../pages/About";
 import Login from "../pages/Login";
 
+import FreeTrial from "../pages/auth/FreeTrial";
+import FreeTrialRegister from "../pages/auth/FreeTrialRegister";
+import AcceptInvitation from "../pages/auth/AcceptInvitation";
+import VerifyAccount from "../pages/auth/VerifyAccount";
+import CreatePassword from "../pages/auth/CreatePassword";
+import AccountCreated from "../pages/auth/AccountCreated";
+
 // Center
 import Learner from "../pages/center/dashboard/learner";
 import AddLearner from "../pages/center/dashboard/AddLearner";
@@ -96,6 +103,36 @@ const AppRoutes = () => {
         <Route
           path="/login"
           element={<Login />}
+        />
+
+        <Route
+          path="/free-trial"
+          element={<FreeTrial />}
+        />
+
+        <Route
+          path="/free-trial/register"
+          element={<FreeTrialRegister />}
+        />
+
+        <Route
+          path="/invitation"
+          element={<AcceptInvitation />}
+        />
+
+        <Route
+          path="/verify"
+          element={<VerifyAccount />}
+        />
+
+        <Route
+          path="/create-password"
+          element={<CreatePassword />}
+        />
+
+        <Route
+          path="/account-created"
+          element={<AccountCreated />}
         />
 
         {/* Center Admin */}

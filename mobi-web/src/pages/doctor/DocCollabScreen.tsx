@@ -5,6 +5,19 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Menu,
+  Plus,
+  Search,
+  Share2,
+  Stethoscope,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import DocSidebar from "../../components/doctor/DocSidebar";
 
 /* =========================================================
@@ -239,136 +252,6 @@ const collaborationPatients: CollaborationPatient[] = [
 ];
 
 /* =========================================================
-   ICONS
-========================================================= */
-
-function MenuIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-6 w-6"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4 7h16M4 12h16M4 17h16"
-      />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m20 20-4-4"
-      />
-    </svg>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.1"
-      className="h-7 w-7"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M14 5h5v5"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M10 14 19 5"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
-      />
-    </svg>
-  );
-}
-
-function AddIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 5v14M5 12h14"
-      />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M6 6l12 12M18 6 6 18"
-      />
-    </svg>
-  );
-}
-
-function PersonIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="8" r="3.5" />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M5 21a7 7 0 0 1 14 0"
-      />
-    </svg>
-  );
-}
-
-/* =========================================================
    SMALL REUSABLE COMPONENTS
 ========================================================= */
 
@@ -379,10 +262,14 @@ function Avatar({
 }: {
   name: string;
   image?: string | null;
-  size?: "small" | "medium";
+  size?: "small" | "medium" | "large";
 }) {
   const sizeClass =
-    size === "small" ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm";
+    size === "small"
+      ? "h-9 w-9 text-[10px]"
+      : size === "large"
+        ? "h-[52px] w-[52px] text-sm"
+        : "h-11 w-11 text-xs";
 
   const initials = name
     .split(" ")
@@ -397,26 +284,74 @@ function Avatar({
       <img
         src={image}
         alt={name}
-        className={`${sizeClass} shrink-0 rounded-full border-2 border-white object-cover shadow-sm`}
+        className={`${sizeClass} shrink-0 rounded-full object-cover`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full border border-[#ccb9d0] bg-white font-bold text-[#bb84bb]`}
+      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-[#f3eff8] font-bold text-[#7456a3]`}
       aria-label={`${name} avatar`}
     >
-      {initials || <PersonIcon className="h-5 w-5" />}
+      {initials || <UserRound size={16} />}
     </div>
   );
 }
 
-function PanelTitle({ children }: { children: ReactNode }) {
+function SectionEyebrow({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-lg font-bold text-[#1f1b24]">
+    <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.12em] text-[#7456a3]">
       {children}
-    </h2>
+    </span>
+  );
+}
+
+function CareMemberRow({
+  member,
+  label,
+}: {
+  member: CareMember;
+  label?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] px-3.5 py-3">
+      <Avatar name={member.name} size="small" />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <strong className="truncate text-[13px] font-semibold text-[#202027]">
+            {member.isCurrentUser ? "You" : member.name}
+          </strong>
+
+          {label && (
+            <span className="rounded-full bg-[#f3eff8] px-2 py-0.5 text-[9px] font-semibold text-[#7456a3]">
+              {label}
+            </span>
+          )}
+        </div>
+
+        <span className="mt-1 block truncate text-[11px] text-[#9898a3]">
+          {member.role}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SourceBadge({ source }: { source: NoteSource }) {
+  const isClinical = source === "Clinical";
+
+  return (
+    <span
+      className={`inline-flex min-h-[26px] items-center rounded-full px-2.5 text-[9px] font-semibold ${
+        isClinical
+          ? "bg-[#f3eff8] text-[#7456a3]"
+          : "bg-[#edf7f0] text-[#4f9467]"
+      }`}
+    >
+      {source}
+    </span>
   );
 }
 
@@ -428,17 +363,21 @@ function DocCollabScreen() {
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== "undefined" && window.innerWidth >= 1024,
   );
+
   const [selectedPatientId, setSelectedPatientId] = useState(
     collaborationPatients[0].id,
   );
+
   const [patientSearch, setPatientSearch] = useState("");
   const [notePeriod, setNotePeriod] = useState<NotePeriod>("month");
+
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
   const [draftNote, setDraftNote] = useState("");
   const [draftNoteTitle, setDraftNoteTitle] = useState("");
   const [draftNoteCategory, setDraftNoteCategory] =
     useState<NoteCategory>("Observation");
   const [draftNextSteps, setDraftNextSteps] = useState("");
+
   const [noteSavedMessage, setNoteSavedMessage] = useState("");
   const [patients, setPatients] = useState(collaborationPatients);
 
@@ -470,7 +409,8 @@ function DocCollabScreen() {
     );
   }, [selectedPatient, notePeriod]);
 
-  const fullName = `${selectedPatient.firstName} ${selectedPatient.lastName}`;
+  const fullName =
+    `${selectedPatient.firstName} ${selectedPatient.lastName}`;
 
   const handlePatientSearch = (
     event: ChangeEvent<HTMLInputElement>,
@@ -537,7 +477,8 @@ function DocCollabScreen() {
   };
 
   const handleShare = async () => {
-    const shareText = `${fullName}, ${selectedPatient.age} years old: Progress Notes`;
+    const shareText =
+      `${fullName}, ${selectedPatient.age} years old: Progress Notes`;
 
     try {
       if (navigator.share) {
@@ -556,7 +497,7 @@ function DocCollabScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-white font-professional">
+    <div className="min-h-screen bg-[#f7f7f9] font-professional text-[#202027]">
       {sidebarOpen && (
         <>
           <button
@@ -574,11 +515,11 @@ function DocCollabScreen() {
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-40 hidden h-11 w-11 items-center justify-center rounded-xl border border-[#e5deeb] bg-white text-slate-600 shadow-md transition hover:bg-[#f3eef9] hover:text-[#8257bd] lg:flex"
+          className="fixed left-4 top-4 z-40 hidden h-11 w-11 items-center justify-center rounded-[10px] border border-[#e8e8ed] bg-white text-[#666672] transition hover:bg-[#f3eff8] hover:text-[#7456a3] lg:flex"
           aria-label="Open sidebar"
           title="Open sidebar"
         >
-          <MenuIcon />
+          <Menu size={19} />
         </button>
       )}
 
@@ -587,95 +528,120 @@ function DocCollabScreen() {
           sidebarOpen ? "lg:pl-[280px]" : "lg:pl-0"
         }`}
       >
-        {/* Mobile top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#e8ddea] bg-white/95 px-4 backdrop-blur lg:hidden">
+        {/* MOBILE HEADER */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#e8e8ed] bg-white/95 px-4 backdrop-blur lg:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-700 transition hover:bg-[#f4e9f5]"
+            className="flex h-10 w-10 items-center justify-center rounded-[10px] text-[#666672] transition hover:bg-[#f3eff8] hover:text-[#7456a3]"
             aria-label="Open sidebar"
           >
-            <MenuIcon />
+            <Menu size={20} />
           </button>
 
           <div className="min-w-0">
-            <p className="truncate text-base font-bold text-[#201c23]">
+            <p className="truncate text-sm font-semibold text-[#202027]">
               Collaboration
             </p>
-            <p className="truncate text-xs text-slate-500">
+            <p className="truncate text-[11px] text-[#9898a3]">
               Progress notes and care team
             </p>
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5 lg:px-7 lg:py-5 xl:px-9">
-          <section className="overflow-hidden rounded-[30px] bg-[#edd9ef] shadow-[0_12px_36px_rgba(75,43,78,0.08)]">
-            {/* Top heading area */}
-            <div className="flex flex-col gap-4 border-b border-[#cfb8d1] px-5 py-5 sm:px-7 lg:flex-row lg:items-center lg:justify-between lg:px-9">
-              <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl">
+        <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-[42px] lg:py-[35px]">
+          {/* PAGE HEADER */}
+          <section className="mb-[30px] flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <SectionEyebrow>Doctor Workspace</SectionEyebrow>
+
+              <h1 className="m-0 text-[30px] font-bold leading-[1.15] tracking-[-0.025em] text-[#202027]">
                 Collaboration
               </h1>
 
-              <div className="flex w-full items-center gap-3 lg:max-w-[590px]">
-                <div className="relative min-w-0 flex-1">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-600">
-                    <SearchIcon />
-                  </div>
+              <p className="mt-2 max-w-[680px] text-[14px] leading-[1.65] text-[#757580]">
+                Review progress notes and stay aligned with the care team
+                supporting each assigned learner.
+              </p>
+            </div>
 
-                  <input
-                    type="search"
-                    value={patientSearch}
-                    onChange={handlePatientSearch}
-                    placeholder="Search patient"
-                    className="h-12 w-full rounded-xl border border-white/70 bg-white/75 pl-11 pr-4 text-sm text-[#2d2730] shadow-[0_3px_8px_rgba(67,43,70,0.18)] outline-none transition placeholder:text-slate-500 focus:bg-white focus:ring-4 focus:ring-white/35"
-                  />
-                </div>
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              className="inline-flex min-h-[38px] items-center justify-center gap-2 self-start rounded-[9px] border border-[#ded8e8] bg-white px-4 text-[12px] font-semibold text-[#7456a3] transition hover:bg-[#f3eff8]"
+            >
+              <Share2 size={15} />
+              Share Notes
+            </button>
+          </section>
 
-                <button
-                  type="button"
-                  onClick={() => void handleShare()}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-[#56d7df] transition hover:bg-white/45 hover:text-[#20bac4]"
-                  aria-label="Share progress notes"
-                  title="Share progress notes"
-                >
-                  <ShareIcon />
-                </button>
+          {/* COLLABORATION WORKSPACE */}
+          <section className="overflow-hidden rounded-[14px] border border-[#e8e8ed] bg-white">
+            {/* WORKSPACE HEADER */}
+            <div className="flex flex-col gap-4 border-b border-[#eeeef2] px-5 py-[21px] xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <SectionEyebrow>Shared Records</SectionEyebrow>
+
+                <h2 className="m-0 text-[20px] font-semibold tracking-[-0.015em] text-[#202027]">
+                  Progress Notes
+                </h2>
+
+                <p className="mt-2 text-[13px] leading-[1.55] text-[#757580]">
+                  Choose a patient to review clinical observations and MOBI session updates from the care team.
+                </p>
+              </div>
+
+              <div className="relative w-full xl:w-[360px]">
+                <Search
+                  size={15}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9898a3]"
+                />
+
+                <input
+                  type="search"
+                  value={patientSearch}
+                  onChange={handlePatientSearch}
+                  placeholder="Search patient..."
+                  className="h-[42px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] pl-10 pr-3 text-[12px] text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
+                />
               </div>
             </div>
 
-            {/* Selected patient title */}
-            <div className="flex flex-col gap-3 px-5 py-4 sm:px-7 md:flex-row md:items-center md:justify-between lg:px-9">
-              <h2 className="text-xl font-bold text-black sm:text-2xl">
-                {fullName}, {selectedPatient.age} years old: Progress Notes
-              </h2>
+            <div className="grid min-h-[620px] lg:grid-cols-[290px_minmax(0,1fr)]">
+              {/* LEFT SIDEBAR */}
+              <aside className="border-b border-[#eeeef2] bg-[#fafafd] lg:border-b-0 lg:border-r">
+                {/* PATIENT LIST */}
+                <section>
+                  <div className="flex items-center justify-between gap-2 border-b border-[#eeeef2] px-4 py-3.5">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9898a3]">
+                        Patients
+                      </span>
 
-              <button
-                type="button"
-                onClick={() => setIsAddNoteOpen(true)}
-                className="inline-flex items-center gap-2 self-start rounded-xl bg-[#76507e] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#65416d] md:self-auto"
-              >
-                <AddIcon />
-                Add note
-              </button>
-            </div>
+                      <p className="mt-1 text-[12px] font-semibold text-[#202027]">
+                        {filteredPatients.length} patient
+                        {filteredPatients.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
 
-            {/* Main collaboration content */}
-            <div className="grid gap-3 px-4 pb-5 sm:px-5 lg:grid-cols-[235px_minmax(0,1fr)] lg:px-6">
-              {/* Left column */}
-              <aside className="space-y-3">
-                <section className="overflow-hidden rounded-[28px] bg-white/90">
-                  <div className="px-5 pb-2 pt-5">
-                    <PanelTitle>Select patient</PanelTitle>
+                    <Users size={16} className="text-[#7456a3]" />
                   </div>
 
-                  <div className="max-h-[300px] overflow-y-auto pb-4">
+                  <div className="max-h-[300px] overflow-y-auto py-1.5">
                     {filteredPatients.length === 0 ? (
-                      <p className="px-5 py-6 text-sm text-slate-500">
-                        No patient found.
-                      </p>
+                      <div className="px-4 py-8 text-center">
+                        <Search
+                          size={18}
+                          className="mx-auto text-[#9898a3]"
+                        />
+                        <p className="mt-2 text-[12px] font-medium text-[#757580]">
+                          No patient found.
+                        </p>
+                      </div>
                     ) : (
                       filteredPatients.map((patient) => {
-                        const patientName = `${patient.firstName} ${patient.lastName}`;
+                        const patientName =
+                          `${patient.firstName} ${patient.lastName}`;
                         const isSelected =
                           patient.id === selectedPatient.id;
 
@@ -686,20 +652,37 @@ function DocCollabScreen() {
                             onClick={() =>
                               setSelectedPatientId(patient.id)
                             }
-                            className={`flex w-full items-center gap-2 px-4 py-2 text-left text-base transition ${
+                            className={`relative flex w-full items-center gap-3 px-4 py-3 text-left transition ${
                               isSelected
-                                ? "bg-[#f1e3f2] text-[#f16139]"
-                                : "text-[#282329] hover:bg-[#f7eef7]"
+                                ? "bg-[#f3eff8]"
+                                : "hover:bg-white"
                             }`}
                           >
+                            {isSelected && (
+                              <span className="absolute inset-y-2 left-0 w-[3px] rounded-r bg-[#7456a3]" />
+                            )}
+
                             <Avatar
                               name={patientName}
                               image={patient.profilePicture}
                               size="small"
                             />
-                            <span className="truncate">
-                              {patientName}
-                            </span>
+
+                            <div className="min-w-0">
+                              <span
+                                className={`block truncate text-[13px] font-semibold ${
+                                  isSelected
+                                    ? "text-[#7456a3]"
+                                    : "text-[#202027]"
+                                }`}
+                              >
+                                {patientName}
+                              </span>
+
+                              <span className="mt-1 block text-[10px] text-[#9898a3]">
+                                {patient.age} years old
+                              </span>
+                            </div>
                           </button>
                         );
                       })
@@ -707,54 +690,92 @@ function DocCollabScreen() {
                   </div>
                 </section>
 
-                <section className="rounded-[28px] bg-white/90 px-5 py-5">
-                  <PanelTitle>Assigned Doctor</PanelTitle>
+                {/* CARE TEAM */}
+                <section className="border-t border-[#eeeef2] px-4 py-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-[14px] font-semibold text-[#202027]">
+                        Care Team
+                      </h3>
 
-                  <div className="mt-3 flex items-center gap-2 text-[#f16139]">
-                    <Avatar
-                      name={selectedPatient.assignedDoctor.name}
-                      size="small"
-                    />
-                    <span className="truncate text-base">
-                      {selectedPatient.assignedDoctor.isCurrentUser
-                        ? "You"
-                        : selectedPatient.assignedDoctor.name}
-                    </span>
+                      <p className="mt-1 text-[11px] text-[#9898a3]">
+                        Doctor and assigned therapists
+                      </p>
+                    </div>
+
+                    <Stethoscope size={16} className="text-[#7456a3]" />
                   </div>
 
-                  <div className="mt-6">
-                    <PanelTitle>Assigned Therapist</PanelTitle>
+                  <div className="space-y-2">
+                    <CareMemberRow
+                      member={selectedPatient.assignedDoctor}
+                      label="Doctor"
+                    />
 
-                    <div className="mt-3 space-y-2">
-                      {selectedPatient.assignedTherapists.map(
-                        (therapist) => (
-                          <div
-                            key={therapist.id}
-                            className="flex items-center gap-2 text-[#f16139]"
-                          >
-                            <Avatar
-                              name={therapist.name}
-                              size="small"
-                            />
-                            <span className="truncate text-base">
-                              {therapist.name}, {therapist.role}
-                            </span>
-                          </div>
-                        ),
-                      )}
-                    </div>
+                    {selectedPatient.assignedTherapists.map(
+                      (therapist) => (
+                        <CareMemberRow
+                          key={therapist.id}
+                          member={therapist}
+                          label="Therapist"
+                        />
+                      ),
+                    )}
                   </div>
                 </section>
               </aside>
 
-              {/* Right notes panel */}
-              <section className="min-w-0 overflow-hidden bg-white shadow-[0_3px_5px_rgba(70,50,72,0.26)]">
-                <div className="flex flex-col gap-3 border-b border-[#c8bfc9] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="font-bold text-[#221d24]">
-                    Progress Notes
-                  </h3>
+              {/* RIGHT CONTENT */}
+              <div className="min-w-0">
+                {/* PATIENT SUMMARY */}
+                <div className="flex flex-col gap-4 border-b border-[#eeeef2] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar
+                      name={fullName}
+                      image={selectedPatient.profilePicture}
+                      size="large"
+                    />
 
-                  <div className="inline-flex self-start overflow-hidden rounded-md bg-[#aeb9d2] text-[11px] text-white sm:self-auto">
+                    <div className="min-w-0">
+                      <span className="block text-[8px] font-bold uppercase tracking-[0.08em] text-[#7456a3]">
+                        Patient
+                      </span>
+
+                      <h3 className="mt-1 truncate text-[20px] font-semibold text-[#202027]">
+                        {fullName}
+                      </h3>
+
+                      <p className="mt-1 text-[11px] text-[#9898a3]">
+                        {selectedPatient.age} years old •{" "}
+                        {selectedPatient.notes.length} progress note
+                        {selectedPatient.notes.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAddNoteOpen(true)}
+                    className="inline-flex min-h-[36px] items-center justify-center gap-2 self-start rounded-[8px] bg-[#7456a3] px-4 text-[12px] font-semibold text-white transition hover:bg-[#5f4588] sm:self-auto"
+                  >
+                    <Plus size={14} />
+                    Add Progress Note
+                  </button>
+                </div>
+
+                {/* NOTES HEADER */}
+                <div className="flex flex-col gap-3 border-b border-[#eeeef2] bg-[#fafafd] px-5 py-3.5 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[#202027]">
+                      Shared Notes
+                    </h3>
+
+                    <p className="mt-1 text-[12px] text-[#757580]">
+                      Notes from the doctor, therapists, and MOBI sessions.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1 rounded-[8px] border border-[#e8e8ed] bg-white p-1">
                     {(
                       [
                         ["today", "Today"],
@@ -766,10 +787,10 @@ function DocCollabScreen() {
                         key={value}
                         type="button"
                         onClick={() => setNotePeriod(value)}
-                        className={`px-3 py-1.5 transition ${
+                        className={`min-h-[32px] rounded-[6px] px-3 text-[10px] font-semibold transition ${
                           notePeriod === value
-                            ? "bg-white text-[#ff6845]"
-                            : "hover:bg-white/20"
+                            ? "bg-[#f3eff8] text-[#7456a3]"
+                            : "text-[#9898a3] hover:bg-[#f7f7f9] hover:text-[#666672]"
                         }`}
                       >
                         {label}
@@ -778,122 +799,140 @@ function DocCollabScreen() {
                   </div>
                 </div>
 
-                <div className="min-h-[495px] p-4 sm:p-5">
+                {/* NOTES LIST */}
+                <div className="min-h-[470px] px-5 py-4">
                   {visibleNotes.length === 0 ? (
-                    <div className="flex min-h-[420px] items-center justify-center text-center">
-                      <div>
-                        <p className="text-lg font-semibold text-slate-500">
-                          No notes in this period
-                        </p>
-                        <p className="mt-2 text-sm text-slate-400">
-                          Add a clinical note or select a longer period.
-                        </p>
+                    <div className="flex min-h-[390px] flex-col items-center justify-center text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f3eff8] text-[#7456a3]">
+                        <ClipboardList size={20} />
                       </div>
+
+                      <h3 className="mt-4 text-sm font-semibold text-[#202027]">
+                        No notes in this period
+                      </h3>
+
+                      <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[#757580]">
+                        Add a clinical progress note or select a longer
+                        time period.
+                      </p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {visibleNotes.map((note) => (
                         <article
                           key={note.id}
-                          className="grid gap-3 sm:grid-cols-[92px_minmax(0,1fr)]"
+                          className="rounded-[12px] border border-[#e8e8ed] bg-white p-5 transition hover:border-[#dedce4]"
                         >
-                          <div className="pt-1">
-                            <p className="text-sm font-medium text-[#f16139]">
-                              {note.source}
-                            </p>
-                            <p className="text-sm font-bold text-[#1e1a20]">
-                              {note.dateLabel}
-                            </p>
-                          </div>
-
-                          <div
-                            className={`rounded-[18px_0_0_18px] px-5 py-4 ${
-                              note.isCurrentUser
-                                ? "bg-[#efb7ed]"
-                                : "bg-[#eaddea]"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex min-w-0 items-start gap-3">
                               <Avatar
                                 name={note.authorName}
                                 size="small"
                               />
 
-                              <p className="min-w-0 truncate text-lg font-medium text-[#241e26]">
-                                {note.authorName}
-                                {note.authorRole
-                                  ? `, ${note.authorRole}`
-                                  : ""}
-                              </p>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <strong className="text-[10px] font-semibold text-[#202027]">
+                                    {note.authorName}
+                                  </strong>
+
+                                  {note.authorRole && (
+                                    <span className="text-[10px] text-[#9898a3]">
+                                      {note.authorRole}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                  <SourceBadge source={note.source} />
+
+                                  {note.category && (
+                                    <span className="inline-flex min-h-[24px] items-center rounded-full bg-[#f6f5f8] px-2 text-[8px] font-semibold text-[#666672]">
+                                      {note.category}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
 
-                            {(note.category || note.title) && (
-                              <div className="mt-3 flex flex-wrap items-center gap-2">
-                                {note.category && (
-                                  <span className="rounded-full bg-white/65 px-2.5 py-1 text-[11px] font-semibold text-[#714b77]">
-                                    {note.category}
-                                  </span>
-                                )}
-
-                                {note.title && (
-                                  <p className="text-sm font-bold text-[#2f2632]">
-                                    {note.title}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-
-                            <p className="mt-3 text-sm leading-6 text-[#201c22]">
-                              {note.content}
-                            </p>
-
-                            {note.nextSteps && (
-                              <div className="mt-4 rounded-xl bg-white/55 px-4 py-3">
-                                <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#78537e]">
-                                  Recommended next steps
-                                </p>
-                                <p className="mt-1 text-sm leading-5 text-[#342b36]">
-                                  {note.nextSteps}
-                                </p>
-                              </div>
-                            )}
+                            <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-[#9898a3]">
+                              <CalendarDays size={12} />
+                              {note.dateLabel}
+                            </div>
                           </div>
+
+                          {note.title && (
+                            <h4 className="mt-3 text-[14px] font-semibold text-[#202027]">
+                              {note.title}
+                            </h4>
+                          )}
+
+                          <p className="mt-3 text-[13px] leading-[1.75] text-[#5f5f69]">
+                            {note.content}
+                          </p>
+
+                          {note.nextSteps && (
+                            <div className="mt-3 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] px-3.5 py-3">
+                              <div className="flex items-center gap-2 text-[#7456a3]">
+                                <CheckCircle2 size={13} />
+                                <span className="text-[10px] font-bold uppercase tracking-[0.07em]">
+                                  Recommended Next Steps
+                                </span>
+                              </div>
+
+                              <p className="mt-2 text-[12px] leading-[1.65] text-[#666672]">
+                                {note.nextSteps}
+                              </p>
+                            </div>
+                          )}
                         </article>
                       ))}
 
-                      <div className="flex items-center justify-center gap-3 py-4 text-sm text-slate-400">
-                        <span className="h-px w-24 border-t border-dashed border-slate-400" />
-                        <span>Nothing follows</span>
-                        <span className="h-px w-24 border-t border-dashed border-slate-400" />
+                      <div className="flex items-center justify-center gap-3 py-3 text-[10px] text-[#b0afb8]">
+                        <span className="h-px w-16 border-t border-dashed border-[#d6d5db]" />
+                        <span>End of notes</span>
+                        <span className="h-px w-16 border-t border-dashed border-[#d6d5db]" />
                       </div>
                     </div>
                   )}
                 </div>
-              </section>
+              </div>
             </div>
           </section>
         </div>
       </main>
 
+      {/* SUCCESS TOAST */}
       {noteSavedMessage && (
-        <div className="fixed right-4 top-4 z-[90] rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-xl">
+        <div className="fixed right-4 top-4 z-[90] flex items-center gap-2 rounded-[10px] border border-[#cfe4d6] bg-white px-4 py-3 text-[12px] font-semibold text-[#4f9467] shadow-[0_14px_36px_rgba(31,25,39,0.12)]">
+          <CheckCircle2 size={15} />
           {noteSavedMessage}
         </div>
       )}
 
-      {/* Add Note Modal */}
+      {/* ADD NOTE MODAL */}
       {isAddNoteOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-3 py-5 backdrop-blur-[3px] sm:px-5">
-          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eadfeb] px-5 py-5 sm:px-7">
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 px-3 py-5 backdrop-blur-[3px] sm:px-5"
+          onClick={closeAddNoteModal}
+          role="presentation"
+        >
+          <div
+            className="flex max-h-[92vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[16px] border border-white/60 bg-white shadow-[0_22px_60px_rgba(31,25,39,0.16)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add progress note"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eeeef2] px-5 py-5 sm:px-6">
               <div>
-                <p className="font-accent text-sm font-semibold text-[#8257bd]">
-                  Clinical collaboration
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-[#241f26] sm:text-2xl">
-                  Add progress note
+                <SectionEyebrow>Clinical Collaboration</SectionEyebrow>
+
+                <h2 className="text-[20px] font-semibold text-[#202027]">
+                  Add Progress Note
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+
+                <p className="mt-2 text-[13px] leading-5 text-[#757580]">
                   Record an observation or recommendation for {fullName}.
                 </p>
               </div>
@@ -901,25 +940,30 @@ function DocCollabScreen() {
               <button
                 type="button"
                 onClick={closeAddNoteModal}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-[#f4ebf5] hover:text-[#7a4b80]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#f6f6f8] text-[#71717a] transition hover:bg-[#f3eff8] hover:text-[#7456a3]"
                 aria-label="Close add note modal"
               >
-                <CloseIcon />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleAddNote} className="min-h-0 flex-1 overflow-y-auto">
-              <div className="space-y-5 px-5 py-6 sm:px-7">
-                <div className="flex items-center gap-3 rounded-2xl border border-[#eadfeb] bg-[#faf7fb] p-4">
+            <form
+              onSubmit={handleAddNote}
+              className="min-h-0 flex-1 overflow-y-auto"
+            >
+              <div className="space-y-5 px-5 py-5 sm:px-7 sm:py-6">
+                <div className="flex items-center gap-3 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] p-3.5">
                   <Avatar
                     name={fullName}
                     image={selectedPatient.profilePicture}
                   />
+
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-[#2b252d]">
+                    <p className="truncate text-[13px] font-semibold text-[#202027]">
                       {fullName}
                     </p>
-                    <p className="text-xs text-slate-500">
+
+                    <p className="mt-0.5 text-[10px] text-[#9898a3]">
                       {selectedPatient.age} years old • Note date: Today
                     </p>
                   </div>
@@ -927,43 +971,55 @@ function DocCollabScreen() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm font-bold text-[#302832]">
-                      Note category
+                    <span className="text-[12px] font-semibold text-[#555560]">
+                      Note Category
                     </span>
+
                     <select
                       value={draftNoteCategory}
                       onChange={(event) =>
-                        setDraftNoteCategory(event.target.value as NoteCategory)
+                        setDraftNoteCategory(
+                          event.target.value as NoteCategory,
+                        )
                       }
-                      className="mt-2 h-12 w-full rounded-xl border border-[#dfd2e1] bg-[#fcf9fc] px-4 text-sm outline-none transition focus:border-[#a877ae] focus:bg-white focus:ring-4 focus:ring-[#a877ae]/12"
+                      className="mt-2 h-[44px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] px-3.5 text-[13px] text-[#202027] outline-none transition focus:border-[#cfc4df] focus:bg-white"
                     >
                       <option value="Observation">Observation</option>
-                      <option value="Recommendation">Recommendation</option>
+                      <option value="Recommendation">
+                        Recommendation
+                      </option>
                       <option value="Follow-up">Follow-up</option>
                     </select>
                   </label>
 
                   <label className="block">
-                    <span className="text-sm font-bold text-[#302832]">
-                      Note title <span className="font-normal text-slate-400">(optional)</span>
+                    <span className="text-[12px] font-semibold text-[#555560]">
+                      Note Title{" "}
+                      <span className="font-normal text-[#9898a3]">
+                        (optional)
+                      </span>
                     </span>
+
                     <input
                       type="text"
                       value={draftNoteTitle}
-                      onChange={(event) => setDraftNoteTitle(event.target.value)}
+                      onChange={(event) =>
+                        setDraftNoteTitle(event.target.value)
+                      }
                       maxLength={80}
                       placeholder="e.g. Improved turn-taking"
-                      className="mt-2 h-12 w-full rounded-xl border border-[#dfd2e1] bg-[#fcf9fc] px-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#a877ae] focus:bg-white focus:ring-4 focus:ring-[#a877ae]/12"
+                      className="mt-2 h-[44px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] px-3.5 text-[13px] text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
                     />
                   </label>
                 </div>
 
                 <label className="block">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-[#302832]">
-                      Progress note
+                    <span className="text-[12px] font-semibold text-[#555560]">
+                      Progress Note
                     </span>
-                    <span className="text-xs text-slate-400">
+
+                    <span className="text-[10px] text-[#9898a3]">
                       {draftNote.length}/1200
                     </span>
                   </div>
@@ -971,36 +1027,44 @@ function DocCollabScreen() {
                   <textarea
                     id="progress-note"
                     value={draftNote}
-                    onChange={(event) => setDraftNote(event.target.value)}
+                    onChange={(event) =>
+                      setDraftNote(event.target.value)
+                    }
                     rows={7}
                     maxLength={1200}
                     placeholder="Describe the learner's response, observed progress, support needed, and relevant clinical details..."
-                    className="mt-2 w-full resize-none rounded-2xl border border-[#dfd1e1] bg-[#fcf9fc] px-4 py-4 text-sm leading-6 text-[#282229] outline-none transition placeholder:text-slate-400 focus:border-[#b789bc] focus:bg-white focus:ring-4 focus:ring-[#b789bc]/15"
+                    className="mt-2 w-full resize-none rounded-[10px] border border-[#e8e8ed] bg-[#fafafd] px-4 py-3.5 text-[13px] leading-6 text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
                     autoFocus
                     required
                   />
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-bold text-[#302832]">
-                    Recommended next steps <span className="font-normal text-slate-400">(optional)</span>
+                  <span className="text-[12px] font-semibold text-[#555560]">
+                    Recommended Next Steps{" "}
+                    <span className="font-normal text-[#9898a3]">
+                      (optional)
+                    </span>
                   </span>
+
                   <textarea
                     value={draftNextSteps}
-                    onChange={(event) => setDraftNextSteps(event.target.value)}
+                    onChange={(event) =>
+                      setDraftNextSteps(event.target.value)
+                    }
                     rows={3}
                     maxLength={500}
                     placeholder="Add a follow-up plan, suggested activity, or instruction for the care team..."
-                    className="mt-2 w-full resize-none rounded-2xl border border-[#dfd1e1] bg-[#fcf9fc] px-4 py-3 text-sm leading-6 text-[#282229] outline-none transition placeholder:text-slate-400 focus:border-[#b789bc] focus:bg-white focus:ring-4 focus:ring-[#b789bc]/15"
+                    className="mt-2 w-full resize-none rounded-[10px] border border-[#e8e8ed] bg-[#fafafd] px-4 py-3.5 text-[13px] leading-6 text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
                   />
                 </label>
               </div>
 
-              <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-[#eadfeb] bg-white px-5 py-5 sm:flex-row sm:justify-end sm:px-7">
+              <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[#eeeef2] bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
                 <button
                   type="button"
                   onClick={closeAddNoteModal}
-                  className="rounded-xl border border-[#ddd0df] px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-[#f7f1f7]"
+                  className="min-h-[40px] rounded-[8px] border border-[#e8e8ed] bg-white px-4 text-[12px] font-semibold text-[#666672] transition hover:bg-[#f7f7f9]"
                 >
                   Cancel
                 </button>
@@ -1008,9 +1072,9 @@ function DocCollabScreen() {
                 <button
                   type="submit"
                   disabled={!draftNote.trim()}
-                  className="rounded-xl bg-[#76507e] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#65416d] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-[40px] rounded-[8px] bg-[#7456a3] px-4 text-[12px] font-semibold text-white transition hover:bg-[#5f4588] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Save progress note
+                  Save Progress Note
                 </button>
               </div>
             </form>
