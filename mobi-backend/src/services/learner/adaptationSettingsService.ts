@@ -37,6 +37,11 @@ export interface UpdateAdaptationSettingsInput {
   slow_response_threshold_seconds?: number;
   declining_success_window?: number;
 
+  inactivity_auto_stop_seconds?: number;
+  allow_hint?: boolean;
+  allow_repeat_prompt?: boolean;
+  thompson_sampling_weight?: number;
+
   updated_by_therapist_id?: string | null;
 
   last_updated_by_role?:
@@ -187,6 +192,19 @@ export async function updateLearnerAdaptationSettings(
   centerId: string,
   updates: UpdateAdaptationSettingsInput,
 ) {
+  const existingSettings =
+    await getLearnerAdaptationSettings(
+      learnerId,
+      centerId,
+    );
+
+  const currentSettings =
+    existingSettings ??
+    await createDefaultLearnerAdaptationSettings(
+      learnerId,
+      centerId,
+    );
+
   /*
     Never allow the caller to modify learner_id, center_id,
     created_at, or the settings row ID through this function.
@@ -348,6 +366,27 @@ export async function updateLearnerAdaptationSettings(
   }
 
   if (
+    updates.inactivity_auto_stop_seconds !== undefined
+  ) {
+    allowedUpdates.inactivity_auto_stop_seconds =
+      updates.inactivity_auto_stop_seconds;
+  }
+
+  if (updates.allow_hint !== undefined) {
+    allowedUpdates.allow_hint = updates.allow_hint;
+  }
+
+  if (updates.allow_repeat_prompt !== undefined) {
+    allowedUpdates.allow_repeat_prompt =
+      updates.allow_repeat_prompt;
+  }
+
+  if (updates.thompson_sampling_weight !== undefined) {
+    allowedUpdates.thompson_sampling_weight =
+      updates.thompson_sampling_weight;
+  }
+
+  if (
     updates.updated_by_therapist_id !==
     undefined
   ) {
@@ -364,12 +403,157 @@ export async function updateLearnerAdaptationSettings(
   }
 
   if (
-    Object.keys(
-      allowedUpdates,
-    ).length === 0
+    Object.keys(allowedUpdates).every(
+      (field) =>
+        field === "updated_by_therapist_id" ||
+        field === "last_updated_by_role",
+    )
   ) {
     throw new Error(
       "No valid adaptation settings were provided.",
+    );
+  }
+
+  const defaultSettings = {
+    minimum_confidence: 0.7,
+    levenshtein_threshold: 2,
+    attempts_window: 5,
+    required_success_count: 4,
+    required_success_percentage: 80,
+    consecutive_successes_required: 3,
+    minimum_activities_mastered: 5,
+    default_max_attempts: 3,
+    default_activity_minutes: 5,
+    break_suggestion_minutes: 10,
+    gaze_away_threshold_seconds: 10,
+    slow_response_threshold_seconds: 15,
+    declining_success_window: 3,
+    inactivity_auto_stop_seconds: 900,
+    thompson_sampling_weight: 0.75,
+    phonetic_matching_enabled: true,
+    accepted_variations_enabled: true,
+    semantic_matching_enabled: true,
+    therapist_approval_required: true,
+    allow_skip: true,
+    one_more_try_enabled: true,
+    allow_hint: true,
+    allow_repeat_prompt: true,
+  };
+  const mergedSettings = {
+    ...defaultSettings,
+    ...(currentSettings ?? {}),
+    ...allowedUpdates,
+  };
+
+  const assertNumberInRange = (
+    field: keyof UpdateAdaptationSettingsInput,
+    minimum: number,
+    maximum: number,
+    integer = false,
+  ) => {
+    const value = mergedSettings[field];
+
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < minimum ||
+      value > maximum ||
+      (integer && !Number.isInteger(value))
+    ) {
+      throw new Error(
+        `${String(field)} must be ${integer ? "an integer " : ""}between ${minimum} and ${maximum}.`,
+      );
+    }
+  };
+
+  assertNumberInRange("minimum_confidence", 0, 1);
+  assertNumberInRange("levenshtein_threshold", 0, 5, true);
+  assertNumberInRange("attempts_window", 1, 20, true);
+  assertNumberInRange("required_success_count", 1, 20, true);
+  assertNumberInRange("required_success_percentage", 0, 100);
+  assertNumberInRange(
+    "consecutive_successes_required",
+    1,
+    20,
+    true,
+  );
+  assertNumberInRange(
+    "minimum_activities_mastered",
+    1,
+    50,
+    true,
+  );
+  assertNumberInRange("default_max_attempts", 1, 10, true);
+  assertNumberInRange("default_activity_minutes", 1, 60, true);
+  assertNumberInRange("break_suggestion_minutes", 1, 30);
+  assertNumberInRange(
+    "gaze_away_threshold_seconds",
+    1,
+    600,
+    true,
+  );
+  assertNumberInRange(
+    "slow_response_threshold_seconds",
+    1,
+    600,
+    true,
+  );
+  assertNumberInRange("declining_success_window", 2, 20, true);
+  assertNumberInRange(
+    "inactivity_auto_stop_seconds",
+    30,
+    3600,
+    true,
+  );
+  assertNumberInRange("thompson_sampling_weight", 0.5, 1);
+
+  const booleanFields: Array<keyof UpdateAdaptationSettingsInput> = [
+    "phonetic_matching_enabled",
+    "accepted_variations_enabled",
+    "semantic_matching_enabled",
+    "therapist_approval_required",
+    "allow_skip",
+    "one_more_try_enabled",
+    "allow_hint",
+    "allow_repeat_prompt",
+  ];
+
+  for (const field of booleanFields) {
+    if (typeof mergedSettings[field] !== "boolean") {
+      throw new Error(`${String(field)} must be a boolean.`);
+    }
+  }
+
+  if (mergedSettings.therapist_approval_required !== true) {
+    throw new Error(
+      "Speech Ladder progression must require therapist approval.",
+    );
+  }
+
+  if (
+    Number(mergedSettings.required_success_count) >
+    Number(mergedSettings.attempts_window)
+  ) {
+    throw new Error(
+      "required_success_count cannot exceed attempts_window.",
+    );
+  }
+
+  if (
+    Number(mergedSettings.consecutive_successes_required) >
+    Number(mergedSettings.attempts_window)
+  ) {
+    throw new Error(
+      "consecutive_successes_required cannot exceed attempts_window.",
+    );
+  }
+
+  if (
+    Number(mergedSettings.inactivity_auto_stop_seconds) <
+    Number(mergedSettings.break_suggestion_minutes) * 60
+  ) {
+    throw new Error(
+      "inactivity_auto_stop_seconds must be at least the break suggestion duration.",
     );
   }
 

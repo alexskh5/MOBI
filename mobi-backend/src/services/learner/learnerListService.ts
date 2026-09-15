@@ -37,6 +37,9 @@ export interface LearnerListOptions {
   sortOrder?:
     | "asc"
     | "desc";
+
+  actorRole?: string | null;
+  actorId?: string | null;
 }
 
 /* =========================================================
@@ -93,6 +96,14 @@ export async function getLearnerList(
     options.sortOrder ??
     "desc";
 
+  const actorRole =
+    options.actorRole?.trim().toLowerCase() ??
+    null;
+
+  const actorId =
+    options.actorId?.trim() ??
+    null;
+
   /*
     Supabase pagination uses zero-based ranges.
 
@@ -109,6 +120,61 @@ export async function getLearnerList(
 
   const to =
     from + limit - 1;
+
+  let assignedLearnerIds:
+    | string[]
+    | null = null;
+
+  if (actorRole === "therapist") {
+    if (!actorId) {
+      return {
+        learners: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+
+    const {
+      data: assignments,
+      error: assignmentError,
+    } = await supabase
+      .from("learner_therapists")
+      .select("learner_id")
+      .eq("therapist_id", actorId)
+      .eq("is_current", true);
+
+    if (assignmentError) {
+      console.error(
+        "Unable to fetch therapist learner assignments:",
+        assignmentError,
+      );
+
+      throw assignmentError;
+    }
+
+    assignedLearnerIds =
+      (assignments ?? [])
+        .map((assignment: any) =>
+          assignment.learner_id,
+        )
+        .filter(Boolean);
+
+    if (assignedLearnerIds.length === 0) {
+      return {
+        learners: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+  }
 
   /* =======================================================
      2. BUILD LEARNER QUERY
@@ -152,6 +218,14 @@ export async function getLearnerList(
         "center_id",
         centerId,
       );
+
+  if (assignedLearnerIds) {
+    query =
+      query.in(
+        "id",
+        assignedLearnerIds,
+      );
+  }
 
   /* =======================================================
      3. SEARCH

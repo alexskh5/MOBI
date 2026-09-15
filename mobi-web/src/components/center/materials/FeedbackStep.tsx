@@ -18,17 +18,37 @@ type FeedbackStepData = {
   max_attempts_feedback: string[];
   correct_voice_style: string;
   wrong_voice_style: string;
+  correct_audio_file?: File | null;
+  wrong_audio_file?: File | null;
+  max_attempts_audio_file?: File | null;
 };
 
 type FeedbackStepProps = {
   stepKey: string;
+  initialData?: Partial<FeedbackStepData>;
   onChange: (stepKey: string, data: FeedbackStepData) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 };
 
-function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
-  const [correctInput, setCorrectInput] = useState("");
-  const [wrongInput, setWrongInput] = useState("");
-  const [maxAttemptsInput, setMaxAttemptsInput] = useState("");
+function FeedbackStep({
+  stepKey,
+  initialData,
+  onChange,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: FeedbackStepProps) {
+  const [correctInput, setCorrectInput] = useState(
+    initialData?.correct_feedback?.[0] || "",
+  );
+  const [wrongInput, setWrongInput] = useState(
+    initialData?.wrong_feedback?.[0] || "",
+  );
+  const [maxAttemptsInput, setMaxAttemptsInput] = useState(
+    initialData?.max_attempts_feedback?.[0] || "",
+  );
 
   const [showCorrectMenu, setShowCorrectMenu] = useState(false);
   const [showWrongMenu, setShowWrongMenu] = useState(false);
@@ -36,8 +56,15 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
   const [showCorrectVoiceModal, setShowCorrectVoiceModal] = useState(false);
   const [showWrongVoiceModal, setShowWrongVoiceModal] = useState(false);
 
-  const [correctVoiceStyle, setCorrectVoiceStyle] = useState("Celebratory");
-  const [wrongVoiceStyle, setWrongVoiceStyle] = useState("Encouraging");
+  const [correctVoiceStyle, setCorrectVoiceStyle] = useState(
+    initialData?.correct_voice_style || "Celebratory",
+  );
+  const [wrongVoiceStyle, setWrongVoiceStyle] = useState(
+    initialData?.wrong_voice_style || "Encouraging",
+  );
+  const [correctAudioFile, setCorrectAudioFile] = useState<File | null>(null);
+  const [wrongAudioFile, setWrongAudioFile] = useState<File | null>(null);
+  const [maxAttemptsAudioFile, setMaxAttemptsAudioFile] = useState<File | null>(null);
 
   const [generatingVoice, setGeneratingVoice] = useState<
   "correct" | "wrong" | "max" | null>(null);
@@ -61,7 +88,10 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
     wrong = wrongInput,
     max = maxAttemptsInput,
     correctStyle = correctVoiceStyle,
-    wrongStyle = wrongVoiceStyle
+    wrongStyle = wrongVoiceStyle,
+    nextCorrectAudioFile = correctAudioFile,
+    nextWrongAudioFile = wrongAudioFile,
+    nextMaxAttemptsAudioFile = maxAttemptsAudioFile
   ) => {
     onChange(stepKey, {
       correct_feedback: correct ? [correct] : [],
@@ -69,6 +99,9 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
       max_attempts_feedback: max ? [max] : [],
       correct_voice_style: correctStyle,
       wrong_voice_style: wrongStyle,
+      correct_audio_file: nextCorrectAudioFile,
+      wrong_audio_file: nextWrongAudioFile,
+      max_attempts_audio_file: nextMaxAttemptsAudioFile,
     });
   };
 
@@ -116,6 +149,28 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
   }
 };
 
+  const handleFeedbackAudioUpload = (
+    type: "correct" | "wrong" | "max",
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+
+    if (type === "correct") {
+      setCorrectAudioFile(file);
+      updateParent(correctInput, wrongInput, maxAttemptsInput, correctVoiceStyle, wrongVoiceStyle, file);
+      return;
+    }
+
+    if (type === "wrong") {
+      setWrongAudioFile(file);
+      updateParent(correctInput, wrongInput, maxAttemptsInput, correctVoiceStyle, wrongVoiceStyle, correctAudioFile, file);
+      return;
+    }
+
+    setMaxAttemptsAudioFile(file);
+    updateParent(correctInput, wrongInput, maxAttemptsInput, correctVoiceStyle, wrongVoiceStyle, correctAudioFile, wrongAudioFile, file);
+  };
+
   return (
     <>
       <div className="inter border border-[#AAB7DA] rounded-[25px] overflow-hidden">
@@ -130,9 +185,9 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
           </div>
 
           <StepMenu
-            onMoveUp={() => console.log("Move Up")}
-            onMoveDown={() => console.log("Move Down")}
-            onDelete={() => console.log("Delete Step")}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            onDelete={onDelete}
           />
         </div>
 
@@ -232,6 +287,14 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
                   <Volume2 size={20} />
                 </button>
             </div>
+
+            <input
+              type="file"
+              accept="audio/*"
+              capture
+              onChange={(event) => handleFeedbackAudioUpload("correct", event)}
+              className="mt-3 w-full border border-gray-300 bg-white p-2 text-sm"
+            />
           </div>
 
           {/* WRONG FEEDBACK */}
@@ -328,6 +391,14 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
                 <Volume2 size={20} />
               </button>
             </div>
+
+            <input
+              type="file"
+              accept="audio/*"
+              capture
+              onChange={(event) => handleFeedbackAudioUpload("wrong", event)}
+              className="mt-3 w-full border border-gray-300 bg-white p-2 text-sm"
+            />
           </div>
 
           {/* MAX ATTEMPTS FEEDBACK */}
@@ -364,6 +435,14 @@ function FeedbackStep({ stepKey, onChange }: FeedbackStepProps) {
                 <Volume2 size={20} />
               </button>
             </div>
+
+            <input
+              type="file"
+              accept="audio/*"
+              capture
+              onChange={(event) => handleFeedbackAudioUpload("max", event)}
+              className="mt-3 w-full border border-gray-300 bg-white p-2 text-sm"
+            />
           </div>
         </div>
       </div>

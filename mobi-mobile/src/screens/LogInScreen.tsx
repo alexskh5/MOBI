@@ -18,6 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp } from '../types';
+import {
+  loginUser,
+} from '../services/api';
 
 const bgImage = require('../../assets/images/background.jpg');
 const logo = require('../../assets/images/mobi_logo.png');
@@ -30,52 +33,50 @@ export default function LogInScreen() {
   const isSmallPhone = height < 700;
 
   const [email, setEmail] = useState('');
-  const [magicCode, setMagicCode] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showCode, setShowCode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     const cleanEmail = email.trim();
-    const cleanMagicCode = magicCode.trim();
+    const cleanPassword = password.trim();
 
     if (cleanEmail === '') {
       Alert.alert('Missing Email', 'Please enter your registered email.');
       return;
     }
 
-    if (cleanMagicCode === '') {
-      Alert.alert('Missing Magic Code', 'Please enter your magic code.');
+    if (cleanPassword === '') {
+      Alert.alert('Missing Password', 'Please enter your password.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // BACKEND READY:
-      // Later, replace this timeout with:
-      //
-      // const response = await api.post('/auth/login', {
-      //   email: cleanEmail,
-      //   magic_code: cleanMagicCode,
-      // });
-      //
-      // const user = response.data;
-      // save token/user here if needed.
-      //
-      // Since therapist and learner both start in mobile child mode:
-      // navigation.reset({ index: 0, routes: [{ name: 'ChildDashboard' }] });
+      const user = await loginUser({
+        email: cleanEmail,
+        password: cleanPassword,
+      });
 
-      setTimeout(() => {
-        setIsLoading(false);
+      setIsLoading(false);
 
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'ChildDashboard' }],
-        });
-      }, 500);
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: user.defaultMobileRoute,
+          },
+        ],
+      });
     } catch (error) {
       setIsLoading(false);
-      Alert.alert('Login Failed', 'Please check your email and magic code.');
+      Alert.alert(
+        'Login Failed',
+        error instanceof Error
+          ? error.message
+          : 'Please check your email and password.',
+      );
     }
   };
 
@@ -116,7 +117,7 @@ export default function LogInScreen() {
               </Text>
 
               <Text style={[styles.subtitle, isTablet && styles.tabletSubtitle]}>
-                Log in using the account and magic code provided by your clinic.
+                Log in using the account and password provided by your clinic.
               </Text>
 
               <View style={styles.inputGroup}>
@@ -139,24 +140,24 @@ export default function LogInScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Magic Code</Text>
+                <Text style={styles.label}>Password</Text>
 
                 <View style={styles.inputWrapper}>
                   <Ionicons name="key-outline" size={19} color="#B48BC7" />
 
                   <TextInput
-                    value={magicCode}
-                    onChangeText={setMagicCode}
-                    placeholder="Enter your magic code"
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter your password"
                     placeholderTextColor="#9E8F9E"
                     style={styles.input}
-                    secureTextEntry={!showCode}
+                    secureTextEntry={!showPassword}
                     autoCapitalize="none"
                   />
 
-                  <Pressable onPress={() => setShowCode(!showCode)}>
+                  <Pressable onPress={() => setShowPassword(!showPassword)}>
                     <Ionicons
-                      name={showCode ? 'eye-off-outline' : 'eye-outline'}
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={19}
                       color="#9E8F9E"
                     />
@@ -178,7 +179,7 @@ export default function LogInScreen() {
 
               <Pressable>
                 <Text style={styles.helpText}>
-                  Please check your email for your magic code.
+                  Use the password you created for your MOBI account.
                 </Text>
               </Pressable>
 

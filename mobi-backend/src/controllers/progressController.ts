@@ -22,10 +22,21 @@ import {
   getPerActivityAnalysis,
 } from "../services/progress/perActivityAnalysisService";
 
+import {
+  getRequestCenterId,
+} from "../middleware/centerContext";
 
-
-const CENTER_ID =
+const DEFAULT_CENTER_ID =
   "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+function getProgressCenterId(req: Request) {
+  return (
+    getRequestCenterId(req) ??
+    DEFAULT_CENTER_ID
+  );
+}
+
+
 
 function getErrorMessage(
   error: unknown,
@@ -95,7 +106,7 @@ export async function getProgressOverview(
     const overview =
       await getLearnerProgressOverview({
         centerId:
-          CENTER_ID,
+          getProgressCenterId(req),
 
         learnerId,
 
@@ -187,7 +198,7 @@ export async function getSpeechTraining(
     const speechTraining =
       await getSpeechTrainingProgress({
         centerId:
-          CENTER_ID,
+          getProgressCenterId(req),
 
         learnerId,
 
@@ -281,7 +292,7 @@ export async function getSocialReadiness(
     const socialReadiness =
       await getSocialReadinessProgress({
         centerId:
-          CENTER_ID,
+          getProgressCenterId(req),
 
         learnerId,
 
@@ -372,7 +383,7 @@ export async function getPerActivity(
     const perActivity =
       await getPerActivityAnalysis({
         centerId:
-          CENTER_ID,
+          getProgressCenterId(req),
 
         learnerId,
 
@@ -399,6 +410,92 @@ export async function getPerActivity(
         "Unable to fetch per-activity analysis.",
       error:
         getErrorMessage(error),
+    });
+  }
+}
+
+/* =========================================================
+   GET COMPLETE LIVE PROGRESS REPORT
+========================================================= */
+
+export async function getProgressReport(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const learnerId =
+      typeof req.query.learnerId === "string"
+        ? req.query.learnerId.trim()
+        : "";
+    const periodRaw =
+      typeof req.query.period === "string"
+        ? req.query.period.trim()
+        : "week";
+    const anchorDate =
+      typeof req.query.anchorDate === "string"
+        ? req.query.anchorDate.trim()
+        : undefined;
+    const allowedPeriods: LearnerProgressPeriod[] = [
+      "day",
+      "week",
+      "month",
+      "year",
+    ];
+
+    if (!learnerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Learner ID is required.",
+      });
+    }
+
+    if (
+      !allowedPeriods.includes(
+        periodRaw as LearnerProgressPeriod,
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid progress period.",
+      });
+    }
+
+    const commonInput = {
+      centerId: getProgressCenterId(req),
+      learnerId,
+      period: periodRaw as LearnerProgressPeriod,
+      anchorDate: anchorDate || undefined,
+    };
+    const [
+      overview,
+      speechTraining,
+      socialReadiness,
+      perActivity,
+    ] = await Promise.all([
+      getLearnerProgressOverview(commonInput),
+      getSpeechTrainingProgress(commonInput),
+      getSocialReadinessProgress(commonInput),
+      getPerActivityAnalysis(commonInput),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      report: {
+        learnerId,
+        period: commonInput.period,
+        dateRange: overview.dateRange,
+        generatedAt: new Date().toISOString(),
+        overview,
+        speechTraining,
+        socialReadiness,
+        perActivity,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Unable to generate learner progress report.",
+      error: getErrorMessage(error),
     });
   }
 }

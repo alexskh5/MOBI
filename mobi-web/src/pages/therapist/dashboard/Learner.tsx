@@ -2,14 +2,60 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import TherapistLayout from "../../../layouts/TherapistLayout";
+import {
+  getLearners,
+  type LearnerListItem,
+} from "../../../services/learner/learnerApi";
 
 interface LearnerData {
   _id: string;
   firstName: string;
   lastName: string;
-  age: number;
+  age: string;
   gender: string;
-  level: number;
+  level: string;
+}
+
+function calculateAge(birthDate: string) {
+  const birthday = new Date(birthDate);
+
+  if (Number.isNaN(birthday.getTime())) {
+    return "-";
+  }
+
+  const today = new Date();
+  let age =
+    today.getFullYear() -
+    birthday.getFullYear();
+
+  const hasNotHadBirthday =
+    today.getMonth() < birthday.getMonth() ||
+    (
+      today.getMonth() === birthday.getMonth() &&
+      today.getDate() < birthday.getDate()
+    );
+
+  if (hasNotHadBirthday) {
+    age -= 1;
+  }
+
+  return String(age);
+}
+
+function mapLearner(
+  learner: LearnerListItem,
+): LearnerData {
+  return {
+    _id: learner.id,
+    firstName: learner.firstName,
+    lastName: learner.lastName,
+    age: calculateAge(learner.birthDate),
+    gender: learner.sexAtBirth,
+    level:
+      learner.currentSpeechLadder ??
+      learner.suggestedSpeechLadder ??
+      "For review",
+  };
 }
 
 const Learner = () => {
@@ -21,6 +67,10 @@ const Learner = () => {
 
   const [learners, setLearners] = useState<LearnerData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalLearners, setTotalLearners] = useState(0);
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
@@ -30,132 +80,97 @@ const Learner = () => {
 
   const [showSortMenu, setShowSortMenu] = useState(false);
 
-  // const [sortOption, setSortOption] = useState("default");
-  // UNCOMMENT RANI NYA DELETE NING IYA UBOS NA LINE NIG BACKEND NA KAY ERROR MAN RN
-  const [, setSortOption] = useState("default");
+  const [sortOption, setSortOption] = useState("default");
 
-  // placeholder rani et pero matic na count ang list ehu
   useEffect(() => {
+    let cancelled = false;
+
     const fetchLearners = async () => {
       try {
-        const data: LearnerData[] = [
-          {
-            _id: "1",
-            firstName: "Lexi Rose",
-            lastName: "Pantaleon",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "2",
-            firstName: "John",
-            lastName: "Doe",
-            age: 7,
-            gender: "Male",
-            level: 3,
-          },
-          {
-            _id: "3",
-            firstName: "Sophia",
-            lastName: "Garcia",
-            age: 9,
-            gender: "Female",
-            level: 5,
-          },
-          {
-            _id: "4",
-            firstName: "Ethan",
-            lastName: "Santos",
-            age: 6,
-            gender: "Male",
-            level: 2,
-          },
-          {
-            _id: "5",
-            firstName: "Mia",
-            lastName: "Reyes",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "6",
-            firstName: "Lucas",
-            lastName: "Cruz",
-            age: 10,
-            gender: "Male",
-            level: 6,
-          },
-          {
-            _id: "7",
-            firstName: "Emma",
-            lastName: "Flores",
-            age: 7,
-            gender: "Female",
-            level: 3,
-          },
-          {
-            _id: "8",
-            firstName: "Noah",
-            lastName: "Torres",
-            age: 9,
-            gender: "Male",
-            level: 5,
-          },
-          {
-            _id: "9",
-            firstName: "Olivia",
-            lastName: "Mendoza",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "10",
-            firstName: "Liam",
-            lastName: "Villanueva",
-            age: 7,
-            gender: "Male",
-            level: 3,
-          },
-          {
-            _id: "11",
-            firstName: "Ava",
-            lastName: "Ramos",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "12",
-            firstName: "James",
-            lastName: "Navarro",
-            age: 9,
-            gender: "Male",
-            level: 5,
-          },
-        ];
+        setLoading(true);
+        setError("");
 
-        setLearners(data);
-        setLoading(false);
+        let sortBy:
+          | "last_name"
+          | "first_name"
+          | "birth_date"
+          | "created_at" =
+          "created_at";
+
+        let sortOrder:
+          | "asc"
+          | "desc" =
+          "desc";
+
+        switch (sortOption) {
+          case "lastname-asc":
+            sortBy = "last_name";
+            sortOrder = "asc";
+            break;
+          case "lastname-desc":
+            sortBy = "last_name";
+            sortOrder = "desc";
+            break;
+          case "age-asc":
+            sortBy = "birth_date";
+            sortOrder = "desc";
+            break;
+          case "age-desc":
+            sortBy = "birth_date";
+            sortOrder = "asc";
+            break;
+          default:
+            sortBy = "created_at";
+            sortOrder = "desc";
+        }
+
+        const result = await getLearners({
+          page: currentPage,
+          limit: learnersPerPage,
+          search,
+          sortBy,
+          sortOrder,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setLearners(
+          result.learners.map(mapLearner),
+        );
+        setTotalPages(
+          result.pagination.totalPages,
+        );
+        setTotalLearners(
+          result.pagination.total,
+        );
       } catch (error) {
         console.error("Error fetching learners:", error);
-        setLoading(false);
+        if (!cancelled) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load learners.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchLearners();
-  }, []);
 
-  const totalPages = Math.ceil(learners.length / learnersPerPage);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, search, sortOption]);
 
-  const startIndex = (currentPage - 1) * learnersPerPage;
-
-  const currentLearners = learners.slice(
-    startIndex,
-    startIndex + learnersPerPage
-  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, sortOption]);
 
   return (
     <TherapistLayout>
@@ -176,7 +191,7 @@ const Learner = () => {
               <h1 className="text-2xl font-medium">
                 Learner{" "}
                 <span className="bg-white px-2 rounded-full text-md">
-                  {learners.length}
+                  {totalLearners}
                 </span>
               </h1>
             </div>
@@ -187,6 +202,10 @@ const Learner = () => {
               <input
                 type="text"
                 placeholder="Search"
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
                 className="bg-transparent outline-none w-full"
               />
             </div>
@@ -213,75 +232,53 @@ const Learner = () => {
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
                     <button
                       className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("lastname-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by last name A-Z
-                      }}
+	                      onClick={() => {
+	                        setSortOption("lastname-asc");
+	                        setShowSortMenu(false);
+	                      }}
                     >
                       Last Name A-Z
                     </button>
 
                     <button
                       className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("lastname-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by last name Z-A
-                      }}
+	                      onClick={() => {
+	                        setSortOption("lastname-desc");
+	                        setShowSortMenu(false);
+	                      }}
                     >
                       Last Name Z-A
                     </button>
 
                     <button
                       className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("age-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by youngest first
-                      }}
+	                      onClick={() => {
+	                        setSortOption("age-asc");
+	                        setShowSortMenu(false);
+	                      }}
                     >
                       Age ↑
                     </button>
 
                     <button
                       className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("age-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by oldest first
-                      }}
+	                      onClick={() => {
+	                        setSortOption("age-desc");
+	                        setShowSortMenu(false);
+	                      }}
                     >
                       Age ↓
                     </button>
 
                     <button
                       className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("level-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by level ascending
-                      }}
-                    >
-                      Level ↑
-                    </button>
-
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("level-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by level descending
-                      }}
-                    >
-                      Level ↓
-                    </button>
+	                      onClick={() => {
+	                        setSortOption("default");
+	                        setShowSortMenu(false);
+	                      }}
+	                    >
+	                      Newest
+	                    </button>
                   </div>
                 )}
               </div>
@@ -291,9 +288,13 @@ const Learner = () => {
           <div className="flex-1 flex flex-col">
             {/* TABLE */}
             <div className="bg-[#E4C9E5] rounded-xl p-6 border border-[#DFA5C9] shadow-md flex-1">
-              {loading ? (
-                <p>Loading learners...</p>
-              ) : (
+	              {loading ? (
+	                <p>Loading learners...</p>
+	              ) : error ? (
+	                <p className="text-red-700">{error}</p>
+	              ) : learners.length === 0 ? (
+	                <p>No assigned learners found.</p>
+	              ) : (
                 <table className="w-full table-fixed text-md">
                   <thead>
                     <tr className="text-left border-b border-[#DFA5C9] [&>th]:pb-4">
@@ -308,7 +309,7 @@ const Learner = () => {
                   </thead>
 
                   <tbody>
-                    {currentLearners.map((learner) => (
+	                    {learners.map((learner) => (
                       <tr
                         key={learner._id}
                         className="border-b border-[#DFA5C9] hover:bg-[#EBCFE9] cursor-pointer [&>td]:py-2"
@@ -400,7 +401,7 @@ const Learner = () => {
                     Math.min(prev + 1, totalPages)
                   )
                 }
-                disabled={currentPage === totalPages}
+                disabled={totalPages <= 1 || currentPage === totalPages}
                 className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
               >
                 &gt;
@@ -408,7 +409,7 @@ const Learner = () => {
             </div>
 
             <p className="text-sm font-medium">
-              {currentPage} of {totalPages}
+              {currentPage} of {Math.max(totalPages, 1)}
             </p>
           </div>
 

@@ -1,4 +1,5 @@
 import { supabase } from "../../config/supabase";
+import { getCenterDateRange } from "../time/centerTimeService";
 
 /* =========================================================
    PROGRESS FILTER TYPES
@@ -78,6 +79,14 @@ export interface LearnerProgressOverview {
 
     screenTimeLimitSeconds:
       number | null;
+
+    scoredAttempts: number;
+
+    correctAttempts: number;
+
+    incorrectAttempts: number;
+
+    scoredSuccessRate: number | null;
   };
 }
 
@@ -91,178 +100,7 @@ export function getProgressDateRange(
 
   anchorDate?: string,
 ): ProgressDateRange {
-
-  const anchor =
-    anchorDate
-      ? new Date(
-          `${anchorDate}T12:00:00`,
-        )
-      : new Date();
-
-  if (
-    Number.isNaN(
-      anchor.getTime(),
-    )
-  ) {
-    throw new Error(
-      "Invalid progress anchor date.",
-    );
-  }
-
-  const start =
-    new Date(anchor);
-
-  const end =
-    new Date(anchor);
-
-  /* =======================================================
-     PER DAY
-  ======================================================= */
-
-  if (
-    period ===
-    "day"
-  ) {
-    start.setHours(
-      0,
-      0,
-      0,
-      0,
-    );
-
-    end.setHours(
-      23,
-      59,
-      59,
-      999,
-    );
-  }
-
-  /* =======================================================
-     PER WEEK
-
-     Monday → Sunday
-  ======================================================= */
-
-  else if (
-    period ===
-    "week"
-  ) {
-    const currentDay =
-      start.getDay();
-
-    /*
-      JavaScript:
-
-      Sunday = 0
-      Monday = 1
-      ...
-      Saturday = 6
-
-      Convert that into a Monday-based week.
-    */
-    const daysFromMonday =
-      currentDay === 0
-        ? 6
-        : currentDay - 1;
-
-    start.setDate(
-      start.getDate() -
-      daysFromMonday,
-    );
-
-    start.setHours(
-      0,
-      0,
-      0,
-      0,
-    );
-
-    end.setTime(
-      start.getTime(),
-    );
-
-    end.setDate(
-      end.getDate() +
-      6,
-    );
-
-    end.setHours(
-      23,
-      59,
-      59,
-      999,
-    );
-  }
-
-  /* =======================================================
-     PER MONTH
-  ======================================================= */
-
-  else if (
-    period ===
-    "month"
-  ) {
-    start.setDate(1);
-
-    start.setHours(
-      0,
-      0,
-      0,
-      0,
-    );
-
-    end.setMonth(
-      end.getMonth() +
-      1,
-      0,
-    );
-
-    end.setHours(
-      23,
-      59,
-      59,
-      999,
-    );
-  }
-
-  /* =======================================================
-     PER YEAR
-  ======================================================= */
-
-  else {
-    start.setMonth(
-      0,
-      1,
-    );
-
-    start.setHours(
-      0,
-      0,
-      0,
-      0,
-    );
-
-    end.setMonth(
-      11,
-      31,
-    );
-
-    end.setHours(
-      23,
-      59,
-      59,
-      999,
-    );
-  }
-
-  return {
-    start:
-      start.toISOString(),
-
-    end:
-      end.toISOString(),
-  };
+  return getCenterDateRange(period, anchorDate);
 }
 
 
@@ -344,7 +182,12 @@ export async function getLearnerProgressOverview(
       total_duration_seconds,
       inactivity_seconds,
       gaze_present_seconds,
-      gaze_detection_available
+      gaze_detection_available,
+
+      activity:activities!inner(
+        id,
+        delivery_mode
+      )
     `)
     .eq(
       "center_id",
@@ -399,11 +242,14 @@ export async function getLearnerProgressOverview(
         accepted:
             boolean | null;
 
-        is_correct:
-            boolean | null;
-
       response_type:
         string | null;
+
+      should_score:
+        boolean | null;
+
+      is_correct:
+        boolean | null;
     }> = [];
 
   if (
@@ -422,7 +268,8 @@ export async function getLearnerProgressOverview(
         approximation_detected,
         accepted,
         is_correct,
-        response_type
+        response_type,
+        should_score
       `)
       .in(
         "session_id",
@@ -487,6 +334,28 @@ export async function getLearnerProgressOverview(
         true,
     ).length;
 
+  const scoredAttempts = attempts.filter(
+    (attempt) => attempt.should_score === true,
+  );
+
+  const correctAttempts = scoredAttempts.filter(
+    (attempt) => attempt.is_correct === true,
+  ).length;
+
+  const incorrectAttempts = scoredAttempts.filter(
+    (attempt) => attempt.is_correct === false,
+  ).length;
+
+  const scoredSuccessRate =
+    scoredAttempts.length > 0
+      ? Number(
+          (
+            (correctAttempts / scoredAttempts.length) *
+            100
+          ).toFixed(2),
+        )
+      : null;
+
   const inactivitySeconds =
     sessions.reduce(
       (
@@ -534,27 +403,27 @@ export async function getLearnerProgressOverview(
       0,
     );
 
-  /*
-    Screen time:
-
-    For this first version we use activity-session duration.
-
-    Later we will refine this using delivery_mode so
-    guided_off_screen / Do It activities do not incorrectly
-    count all elapsed time as screen exposure.
-  */
   const screenTimeSeconds =
     sessions.reduce(
       (
         total,
         session,
-      ) =>
-        total +
-        Number(
-          session
-            .total_duration_seconds ??
-          0,
-        ),
+      ) => {
+        const activityRelation = session.activity;
+        const activity = Array.isArray(activityRelation)
+          ? activityRelation[0]
+          : activityRelation;
+        const deliveryMode =
+          activity?.delivery_mode ?? "screen";
+
+        if (deliveryMode === "guided_off_screen") {
+          return total;
+        }
+
+        return total + Number(
+          session.total_duration_seconds ?? 0,
+        );
+      },
       0,
     );
 
@@ -567,9 +436,35 @@ export async function getLearnerProgressOverview(
      setting after checking its current database location.
   ======================================================= */
 
-  const screenTimeLimitSeconds:
-    number | null =
-      null;
+  const {
+    data: childSafetySettings,
+    error: childSafetySettingsError,
+  } = await supabase
+    .from("learner_child_safety_settings")
+    .select("daily_screen_time_limit_seconds")
+    .eq("center_id", centerId)
+    .eq("learner_id", learnerId)
+    .maybeSingle();
+
+  if (childSafetySettingsError) {
+    const optionalSettingsTableMissing =
+      childSafetySettingsError.code === "PGRST205" ||
+      childSafetySettingsError.code === "42P01" ||
+      childSafetySettingsError.code === "42703";
+
+    if (!optionalSettingsTableMissing) {
+      console.error(
+        "Unable to fetch learner screen-time settings:",
+        childSafetySettingsError,
+      );
+    }
+  }
+
+  const screenTimeLimitSeconds =
+    typeof childSafetySettings?.daily_screen_time_limit_seconds ===
+      "number"
+      ? childSafetySettings.daily_screen_time_limit_seconds
+      : null;
 
   return {
     learnerId,
@@ -594,6 +489,15 @@ export async function getLearnerProgressOverview(
       screenTimeSeconds,
 
       screenTimeLimitSeconds,
+
+      scoredAttempts:
+        scoredAttempts.length,
+
+      correctAttempts,
+
+      incorrectAttempts,
+
+      scoredSuccessRate,
     },
   };
 }

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import type React from "react";
 
 interface ToolboxProps {
   onAddStep: (
@@ -22,6 +23,14 @@ function Toolbox({
     onAIVoice,
     onAssignLearner,
   }: ToolboxProps) {
+  const makeStepDraggable = (stepType: string) => ({
+    draggable: true,
+    onDragStart: (event: React.DragEvent<HTMLButtonElement>) => {
+      event.dataTransfer.setData("text/plain", stepType);
+      event.dataTransfer.effectAllowed = "copy";
+    },
+  });
+
   return (
     <div className="inter bg-white border border-[#E59BE7] rounded-[30px] h-full flex flex-col">
 
@@ -52,6 +61,7 @@ function Toolbox({
           <div className="space-y-1">
 
             <button
+              {...makeStepDraggable("Teach")}
               onClick={() =>
                 onAddStep("Teach")
               }
@@ -65,6 +75,7 @@ function Toolbox({
             </button>
 
             <button
+              {...makeStepDraggable("Show & Choose")}
               onClick={() =>
                 onAddStep("Show & Choose")
               }
@@ -91,6 +102,7 @@ function Toolbox({
           <div className="space-y-1">
 
             <button
+              {...makeStepDraggable("Ask")}
               onClick={() =>
                 onAddStep("Ask")
               }
@@ -104,6 +116,7 @@ function Toolbox({
             </button>
 
             <button
+              {...makeStepDraggable("Conversation")}
               onClick={() =>
                 onAddStep("Conversation")
               }
@@ -117,6 +130,7 @@ function Toolbox({
             </button>
 
             <button
+              {...makeStepDraggable("Learn by Doing")}
               onClick={() =>
                 onAddStep("Learn by Doing")
               }
@@ -141,6 +155,7 @@ function Toolbox({
           </p>
 
           <button
+            {...makeStepDraggable("Feedback")}
             onClick={() =>
               onAddStep("Feedback")
             }

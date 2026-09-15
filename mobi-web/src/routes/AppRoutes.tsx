@@ -4,11 +4,15 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import type {
+  ReactNode,
+} from "react";
 
 import Home from "../pages/Home";
 import About from "../pages/About";
 import Login from "../pages/Login";
 
+// auth
 import FreeTrial from "../pages/auth/FreeTrial";
 import FreeTrialRegister from "../pages/auth/FreeTrialRegister";
 import AcceptInvitation from "../pages/auth/AcceptInvitation";
@@ -33,6 +37,7 @@ import CreateActivity from "../pages/center/materials/CreateActivity";
 import ActivityPreview from "../pages/center/materials/ActivityPreview";
 import DraftMaterials from "../pages/center/materials/DraftMaterials";
 import ArchivedMaterials from "../pages/center/materials/ArchivedMaterials";
+import RegulatoryActivities from "../pages/center/materials/RegulatoryActivities";
 import Notifications from "../pages/center/notifications/Notifications";
 import Schedule from "../pages/center/schedule/Schedule";
 import Collaboration from "../pages/center/collaboration/Collaboration"
@@ -61,6 +66,41 @@ import DocCollabScreen from "../pages/doctor/DocCollabScreen";
 import DocNotificationScreen from "../pages/doctor/DocNotificationScreen";
 import DocProfileScreen from "../pages/doctor/DocProfileScreen";
 import DocPatientProgressScreen from "../components/doctor/DocPatientProgressScreen";
+import {
+  getStoredAuthUser,
+  isAllowedRole,
+  type AuthRole,
+} from "../services/auth";
+
+function ProtectedRoute({
+  roles,
+  children,
+}: {
+  roles: AuthRole[];
+  children: ReactNode;
+}) {
+  const user = getStoredAuthUser();
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
+  }
+
+  if (!isAllowedRole(user, roles)) {
+    return (
+      <Navigate
+        to={user.defaultWebRoute}
+        replace
+      />
+    );
+  }
+
+  return children;
+}
 
 const AppRoutes = () => {
   return (
@@ -70,7 +110,7 @@ const AppRoutes = () => {
         <Route
           path="/"
           element={
-            <Navigate to="/center/dashboard" />
+            <Navigate to="/login" />
           }
         />
 
@@ -138,200 +178,365 @@ const AppRoutes = () => {
         {/* Center Admin */}
         <Route
           path="/center/dashboard"
-          element={<Learner />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <Learner />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/dashboard/AddLearner"
-          element={<AddLearner />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <AddLearner />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/dashboard/:id/EditLearner"
-          element={<EditLearner />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <EditLearner />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/dashboard/:id/progress"
-          element={<Progress />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <Progress />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile"
-          element={<CenterProfile />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <CenterProfile />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile/doctors"
-          element={<ViewDoctor />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <ViewDoctor />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile/staff"
-          element={<ViewStaff />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <ViewStaff />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile/AddDoctor"
-          element={<AddDoctor />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <AddDoctor />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile/AddStaff"
-          element={<AddStaff />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <AddStaff />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile/:id/EditDoctor"
-          element={<EditDoctor />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <EditDoctor />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/profile/:id/EditStaff"
-          element={<EditStaff />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <EditStaff />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/materials"
-          element={<ActivityLibrary />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <ActivityLibrary />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/materials/CreateActivity"
-          element={<CreateActivity />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <CreateActivity />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/center/materials/regulatory"
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <RegulatoryActivities />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/materials/:id"
-          element={<ActivityPreview />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <ActivityPreview />
+            </ProtectedRoute>
+          }
         />
 
         <Route
             path="/center/materials/DraftMaterials"
-            element={<DraftMaterials />}
+            element={
+              <ProtectedRoute roles={["center_admin"]}>
+                <DraftMaterials />
+              </ProtectedRoute>
+            }
         />
 
         <Route
           path="/center/materials/ArchivedMaterials"
-          element={<ArchivedMaterials />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <ArchivedMaterials />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/center/notifications"
-          element={<Notifications />}
+          element={
+            <ProtectedRoute roles={["center_admin"]}>
+              <Notifications />
+            </ProtectedRoute>
+          }
         />
 
         <Route
             path="/center/schedule"
-            element={<Schedule />}
+            element={
+              <ProtectedRoute roles={["center_admin"]}>
+                <Schedule />
+              </ProtectedRoute>
+            }
         />
 
         <Route
             path="/center/collaboration"
-            element={<Collaboration />}
+            element={
+              <ProtectedRoute roles={["center_admin"]}>
+                <Collaboration />
+              </ProtectedRoute>
+            }
         />
 
         {/* Therapist */}
         <Route
           path="/therapist/dashboard"
-          element={<TherapistLearner />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistLearner />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/dashboard/:id/progress"
-          element={<Progress />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <Progress />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/dashboard/:id/progress"
-          element={<TherapistProgress />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistProgress />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/profile"
-          element={<TherapistProfile />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistProfile />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/materials"
-          element={<TherapistMaterials />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistMaterials />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/materials/DraftMaterials"
-          element={<TherapistDraftMaterials />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistDraftMaterials />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/materials/ArchivedMaterials"
-          element={<TherapistArchivedMaterials />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistArchivedMaterials />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/materials/:id"
-          element={<TherapistActivityPreview />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistActivityPreview />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/materials/CreateActivity"
-          element={<TherapistCreateActivity />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistCreateActivity />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/therapist/notifications"
-          element={<TherapistNotification />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistNotification />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/schedule"
-          element={<TherapistSchedule />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistSchedule />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/therapist/collaboration"
-          element={<TherapistCollaboration />}
+          element={
+            <ProtectedRoute roles={["therapist"]}>
+              <TherapistCollaboration />
+            </ProtectedRoute>
+          }
         />
 
 
         {/* Super Admin */}
         <Route
           path="/superadmin/SuperDashboardScreen"
-          element={<SuperDashboardScreen />}
+          element={
+            <ProtectedRoute roles={["super_admin"]}>
+              <SuperDashboardScreen />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/superadmin/SuperManageScreen"
-          element={<SuperManageScreen />}
+          element={
+            <ProtectedRoute roles={["super_admin"]}>
+              <SuperManageScreen />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/superadmin/SuperProcessScreen"
-          element={<SuperProcessScreen />}
+          element={
+            <ProtectedRoute roles={["super_admin"]}>
+              <SuperProcessScreen />
+            </ProtectedRoute>
+          }
         />
         
       {/* Doctor */}
         <Route
           path="/doctor/DocDashboardScreen"
-          element={<DocDashboardScreen />}
+          element={
+            <ProtectedRoute roles={["doctor"]}>
+              <DocDashboardScreen />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/doctor/patients/:patientId"
-          element={<DocPatientProgressScreen />}
+          element={
+            <ProtectedRoute roles={["doctor"]}>
+              <DocPatientProgressScreen />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/doctor/DocCollabScreen"
-          element={<DocCollabScreen />}
+          element={
+            <ProtectedRoute roles={["doctor"]}>
+              <DocCollabScreen />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/doctor/DocNotificationScreen"
-          element={<DocNotificationScreen />}
+          element={
+            <ProtectedRoute roles={["doctor"]}>
+              <DocNotificationScreen />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/doctor/DocProfileScreen"
-          element={<DocProfileScreen />}
+          element={
+            <ProtectedRoute roles={["doctor"]}>
+              <DocProfileScreen />
+            </ProtectedRoute>
+          }
         />
 
 

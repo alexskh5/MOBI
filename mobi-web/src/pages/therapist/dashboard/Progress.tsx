@@ -24,17 +24,39 @@ import SpeechTrainingResultPage from "../../../components/center/dashboard/Speec
 import SocialReadinessResultPage from "../../../components/center/dashboard/SocialReadinessResultPage";
 import PerActivityAnalysisPage from "../../../components/center/dashboard/PerActivityAnalysisPage";
 
+import {
+    getProgressOverview,
+    type LearnerProgressOverview,
+    type ProgressPeriod,
+} from "../../../services/progress/progressApi";
+
+import {
+    getSpeechTrainingProgress,
+    type SpeechTrainingProgress,
+} from "../../../services/progress/speechTrainingApi";
+
+import {
+    getSocialReadinessProgress,
+    type SocialReadinessProgress,
+} from "../../../services/progress/socialReadinessApi";
+
+import {
+    getPerActivityAnalysis,
+    type PerActivityAnalysisProgress,
+} from "../../../services/progress/perActivityApi";
+
 /* =========================================================
    TYPES
 ========================================================= */
 
 interface LearnerData {
+    id?: string;
     _id: string;
     firstName: string;
     lastName: string;
-    age: number;
-    gender: string;
-    level: number;
+    age?: number;
+    gender?: string;
+    level?: number;
 }
 
 type ProgressFilter =
@@ -42,6 +64,25 @@ type ProgressFilter =
     | "Per Week"
     | "Per Month"
     | "Per Year";
+
+function mapProgressFilter(
+    filter: ProgressFilter,
+): ProgressPeriod {
+    switch (filter) {
+        case "Per Day":
+            return "day";
+
+        case "Per Month":
+            return "month";
+
+        case "Per Year":
+            return "year";
+
+        case "Per Week":
+        default:
+            return "week";
+    }
+}
 
 /* =========================================================
    MAIN PAGE
@@ -59,14 +100,13 @@ const Progress = () => {
     } | null;
 
     const learner =
-        progressState?.learner ?? {
-            _id: "1",
-            firstName: "Lexi Rose",
-            lastName: "Pantaleon",
-            age: 8,
-            gender: "Female",
-            level: 4,
-        };
+        progressState?.learner ??
+        null;
+
+    const learnerId =
+        learner?.id ??
+        learner?._id ??
+        "";
 
     const [currentPage, setCurrentPage] =
         useState(1);
@@ -95,71 +135,75 @@ const Progress = () => {
      */
     const totalPages = 4;
 
-    /* =====================================================
-       TEMPORARY PAGE 1 DATA
+    const [
+        overview,
+        setOverview,
+    ] = useState<LearnerProgressOverview | null>(null);
 
-       Later, these values should come from the backend based
-       on the selected learner and selected period filter.
-    ===================================================== */
+    const [
+        speechTraining,
+        setSpeechTraining,
+    ] = useState<SpeechTrainingProgress | null>(null);
+
+    const [
+        socialReadiness,
+        setSocialReadiness,
+    ] = useState<SocialReadinessProgress | null>(null);
+
+    const [
+        perActivityAnalysis,
+        setPerActivityAnalysis,
+    ] = useState<PerActivityAnalysisProgress | null>(null);
+
+    const [
+        progressLoading,
+        setProgressLoading,
+    ] = useState(true);
+
+    const [
+        progressError,
+        setProgressError,
+    ] = useState("");
 
     const progressMetrics = {
-        activitiesCompleted: 2,
-        wordsPracticed: 12,
-        focusTime: "15m",
-        inactivityTime: "3m",
-        screenTimeUsed: "15m",
-        screenTimeLimit: "1h 30m",
+        activitiesCompleted:
+            overview?.metrics.activitiesCompleted ??
+            0,
+
+        communicationAttempts:
+            overview?.metrics.communicationAttempts ??
+            0,
+
+        targetAchievements:
+            overview?.metrics.targetAchievements ??
+            0,
+
+        speechApproximations:
+            overview?.metrics.speechApproximations ??
+            0,
+
+        observedEngagementSeconds:
+            overview?.metrics.observedEngagementSeconds ??
+            0,
+
+        inactivitySeconds:
+            overview?.metrics.inactivitySeconds ??
+            0,
+
+        screenTimeSeconds:
+            overview?.metrics.screenTimeSeconds ??
+            0,
+
+        screenTimeLimitSeconds:
+            overview?.metrics.screenTimeLimitSeconds ??
+            null,
     };
 
-    const progressGraphData = [
-        {
-            period: "Mon",
-            speech: 45,
-            social: 30,
-        },
-        {
-            period: "Tue",
-            speech: 55,
-            social: 40,
-        },
-        {
-            period: "Wed",
-            speech: 50,
-            social: 42,
-        },
-        {
-            period: "Thu",
-            speech: 65,
-            social: 55,
-        },
-        {
-            period: "Fri",
-            speech: 70,
-            social: 60,
-        },
-        {
-            period: "Sat",
-            speech: 75,
-            social: 68,
-        },
-        {
-            period: "Sun",
-            speech: 82,
-            social: 72,
-        },
-    ];
-
-    const speechAnalysis = {
-        summary: "Placeholder AI analysis.",
-        description:
-            "This section will summarize the learner's improvements in speech, vocabulary, sentence formation, and communication based on completed activities.",
-    };
-
-    const socialAnalysis = {
-        summary: "Placeholder AI analysis.",
-        description:
-            "This section will summarize social interactions, eye contact, turn-taking, participation, and engagement observed during learning activities.",
-    };
+    const progressGraphData: Array<{
+        period: string;
+        speech: number;
+        social: number;
+    }> = [];
 
     /* =====================================================
        PAGE NAVIGATION
@@ -190,6 +234,95 @@ const Progress = () => {
             behavior: "smooth",
         });
     }, [currentPage]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadProgress() {
+            if (!learnerId) {
+                setOverview(null);
+                setSpeechTraining(null);
+                setSocialReadiness(null);
+                setPerActivityAnalysis(null);
+                setProgressError("No learner was selected.");
+                setProgressLoading(false);
+                return;
+            }
+
+            try {
+                setProgressLoading(true);
+                setProgressError("");
+
+                const period =
+                    mapProgressFilter(filter);
+
+                const [
+                    overviewResult,
+                    speechTrainingResult,
+                    socialReadinessResult,
+                    perActivityResult,
+                ] = await Promise.all([
+                    getProgressOverview({
+                        learnerId,
+                        period,
+                    }),
+                    getSpeechTrainingProgress({
+                        learnerId,
+                        period,
+                    }),
+                    getSocialReadinessProgress({
+                        learnerId,
+                        period,
+                    }),
+                    getPerActivityAnalysis({
+                        learnerId,
+                        period,
+                    }),
+                ]);
+
+                if (cancelled) {
+                    return;
+                }
+
+                setOverview(overviewResult);
+                setSpeechTraining(speechTrainingResult);
+                setSocialReadiness(socialReadinessResult);
+                setPerActivityAnalysis(perActivityResult);
+            } catch (error) {
+                if (cancelled) {
+                    return;
+                }
+
+                console.error(
+                    "Unable to load therapist learner progress:",
+                    error,
+                );
+
+                setOverview(null);
+                setSpeechTraining(null);
+                setSocialReadiness(null);
+                setPerActivityAnalysis(null);
+                setProgressError(
+                    error instanceof Error
+                        ? error.message
+                        : "Unable to load learner progress.",
+                );
+            } finally {
+                if (!cancelled) {
+                    setProgressLoading(false);
+                }
+            }
+        }
+
+        loadProgress();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        learnerId,
+        filter,
+    ]);
 
     useEffect(() => {
         const handleOutsideClick = (
@@ -247,24 +380,28 @@ const Progress = () => {
                     <ProgressOverviewPage
                         metrics={progressMetrics}
                         graphData={progressGraphData}
-                        speechAnalysis={speechAnalysis}
-                        socialAnalysis={socialAnalysis}
                     />
                 );
 
             case 2:
                 return (
-                    <SpeechTrainingResultPage />
+                    <SpeechTrainingResultPage
+                        data={speechTraining}
+                    />
                 );
 
             case 3:
                 return (
-                    <SocialReadinessResultPage />
+                    <SocialReadinessResultPage
+                        progress={socialReadiness ?? undefined}
+                    />
                 );
 
             case 4:
                 return (
-                    <PerActivityAnalysisPage />
+                    <PerActivityAnalysisPage
+                        progress={perActivityAnalysis ?? undefined}
+                    />
                 );
 
             default:
@@ -272,8 +409,6 @@ const Progress = () => {
                     <ProgressOverviewPage
                         metrics={progressMetrics}
                         graphData={progressGraphData}
-                        speechAnalysis={speechAnalysis}
-                        socialAnalysis={socialAnalysis}
                     />
                 );
         }
@@ -596,9 +731,9 @@ const Progress = () => {
                                                 sm:text-2xl
                                             "
                                         >
-                                            {learner.firstName}{" "}
-                                            {learner.lastName},{" "}
-                                            {learner.age} years old
+                                            {learner
+                                                ? `${learner.firstName} ${learner.lastName}${learner.age ? `, ${learner.age} years old` : ""}`
+                                                : "No learner selected"}
                                         </h2>
                                     </div>
 
@@ -632,7 +767,17 @@ const Progress = () => {
                                     scroll-smooth
                                 "
                             >
-                                {renderCurrentPage()}
+                                {progressLoading ? (
+                                    <div className="p-8 text-center text-lg font-semibold text-[#6F5278]">
+                                        Loading learner progress...
+                                    </div>
+                                ) : progressError ? (
+                                    <div className="p-8 text-center text-lg font-semibold text-red-600">
+                                        {progressError}
+                                    </div>
+                                ) : (
+                                    renderCurrentPage()
+                                )}
                             </div>
                         </div>
                     </div>

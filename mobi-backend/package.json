@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "seed:pilot-activities": "tsx scripts/seedPilotActivities.ts",
+    "proof:adaptive": "tsx scripts/proveAdaptiveRecommendation.ts",
+    "test:adaptive": "TS_NODE_TRANSPILE_ONLY=1 node --test -r ts-node/register src/tests/adaptiveEngine.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +33,7 @@
     "install": "^0.13.0",
     "npm": "^11.18.0",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3"
   },
   "description": ""

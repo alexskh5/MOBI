@@ -11,17 +11,33 @@ import {
 import {
   evaluateCommunication,
 } from "../speech/communicationEvaluationService";
+import {
+  evaluateActionResponse,
+  evaluateChoiceResponse,
+} from "./structuredResponseEvaluationService";
 
 /* =========================================================
    TYPES
 ========================================================= */
 
 export interface ProcessLearnerResponseInput {
+  responseType:
+    | "speech"
+    | "choice"
+    | "action"
+    | "conversation";
+
   /*
     Speech information coming from the learner response.
   */
   transcript:
     string;
+
+  selectedChoiceId?: string | null;
+
+  expectedChoiceId?: string | null;
+
+  actionCompleted?: boolean | null;
 
   expectedAnswers:
     string[];
@@ -38,10 +54,30 @@ export interface ProcessLearnerResponseInput {
     string[];
 
   /*
-    Engagement evidence collected during this response.
+    Learner-specific speech evaluation settings.
+
+    These come from the effective settings snapshot stored
+    when the activity session started.
   */
-  engagement:
-    SessionEngagementEvidence;
+  evaluationSettings?: {
+    minimumConfidence?: number;
+
+    levenshteinThreshold?: number;
+
+    phoneticMatchingEnabled?: boolean;
+
+    semanticMatchingEnabled?: boolean;
+
+    acceptedVariationsEnabled?: boolean;
+  };
+
+  sttConfidence?: number | null;
+
+/*
+  Engagement evidence collected during this response.
+*/
+engagement:
+  SessionEngagementEvidence;
 
   /*
     Activity/session state.
@@ -49,13 +85,16 @@ export interface ProcessLearnerResponseInput {
   reachedMaximumAttempts:
     boolean;
 
-  activityCompleted:
+  isFinalActivityStep:
     boolean;
 
   therapistRequestedStop:
     boolean;
 
   parentRequestedStop:
+    boolean;
+
+  screenTimeLimitReached:
     boolean;
 
   /*
@@ -74,6 +113,12 @@ export interface ProcessLearnerResponseInput {
       boolean;
 
     allowBreakSuggestion:
+      boolean;
+
+    allowHint:
+      boolean;
+
+    allowRepeatPrompt:
       boolean;
   };
 }
@@ -135,16 +180,26 @@ export function processLearnerResponse(
   ======================================================= */
 
   const communication =
-    evaluateCommunication({
-      transcript:
-        response.transcript,
-
-      expectedAnswers:
-        response.expectedAnswers,
-
-      acceptedVariations:
-        response.acceptedVariations,
-    });
+    response.responseType === "choice"
+      ? evaluateChoiceResponse({
+          selectedChoiceId: response.selectedChoiceId ?? null,
+          expectedChoiceId: response.expectedChoiceId ?? null,
+        })
+      : response.responseType === "action"
+        ? evaluateActionResponse(response.actionCompleted ?? null)
+        : evaluateCommunication({
+            transcript: response.transcript,
+            expectedAnswers:
+              response.responseType === "conversation"
+                ? []
+                : response.expectedAnswers,
+            acceptedVariations:
+              response.responseType === "conversation"
+                ? []
+                : response.acceptedVariations,
+            sttConfidence: response.sttConfidence,
+            settings: response.evaluationSettings,
+          });
 
   /* =======================================================
      2. BUILD ORCHESTRATOR RESPONSE
@@ -162,13 +217,24 @@ export function processLearnerResponse(
         response.reachedMaximumAttempts,
 
       activityCompleted:
-        response.activityCompleted,
+        response.isFinalActivityStep &&
+        (
+          communication.targetAchieved ||
+          response.reachedMaximumAttempts ||
+          (
+            !communication.hasDefinedTarget &&
+            communication.communicationAttempt
+          )
+        ),
 
       therapistRequestedStop:
         response.therapistRequestedStop,
 
       parentRequestedStop:
         response.parentRequestedStop,
+
+      screenTimeLimitReached:
+        response.screenTimeLimitReached,
 
       adaptiveSettings:
         response.adaptiveSettings,

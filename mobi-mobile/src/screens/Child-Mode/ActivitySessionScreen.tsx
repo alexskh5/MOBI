@@ -30,16 +30,28 @@ import SessionVoiceControl from '../../components/Child-Mode/session/SessionVoic
 
 // for audio
 import { Audio } from "expo-av";
+import * as Speech from "expo-speech";
 import { 
   transcribeAndEvaluateAudio, 
   generateTTSAudio, 
   startActivitySession,  
   respondToActivitySession,
+  skipActivitySessionStep,
+  finishActivitySession,
+  getNextRecommendedActivity,
 } from '../../services/api';
 
 
 const TEST_LEARNER_ID =
   "6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc";
+
+const INTERACTIVE_STEP_TYPES =
+  new Set([
+    "ask",
+    "conversation",
+    "show_choose",
+    "do_it",
+  ]);
 
 const bgImage = require('../../../assets/images/background.jpg');
 const fallbackImage = require('../../../assets/images/cow.jpg');
@@ -81,12 +93,26 @@ export default function ActivitySessionScreen() {
     totalAttemptOrder,
     setTotalAttemptOrder,
   ] = useState(0);
+  const totalAttemptOrderRef = useRef(0);
+  const sessionStartedAtRef = useRef<number | null>(null);
+  const autoAdvanceTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentStepRef = useRef<any>(null);
+  const currentStepIndexRef = useRef(0);
 
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('intro');
+  const [completionTitle, setCompletionTitle] =
+    useState("Activity Complete!");
+  const [completionText, setCompletionText] =
+    useState("");
   const [speakerStatus, setSpeakerStatus] = useState<SpeakerStatus>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [attempts, setAttempts] = useState(0);
+  const attemptsRef = useRef(0);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [isSessionPaused, setIsSessionPaused] = useState(false);
+  const isSessionPausedRef = useRef(false);
+  const [autoAdvanceLabel, setAutoAdvanceLabel] = useState("");
 
   const [selectedChoiceId, setSelectedChoiceId] = useState<number | null>(null);
   const [lastLearnerResponse, setLastLearnerResponse] = useState('');
@@ -103,6 +129,109 @@ export default function ActivitySessionScreen() {
   const steps = fullActivity?.steps || fullActivity?.activity_steps || [];
   const currentStep = steps[currentStepIndex];
 
+  const [
+  nextRecommendedActivity,
+  setNextRecommendedActivity,
+  ] = useState<any>(null);
+
+  const [
+    finishingSession,
+    setFinishingSession,
+  ] = useState(false);
+
+  const getNextAttemptNumbers = () => {
+    const nextAttemptOrder =
+      totalAttemptOrderRef.current + 1;
+
+    const nextStepAttemptNumber =
+      attemptsRef.current + 1;
+
+    return {
+      nextAttemptOrder,
+      nextStepAttemptNumber,
+    };
+  };
+
+  const commitAttemptNumbers = ({
+    nextAttemptOrder,
+    nextStepAttemptNumber,
+  }: {
+    nextAttemptOrder: number;
+    nextStepAttemptNumber: number;
+  }) => {
+    totalAttemptOrderRef.current =
+      nextAttemptOrder;
+
+    attemptsRef.current =
+      nextStepAttemptNumber;
+
+    setTotalAttemptOrder(
+      nextAttemptOrder,
+    );
+
+    setAttempts(
+      nextStepAttemptNumber,
+    );
+  };
+
+  const resetStepAttemptNumbers = () => {
+    attemptsRef.current = 0;
+    setAttempts(0);
+  };
+
+  const getPromptText = (step?: any, customText?: string) =>
+    customText ||
+    step?.prompt ||
+    step?.lesson ||
+    step?.question ||
+    "";
+
+  const getVoiceStyle = (step?: any, customText?: string) =>
+    typeof step?.ai_voice_style === "string"
+      ? step.ai_voice_style
+      : customText === step?.correct_feedback?.[0]
+      ? step?.ai_voice_style?.correct || "Celebratory"
+      : customText === step?.wrong_feedback?.[0]
+      ? step?.ai_voice_style?.wrong || "Encouraging"
+      : "Teaching";
+
+  const isInteractiveStep = (step?: any) =>
+    INTERACTIVE_STEP_TYPES.has(
+      String(step?.step_type ?? ""),
+    );
+
+  const getMaxAttempts = () =>
+    Number(
+      sessionEffectiveSettings
+        ?.maxAttempts ??
+      fullActivity?.max_attempts ??
+      3,
+    );
+
+  const clearAutoAdvanceTimer = () => {
+    if (autoAdvanceTimeoutRef.current) {
+      clearTimeout(autoAdvanceTimeoutRef.current);
+      autoAdvanceTimeoutRef.current = null;
+    }
+
+    setAutoAdvanceLabel("");
+  };
+
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+    currentStepIndexRef.current = currentStepIndex;
+  }, [currentStep, currentStepIndex]);
+
+  useEffect(() => {
+    return () => {
+      clearAutoAdvanceTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    isSessionPausedRef.current = isSessionPaused;
+  }, [isSessionPaused]);
+
   useEffect(() => {
     async function loadFullActivity() {
       try {
@@ -117,6 +246,65 @@ export default function ActivitySessionScreen() {
 
     loadFullActivity();
   }, [activity.id]);
+
+  useEffect(() => {
+    const activitySteps =
+      fullActivity?.steps ||
+      fullActivity?.activity_steps ||
+      [];
+
+    if (!Array.isArray(activitySteps) || activitySteps.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function preloadAudio() {
+      for (const step of activitySteps) {
+        if (cancelled) {
+          return;
+        }
+
+        const promptText =
+          getPromptText(step);
+
+        if (promptText) {
+          await generateTTSAudio({
+            text: promptText,
+            voice: "Kore",
+            style: getVoiceStyle(step),
+            emotion: "Calm",
+          }).catch((error) => {
+            console.log("TTS preload skipped:", error);
+          });
+        }
+
+        for (const feedbackText of [
+          step?.correct_feedback?.[0],
+          step?.wrong_feedback?.[0],
+        ]) {
+          if (!feedbackText || cancelled) {
+            continue;
+          }
+
+          await generateTTSAudio({
+            text: feedbackText,
+            voice: "Kore",
+            style: getVoiceStyle(step, feedbackText),
+            emotion: "Calm",
+          }).catch((error) => {
+            console.log("Feedback TTS preload skipped:", error);
+          });
+        }
+      }
+    }
+
+    preloadAudio();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fullActivity?.id]);
 
   useEffect(() => {
     if (speakerStatus === 'idle') {
@@ -156,9 +344,60 @@ export default function ActivitySessionScreen() {
     setShowExitModal(true);
   };
 
-  const confirmExitSession = () => {
+  const closeAdultControls = () => {
     setShowExitModal(false);
+  };
+
+  const confirmExitSession = async () => {
+    setShowExitModal(false);
+
+    if (sessionStatus === "active" && activitySessionId) {
+      clearAutoAdvanceTimer();
+
+      await cleanupRecording().catch((error) =>
+        console.log(
+          "Stop cleanup failed:",
+          error,
+        ),
+      );
+
+      await completeCurrentActivity({
+        status: "stopped",
+      });
+
+      return;
+    }
+
     navigation.navigate('ChildDashboard');
+  };
+
+  const pauseSession = async () => {
+    clearAutoAdvanceTimer();
+    isSessionPausedRef.current = true;
+    setIsSessionPaused(true);
+
+    await cleanupRecording().catch((error) =>
+      console.log(
+        "Pause cleanup failed:",
+        error,
+      ),
+    );
+
+    setShowExitModal(false);
+  };
+
+  const resumeSession = async () => {
+    isSessionPausedRef.current = false;
+    setIsSessionPaused(false);
+    setShowExitModal(false);
+
+    await playAppPrompt(
+      currentStepRef.current,
+    );
+
+    if (!isInteractiveStep(currentStepRef.current)) {
+      scheduleAutoAdvance();
+    }
   };
 
   const handleStartSession = async () => {
@@ -189,8 +428,14 @@ export default function ActivitySessionScreen() {
       );
 
       setSessionStatus("active");
+      sessionStartedAtRef.current =
+        Date.now();
 
-      playAppPrompt(steps[0]);
+      await playAppPrompt(steps[0]);
+
+      if (!isInteractiveStep(steps[0])) {
+        scheduleAutoAdvance();
+      }
     } catch (error) {
       console.log(
         "Failed to start activity session:",
@@ -200,29 +445,24 @@ export default function ActivitySessionScreen() {
   };
 
   const playAppPrompt = async (stepToRead?: any, customText?: string) => {
+    const step = stepToRead || currentStep;
+
+    const text =
+      getPromptText(step, customText) ||
+      "Let's begin.";
+
     try {
+      if (isSessionPausedRef.current) {
+        return;
+      }
+
+      clearAutoAdvanceTimer();
       setSpeakerStatus("appSpeaking");
-
-      const step = stepToRead || currentStep;
-
-      const text =
-        customText ||
-        step?.prompt ||
-        step?.lesson ||
-        step?.question ||
-        "Let's begin.";
 
       const audioUri = await generateTTSAudio({
         text,
         voice: "Kore",
-        style:
-          typeof step?.ai_voice_style === "string"
-            ? step.ai_voice_style
-            : customText === step?.correct_feedback?.[0]
-            ? step?.ai_voice_style?.correct || "Celebratory"
-            : customText === step?.wrong_feedback?.[0]
-            ? step?.ai_voice_style?.wrong || "Encouraging"
-            : "Teaching",
+        style: getVoiceStyle(step, customText),
         emotion: "Calm",
       });
 
@@ -235,21 +475,149 @@ export default function ActivitySessionScreen() {
 
       soundRef.current = sound;
 
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
+      await new Promise<void>((resolve) => {
+        let resolved = false;
 
-        if (status.didJustFinish) {
+        const finishPlayback = () => {
+          if (resolved) {
+            return;
+          }
+
+          resolved = true;
           setSpeakerStatus("idle");
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
-      });
+          sound.unloadAsync().catch(() => {});
 
-      await sound.playAsync();
+          if (soundRef.current === sound) {
+            soundRef.current = null;
+          }
+
+          resolve();
+        };
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (!status.isLoaded) return;
+
+          if (status.didJustFinish) {
+            finishPlayback();
+          }
+        });
+
+        sound.playAsync().catch((error) => {
+          console.log("TTS playAsync error:", error);
+          finishPlayback();
+        });
+      });
     } catch (error) {
       console.log("TTS playback error:", error);
-      setSpeakerStatus("idle");
+
+      await speakWithDeviceFallback(text);
     }
+  };
+
+  const speakWithDeviceFallback = async (text: string) => {
+    if (!text.trim() || isSessionPausedRef.current) {
+      setSpeakerStatus("idle");
+      return;
+    }
+
+    setSpeakerStatus("appSpeaking");
+
+    await new Promise<void>((resolve) => {
+      let finished = false;
+      const timeoutMs =
+        Math.min(9000, Math.max(1800, text.length * 85));
+      const timeoutId = setTimeout(() => {
+        if (!finished) {
+          finished = true;
+          Speech.stop();
+          setSpeakerStatus("idle");
+          resolve();
+        }
+      }, timeoutMs);
+
+      const finish = () => {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+        clearTimeout(timeoutId);
+        setSpeakerStatus("idle");
+        resolve();
+      };
+
+      Speech.speak(text, {
+        language: "en-US",
+        rate: 0.82,
+        pitch: 1.0,
+        onDone: finish,
+        onStopped: finish,
+        onError: finish,
+      });
+    });
+  };
+
+  const scheduleAutoAdvance = (
+    label = "Moving to the next step...",
+    delayMs = 900,
+  ) => {
+    if (isSessionPausedRef.current) {
+      return;
+    }
+
+    clearAutoAdvanceTimer();
+    setAutoAdvanceLabel(label);
+
+    autoAdvanceTimeoutRef.current = setTimeout(() => {
+      autoAdvanceTimeoutRef.current = null;
+      setAutoAdvanceLabel("");
+      goToNextStep().catch((error) => {
+        console.log("Auto advance failed:", error);
+      });
+    }, delayMs);
+  };
+
+  const replayCurrentStepForRetry = (
+    delayMs = 900,
+  ) => {
+    if (isSessionPausedRef.current) {
+      return;
+    }
+
+    clearAutoAdvanceTimer();
+    setAutoAdvanceLabel("Let's try again...");
+
+    autoAdvanceTimeoutRef.current = setTimeout(() => {
+      autoAdvanceTimeoutRef.current = null;
+      setAutoAdvanceLabel("");
+      setActiveFeedbackText("");
+
+      playAppPrompt(
+        currentStepRef.current,
+      ).catch((error) => {
+        console.log("Retry prompt failed:", error);
+      });
+    }, delayMs);
+  };
+
+  const continueAfterResponse = ({
+    targetAchieved,
+    reachedMaximumAttempts,
+  }: {
+    targetAchieved: boolean;
+    reachedMaximumAttempts: boolean;
+  }) => {
+    if (targetAchieved || reachedMaximumAttempts) {
+      scheduleAutoAdvance(
+        targetAchieved
+          ? "Nice work. Next step..."
+          : "Let's move to the next step...",
+        900,
+      );
+      return;
+    }
+
+    replayCurrentStepForRetry();
   };
 
     
@@ -295,6 +663,7 @@ export default function ActivitySessionScreen() {
       const handleMicPress = async () => {
 
         console.log("MIC BUTTON PRESSED");
+      if (isSessionPausedRef.current) return;
       if (isRecordingBusy) return;
 
       setIsRecordingBusy(true);
@@ -315,19 +684,141 @@ export default function ActivitySessionScreen() {
           console.log("AUDIO URI:", uri);
           if (!uri || !currentStep) return;
 
+          setActiveFeedbackText(
+            "I'm listening to your answer...",
+          );
+
           console.log("SENDING AUDIO TO STT");
-          const speechResult =
-      await transcribeAndEvaluateAudio({
-        audioUri: uri,
+          let speechResult: any;
 
-        expectedAnswers:
-          currentStep.expected_answers ??
-          [],
+          try {
+            speechResult =
+        await transcribeAndEvaluateAudio({
+          audioUri: uri,
 
-        acceptedVariations:
-          currentStep.accepted_variations ??
-          [],
-      });
+          expectedAnswers:
+            currentStep.expected_answers ??
+            [],
+
+          acceptedVariations:
+            currentStep.accepted_variations ??
+            [],
+        });
+          } catch (sttError) {
+            console.log("STT fallback used:", sttError);
+
+            if (!activitySessionId) {
+              return;
+            }
+
+            const {
+              nextAttemptOrder,
+              nextStepAttemptNumber,
+            } = getNextAttemptNumbers();
+
+            await respondToActivitySession({
+              sessionId:
+                activitySessionId,
+
+              learnerId:
+                TEST_LEARNER_ID,
+
+              attemptOrder:
+                nextAttemptOrder,
+
+              stepAttemptNumber:
+                nextStepAttemptNumber,
+
+              activityStepId:
+                String(currentStep.id),
+
+              responseType:
+                currentStep.step_type === "conversation"
+                  ? "conversation"
+                  : "speech",
+
+              transcript:
+                "",
+
+              expectedAnswers:
+                currentStep.expected_answers ??
+                [],
+
+              acceptedVariations:
+                currentStep.accepted_variations ??
+                [],
+
+              responseTimeMs:
+                null,
+
+              gazeDetectionAvailable:
+                false,
+
+              gazePresent:
+                null,
+
+              gazeAwaySeconds:
+                0,
+
+              inactivitySeconds:
+                0,
+
+              reachedMaximumAttempts:
+                true,
+
+              activityCompleted:
+                false,
+
+              therapistRequestedStop:
+                false,
+
+              parentRequestedStop:
+                false,
+
+              adaptiveSettings: {
+                inactivityBreakSeconds:
+                  30,
+
+                inactivityAutoStopSeconds:
+                  120,
+
+                oneMoreTryEnabled:
+                  false,
+
+                allowBreakSuggestion:
+                  true,
+              },
+            }).catch((saveError) => {
+              console.log(
+                "Unable to save STT fallback attempt:",
+                saveError,
+              );
+            });
+
+            commitAttemptNumbers({
+              nextStepAttemptNumber,
+              nextAttemptOrder,
+            });
+
+            setLastLearnerResponse(
+              "Speech was not clear enough to transcribe.",
+            );
+            setLastResultCorrect(null);
+            setActiveFeedbackText(
+              "I heard you try. Let's keep going.",
+            );
+
+            await speakWithDeviceFallback(
+              "I heard you try. Let's keep going.",
+            );
+
+            continueAfterResponse({
+              targetAchieved: false,
+              reachedMaximumAttempts: true,
+            });
+
+            return;
+          }
 
     console.log(
       "Speech transcription:",
@@ -351,11 +842,10 @@ export default function ActivitySessionScreen() {
 
       stepAttemptNumber counts attempts only for the current step.
     */
-    const nextAttemptOrder =
-      totalAttemptOrder + 1;
-
-    const nextStepAttemptNumber =
-      attempts + 1;
+    const {
+      nextAttemptOrder,
+      nextStepAttemptNumber,
+    } = getNextAttemptNumbers();
 
     const maxAttempts =
       Number(
@@ -391,6 +881,14 @@ export default function ActivitySessionScreen() {
 
         stepAttemptNumber:
           nextStepAttemptNumber,
+
+        activityStepId:
+          String(currentStep.id),
+
+        responseType:
+          currentStep.step_type === "conversation"
+            ? "conversation"
+            : "speech",
 
         transcript:
           speechResult.transcript,
@@ -456,13 +954,10 @@ export default function ActivitySessionScreen() {
       adaptiveResult,
     );
 
-    setTotalAttemptOrder(
-      nextAttemptOrder,
-    );
-
-    setAttempts(
+    commitAttemptNumbers({
       nextStepAttemptNumber,
-    );
+      nextAttemptOrder,
+    });
 
     setLastLearnerResponse(
       speechResult.transcript,
@@ -475,10 +970,13 @@ export default function ActivitySessionScreen() {
       An approximation remains meaningful communication, but
       does not falsely become a correct target response.
     */
-    setLastResultCorrect(
+    const targetAchieved =
       adaptiveResult.communication
         ?.targetAchieved ??
-      false,
+      false;
+
+    setLastResultCorrect(
+      targetAchieved,
     );
 
     /*
@@ -489,10 +987,13 @@ export default function ActivitySessionScreen() {
       context-aware immediately after verifying the runtime.
     */
     await showFeedbackForResult(
-      adaptiveResult.communication
-        ?.targetAchieved ??
-      false,
+      targetAchieved,
     );
+
+    continueAfterResponse({
+      targetAchieved,
+      reachedMaximumAttempts,
+    });
 
     return;
     }
@@ -556,16 +1057,234 @@ const cleanupRecording = async () => {
   setSpeakerStatus("idle");
 };
 
+const skipCurrentStepIfNeeded = async ({
+  preserveStepAttemptCount = false,
+}: {
+  preserveStepAttemptCount?: boolean;
+} = {}) => {
+  if (
+    !activitySessionId ||
+    !currentStep?.id ||
+    !INTERACTIVE_STEP_TYPES.has(
+      String(currentStep.step_type),
+    ) ||
+    attemptsRef.current > 0
+  ) {
+    return true;
+  }
+
+  const {
+    nextAttemptOrder,
+    nextStepAttemptNumber,
+  } = getNextAttemptNumbers();
+
+  try {
+    await skipActivitySessionStep({
+      sessionId:
+        activitySessionId,
+
+      learnerId:
+        TEST_LEARNER_ID,
+
+      activityStepId:
+        String(currentStep.id),
+
+      attemptOrder:
+        nextAttemptOrder,
+
+      stepAttemptNumber:
+        nextStepAttemptNumber,
+
+      skipReason:
+        "Skipped from mobile Next button.",
+    });
+
+    if (preserveStepAttemptCount) {
+      totalAttemptOrderRef.current =
+        nextAttemptOrder;
+
+      setTotalAttemptOrder(
+        nextAttemptOrder,
+      );
+    } else {
+      commitAttemptNumbers({
+        nextAttemptOrder,
+        nextStepAttemptNumber,
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.log(
+      "Skip current step failed:",
+      error,
+    );
+
+    return false;
+  }
+};
+
+const completeCurrentActivity = async ({
+  status = "completed",
+}: {
+  status?: "completed" | "stopped";
+} = {}) => {
+  if (sessionStatus === "completed") {
+    return;
+  }
+
+  if (!activitySessionId) {
+    console.log(
+      "Cannot finish activity: no backend session ID.",
+    );
+
+    return;
+  }
+
+  if (finishingSession) {
+    return;
+  }
+
+  try {
+    setFinishingSession(true);
+
+    console.log(
+      "FINISHING BACKEND ACTIVITY SESSION:",
+      activitySessionId,
+    );
+
+    const totalDurationSeconds =
+      sessionStartedAtRef.current
+        ? Math.max(
+            1,
+            Math.round(
+              (Date.now() - sessionStartedAtRef.current) /
+                1000,
+            ),
+          )
+        : 1;
+
+    const finishResult =
+      await finishActivitySession({
+        sessionId:
+          activitySessionId,
+
+        learnerId:
+          TEST_LEARNER_ID,
+
+        status:
+          status,
+
+        /*
+          Temporary values.
+
+          Later these will use real session timers,
+          inactivity tracking, and gaze information.
+        */
+        totalDurationSeconds,
+
+        inactivitySeconds:
+          0,
+
+        gazePresentSeconds:
+          0,
+
+        gazeAwaySeconds:
+          0,
+
+        gazeDetectionAvailable:
+          false,
+      });
+
+    console.log(
+      "Finished activity session:",
+      finishResult,
+    );
+
+    setCompletionTitle(
+      status === "completed"
+        ? "Activity Complete!"
+        : "Session Saved"
+    );
+
+    setCompletionText(
+      status === "completed"
+        ? `Great job finishing ${fullActivity.title}.`
+        : "This session was saved. It will not count as mastered because the activity was stopped before all answers were completed."
+    );
+
+    setSessionStatus(
+      "completed",
+    );
+
+    try {
+      const recommendation =
+        await getNextRecommendedActivity(
+          TEST_LEARNER_ID,
+        );
+
+      console.log(
+        "Next adaptive recommendation:",
+        recommendation,
+      );
+
+      setNextRecommendedActivity(
+        recommendation.nextActivity ??
+          null,
+      );
+    } catch (recommendationError) {
+      console.log(
+        "Failed to load next recommendation:",
+        recommendationError,
+      );
+
+      setNextRecommendedActivity(null);
+    }
+  } catch (error) {
+    console.log(
+      "Failed to finish activity session:",
+      error,
+    );
+  } finally {
+    setFinishingSession(
+      false,
+    );
+  }
+};
+
   const goToNextStep = async () => {
-    await cleanupRecording();
+    if (isSessionPausedRef.current) {
+      return;
+    }
+
+    clearAutoAdvanceTimer();
+
+    await cleanupRecording().catch((error) =>
+      console.log(
+        "Step cleanup failed:",
+        error,
+      ),
+    );
+
+    const skipSaved =
+      await skipCurrentStepIfNeeded({
+        preserveStepAttemptCount: true,
+      }).catch((error) => {
+        console.log(
+          "Current step skip failed:",
+          error,
+        );
+
+        return false;
+      });
 
     setSelectedChoiceId(null);
     setLastLearnerResponse("");
     setLastResultCorrect(null);
     setActiveFeedbackText("");
-    setAttempts(0);
 
-    let nextIndex = currentStepIndex + 1;
+    let nextIndex =
+      currentStepIndexRef.current + 1;
 
     while (
       nextIndex < steps.length &&
@@ -575,20 +1294,305 @@ const cleanupRecording = async () => {
     }
 
     if (nextIndex < steps.length) {
-      setCurrentStepIndex(nextIndex);
-      playAppPrompt(steps[nextIndex]);
+      const nextStep =
+        steps[nextIndex];
+
+      setCurrentStepIndex(
+        nextIndex,
+      );
+
+      resetStepAttemptNumbers();
+
+      await playAppPrompt(
+        nextStep,
+      );
+
+      if (!isInteractiveStep(nextStep)) {
+        scheduleAutoAdvance();
+      }
     } else {
-      setSessionStatus("completed");
+      resetStepAttemptNumbers();
+
+      await completeCurrentActivity({
+        status:
+          skipSaved === false
+            ? "stopped"
+            : "completed",
+      });
     }
   };
 
   const goToPreviousStep = async () => {
+  if (isSessionPausedRef.current) {
+    return;
+  }
+
   await cleanupRecording();
 
   if (currentStepIndex > 0) {
     setCurrentStepIndex((current) => current - 1);
   }
 };
+
+const handleChoiceSelect = async (id: number) => {
+  if (isSessionPausedRef.current) {
+    return;
+  }
+
+  if (!currentStep) {
+    return;
+  }
+
+  const selectedChoice = currentStep.choices?.find(
+    (choice: any) => choice.id === id
+  );
+
+  const isCorrect = selectedChoice?.is_correct ?? null;
+
+  setSelectedChoiceId(id);
+  setLastResultCorrect(isCorrect);
+
+  if (!activitySessionId) {
+    await showFeedbackForResult(isCorrect);
+    return;
+  }
+
+  const {
+    nextAttemptOrder,
+    nextStepAttemptNumber,
+  } = getNextAttemptNumbers();
+
+  const reachedMaximumAttempts =
+    nextStepAttemptNumber >=
+    getMaxAttempts();
+
+  try {
+    const adaptiveResult =
+      await respondToActivitySession({
+        sessionId:
+          activitySessionId,
+
+        learnerId:
+          TEST_LEARNER_ID,
+
+        attemptOrder:
+          nextAttemptOrder,
+
+        stepAttemptNumber:
+          nextStepAttemptNumber,
+
+        activityStepId:
+          String(currentStep.id),
+
+        responseType:
+          "choice",
+
+        transcript:
+          selectedChoice?.label || "",
+
+        selectedChoiceId:
+          id,
+
+        expectedAnswers:
+          [],
+
+        acceptedVariations:
+          [],
+
+        responseTimeMs:
+          null,
+
+        gazeDetectionAvailable:
+          false,
+
+        gazePresent:
+          null,
+
+        gazeAwaySeconds:
+          0,
+
+        inactivitySeconds:
+          0,
+
+        reachedMaximumAttempts:
+          reachedMaximumAttempts,
+
+        activityCompleted:
+          false,
+
+        therapistRequestedStop:
+          false,
+
+        parentRequestedStop:
+          false,
+
+        adaptiveSettings: {
+          inactivityBreakSeconds:
+            30,
+
+          inactivityAutoStopSeconds:
+            120,
+
+          oneMoreTryEnabled:
+            sessionEffectiveSettings
+              ?.oneMoreTryEnabled ??
+            true,
+
+          allowBreakSuggestion:
+            true,
+        },
+      });
+
+    commitAttemptNumbers({
+      nextStepAttemptNumber,
+      nextAttemptOrder,
+    });
+
+    setLastLearnerResponse(
+      selectedChoice?.label || "",
+    );
+
+    const runtimeCorrect =
+      adaptiveResult.communication
+        ?.targetAchieved ??
+      isCorrect;
+
+    setLastResultCorrect(runtimeCorrect);
+    await showFeedbackForResult(runtimeCorrect);
+
+    continueAfterResponse({
+      targetAchieved: runtimeCorrect === true,
+      reachedMaximumAttempts,
+    });
+  } catch (error) {
+    console.log("Choice response error:", error);
+    await showFeedbackForResult(isCorrect);
+  }
+};
+
+const handleActionComplete = async () => {
+  if (isSessionPausedRef.current) {
+    return;
+  }
+
+  if (!currentStep) {
+    return;
+  }
+
+  setLastLearnerResponse("I did it");
+  setLastResultCorrect(true);
+
+  if (!activitySessionId) {
+    await showFeedbackForResult(true);
+    return;
+  }
+
+  const {
+    nextAttemptOrder,
+    nextStepAttemptNumber,
+  } = getNextAttemptNumbers();
+
+  try {
+    const adaptiveResult =
+      await respondToActivitySession({
+        sessionId:
+          activitySessionId,
+
+        learnerId:
+          TEST_LEARNER_ID,
+
+        attemptOrder:
+          nextAttemptOrder,
+
+        stepAttemptNumber:
+          nextStepAttemptNumber,
+
+        activityStepId:
+          String(currentStep.id),
+
+        responseType:
+          "action",
+
+        transcript:
+          "I did it",
+
+        actionCompleted:
+          true,
+
+        expectedAnswers:
+          [],
+
+        acceptedVariations:
+          [],
+
+        responseTimeMs:
+          null,
+
+        gazeDetectionAvailable:
+          false,
+
+        gazePresent:
+          null,
+
+        gazeAwaySeconds:
+          0,
+
+        inactivitySeconds:
+          0,
+
+        reachedMaximumAttempts:
+          false,
+
+        activityCompleted:
+          false,
+
+        therapistRequestedStop:
+          false,
+
+        parentRequestedStop:
+          false,
+
+        adaptiveSettings: {
+          inactivityBreakSeconds:
+            30,
+
+          inactivityAutoStopSeconds:
+            120,
+
+          oneMoreTryEnabled:
+            sessionEffectiveSettings
+              ?.oneMoreTryEnabled ??
+            true,
+
+          allowBreakSuggestion:
+            true,
+        },
+      });
+
+    commitAttemptNumbers({
+      nextStepAttemptNumber,
+      nextAttemptOrder,
+    });
+
+    const targetAchieved =
+      adaptiveResult.communication
+        ?.targetAchieved ??
+      true;
+
+    await showFeedbackForResult(
+      targetAchieved,
+    );
+
+    continueAfterResponse({
+      targetAchieved,
+      reachedMaximumAttempts: true,
+    });
+  } catch (error) {
+    console.log("Action response error:", error);
+    await showFeedbackForResult(true);
+  }
+};
+
   const currentStatusText =
     speakerStatus === 'appSpeaking'
       ? 'MOBI is speaking...'
@@ -596,11 +1600,21 @@ const cleanupRecording = async () => {
       ? 'Listening to you...'
       : 'Tap the microphone when you are ready.';
 
-  const shouldShowVoiceControl =
-    currentStep?.step_type === 'ask' ||
-    currentStep?.step_type === 'conversation' ||
-    currentStep?.step_type === 'do_it';
+  // const shouldShowVoiceControl =
+  //   currentStep?.step_type === 'ask' ||
+  //   currentStep?.step_type === 'conversation' ||
+  //   currentStep?.step_type === 'do_it';
 
+  const shouldShowVoiceControl =
+  (
+    currentStep?.step_type === 'ask' ||
+    currentStep?.step_type === 'conversation'
+  ) &&
+  Array.isArray(
+    currentStep?.expected_answers,
+  ) &&
+  currentStep.expected_answers.length > 0;
+  
   const renderCurrentStep = () => {
     if (!currentStep) {
       return (
@@ -646,16 +1660,7 @@ const cleanupRecording = async () => {
           <ShowChooseSessionStepScreen
             {...commonProps}
             selectedChoiceId={selectedChoiceId}
-            onSelectChoice={(id) => {
-              setSelectedChoiceId(id);
-              const selectedChoice = currentStep.choices?.find(
-                (choice: any) => choice.id === id
-              );
-              // setLastResultCorrect(selectedChoice?.is_correct ?? null);
-              const isCorrect = selectedChoice?.is_correct ?? null;
-              setLastResultCorrect(isCorrect);
-              showFeedbackForResult(isCorrect);
-            }}
+            onSelectChoice={handleChoiceSelect}
           />
         );
 
@@ -670,25 +1675,49 @@ const cleanupRecording = async () => {
     }
   };
 
-  const ExitSessionModal = () => (
+  const AdultControlModal = () => (
     <Modal visible={showExitModal} transparent animationType="fade">
       <View style={styles.exitOverlay}>
         <View style={styles.exitCard}>
-          <Text style={styles.exitTitle}>Stop Session?</Text>
-
-          <Text style={styles.exitMessage}>
-            Are you sure you want to stop this activity? Your progress will still be recorded.
+          <Text style={styles.exitTitle}>
+            Adult Controls
           </Text>
 
+          <Text style={styles.exitMessage}>
+            Pause or stop this activity only when the adult guiding the session decides it is needed.
+          </Text>
+
+          {sessionStatus === "active" ? (
+            <Pressable
+              style={styles.continueButton}
+              onPress={
+                isSessionPaused
+                  ? resumeSession
+                  : pauseSession
+              }
+            >
+              <Text style={styles.continueText}>
+                {isSessionPaused ? "Resume Session" : "Pause Session"}
+              </Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
-            style={styles.continueButton}
-            onPress={() => setShowExitModal(false)}
+            style={[
+              styles.continueButton,
+              styles.secondaryAdultButton,
+            ]}
+            onPress={closeAdultControls}
           >
-            <Text style={styles.continueText}>Continue Session</Text>
+            <Text style={styles.secondaryAdultText}>
+              Keep Going
+            </Text>
           </Pressable>
 
           <Pressable style={styles.stopButton} onPress={confirmExitSession}>
-            <Text style={styles.stopText}>Stop Session</Text>
+            <Text style={styles.stopText}>
+              Stop and Save Session
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -713,10 +1742,10 @@ const cleanupRecording = async () => {
           <View style={styles.completedCard}>
             <Ionicons name="star" size={48} color="#8759D6" />
 
-            <Text style={styles.completedTitle}>Activity Complete!</Text>
+            <Text style={styles.completedTitle}>{completionTitle}</Text>
 
             <Text style={styles.completedText}>
-              Great job finishing {fullActivity.title}.
+              {completionText || `Great job finishing ${fullActivity.title}.`}
             </Text>
 
             <Pressable
@@ -781,7 +1810,7 @@ const cleanupRecording = async () => {
             </View>
           </ScrollView>
 
-          <ExitSessionModal />
+          <AdultControlModal />
         </SafeAreaView>
       </ImageBackground>
     );
@@ -791,15 +1820,22 @@ const cleanupRecording = async () => {
     <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
       <SafeAreaView style={styles.container}>
         <View style={styles.topBar}>
-          <Pressable style={styles.iconButton} onPress={handleExitSession}>
-            <Ionicons name="arrow-back" size={24} color="#111" />
-          </Pressable>
-
           <View style={styles.sessionBadge}>
             <Text style={styles.sessionBadgeText}>
               Step {currentStepIndex + 1} of {steps.length}
             </Text>
           </View>
+
+          <Pressable
+            style={styles.adultHoldButton}
+            onLongPress={handleExitSession}
+            delayLongPress={800}
+          >
+            <Ionicons name="shield-checkmark" size={17} color="#6F5278" />
+            <Text style={styles.adultHoldText}>
+              Hold
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.headerTextGroup}>
@@ -823,7 +1859,7 @@ const cleanupRecording = async () => {
             </View>
           ) : null}
 
-          {shouldShowVoiceControl && (
+          {shouldShowVoiceControl && !isSessionPaused && (
             <SessionVoiceControl
               speakerStatus={speakerStatus}
               scale={scale}
@@ -833,27 +1869,36 @@ const cleanupRecording = async () => {
             />
           )}
 
-          <View style={styles.navigationRow}>
+          {currentStep?.step_type === 'do_it' && !activeFeedbackText && !isSessionPaused && (
             <Pressable
-              style={[
-                styles.navButton,
-                currentStepIndex === 0 && styles.disabledButton,
-              ]}
-              disabled={currentStepIndex === 0}
-              onPress={goToPreviousStep}
+              style={styles.doneActionButton}
+              onPress={handleActionComplete}
             >
-              <Text style={styles.navButtonText}>Previous</Text>
+              <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+              <Text style={styles.doneActionText}>I did it</Text>
             </Pressable>
+          )}
 
-            <Pressable style={styles.navButtonPrimary} onPress={goToNextStep}>
-              <Text style={styles.navButtonPrimaryText}>
-                {currentStepIndex === steps.length - 1 ? 'Finish' : 'Next'}
+          {autoAdvanceLabel ? (
+            <View style={styles.autoAdvancePill}>
+              <ActivityIndicator size="small" color="#8759D6" />
+              <Text style={styles.autoAdvanceText}>
+                {autoAdvanceLabel}
               </Text>
-            </Pressable>
-          </View>
+            </View>
+          ) : null}
+
+          {isSessionPaused ? (
+            <View style={styles.pausedNotice}>
+              <Ionicons name="pause-circle" size={24} color="#8759D6" />
+              <Text style={styles.pausedNoticeText}>
+                Session paused
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
 
-        <ExitSessionModal />
+        <AdultControlModal />
       </SafeAreaView>
     </ImageBackground>
   );
@@ -910,6 +1955,26 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#7B5B88',
     textTransform: 'capitalize',
+  },
+
+  adultHoldButton: {
+    minWidth: 74,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(111,82,120,0.18)',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+
+  adultHoldText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#6F5278',
   },
 
   introContent: {
@@ -1034,45 +2099,44 @@ const styles = StyleSheet.create({
     gap: 18,
   },
 
-  navigationRow: {
-    width: '100%',
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
-
-  navButton: {
-    flex: 1,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  navButtonPrimary: {
-    flex: 1,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: '#8759D6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  navButtonText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#8759D6',
-  },
-
-  navButtonPrimaryText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-
   disabledButton: {
     opacity: 0.4,
+  },
+
+  autoAdvancePill: {
+    minHeight: 44,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  autoAdvanceText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#6F5278',
+  },
+
+  pausedNotice: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+
+  pausedNoticeText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#6F5278',
   },
 
   emptyStepCard: {
@@ -1163,6 +2227,18 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
+  secondaryAdultButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E7C6F0',
+  },
+
+  secondaryAdultText: {
+    color: '#6F5278',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
   stopButton: {
     marginTop: 14,
   },
@@ -1188,4 +2264,22 @@ feedbackBubbleText: {
   color: "#4B3A5A",
   textAlign: "center",
 },
+
+  doneActionButton: {
+    minWidth: 180,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#8759D6',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  doneActionText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
 });

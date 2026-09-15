@@ -1,13 +1,73 @@
-import { useNavigate } from "react-router-dom";
+import {
+  useState,
+} from "react";
+import {
+  useNavigate,
+} from "react-router-dom";
 
 import Navbar from "../components/Navbar";
 import bg from "../assets/bg1.png";
+import {
+  loginUser,
+} from "../services/auth";
 
 function Login() {
   const navigate = useNavigate();
 
-  const handleLogin = () => {
-    navigate("/center/dashboard");
+  const [
+    email,
+    setEmail,
+  ] = useState("");
+
+  const [
+    password,
+    setPassword,
+  ] = useState("");
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const handleLogin = async () => {
+    if (loading) {
+      return;
+    }
+
+    setError("");
+
+    if (!email.trim() || !password.trim()) {
+      setError(
+        "Please enter your email and password.",
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const user = await loginUser({
+        email,
+        password,
+      });
+
+      navigate(user.defaultWebRoute, {
+        replace: true,
+      });
+    } catch (loginError) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Unable to log in.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKeyDown = (
@@ -81,9 +141,13 @@ function Login() {
 
             <input
               id="username"
-              type="text"
+              type="email"
               autoComplete="username"
-              placeholder="Please enter username"
+              placeholder="Please enter email"
+              value={email}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
               onKeyDown={handleKeyDown}
               className="
                 w-full
@@ -100,15 +164,19 @@ function Login() {
               "
             />
 
-            <label htmlFor="magic-code" className="sr-only">
-              Magic code
+            <label htmlFor="password" className="sr-only">
+              Password
             </label>
 
             <input
-              id="magic-code"
+              id="password"
               type="password"
               autoComplete="current-password"
-              placeholder="Please enter magic code"
+              placeholder="Please enter password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               onKeyDown={handleKeyDown}
               className="
                 w-full
@@ -128,6 +196,7 @@ function Login() {
             <button
               type="button"
               onClick={handleLogin}
+              disabled={loading}
               className="
                 w-full
                 rounded-xl
@@ -136,11 +205,19 @@ function Login() {
                 text-lg
                 transition
                 hover:bg-[#97A7D2]
+                disabled:cursor-not-allowed
+                disabled:opacity-70
                 sm:text-xl
               "
             >
-              LOG IN
+              {loading ? "LOGGING IN..." : "LOG IN"}
             </button>
+
+            {error && (
+              <p className="text-center text-sm text-red-600">
+                {error}
+              </p>
+            )}
 
             <button
               type="button"
@@ -153,7 +230,7 @@ function Login() {
                 sm:text-base
               "
             >
-              Forgot magic code?
+              Forgot password?
             </button>
           </div>
 

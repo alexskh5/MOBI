@@ -223,38 +223,53 @@ import { previewTTS } from "../../../services/activityApi";
 type ConversationStepData = {
   topics: string[];
   ai_voice_style: string;
+  prompt_audio_file?: File | null;
 };
 
 type ConversationStepProps = {
   stepKey: string;
+  initialData?: Partial<ConversationStepData>;
   onChange: (stepKey: string, data: ConversationStepData) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 };
 
 function ConversationStep({
   stepKey,
+  initialData,
   onChange,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
 }: ConversationStepProps) {
   const [showVoiceModal, setShowVoiceModal] =
     useState(false);
 
   const [voiceStyle, setVoiceStyle] =
-    useState("Friendly");
+    useState(initialData?.ai_voice_style || "Friendly");
+  const [promptAudioFile, setPromptAudioFile] =
+    useState<File | null>(null);
 
   const textareaRefs =
     useRef<(HTMLTextAreaElement | null)[]>([]);
 
-  const [topics, setTopics] = useState([""]);
+  const [topics, setTopics] = useState(
+    initialData?.topics?.length ? initialData.topics : [""],
+  );
 
   // for tts
   const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
 
   const updateParent = (
     nextTopics = topics,
-    nextVoiceStyle = voiceStyle
+    nextVoiceStyle = voiceStyle,
+    nextPromptAudioFile = promptAudioFile
   ) => {
     onChange(stepKey, {
       topics: nextTopics.filter((topic) => topic.trim() !== ""),
       ai_voice_style: nextVoiceStyle,
+      prompt_audio_file: nextPromptAudioFile,
     });
   };
 
@@ -292,7 +307,7 @@ function ConversationStep({
   };
 
   // tts function
-  const handlePreviewTopic = async (index: number) => {
+const handlePreviewTopic = async (index: number) => {
   const text = topics[index];
 
   try {
@@ -316,6 +331,14 @@ function ConversationStep({
     setGeneratingIndex(null);
   }
 };
+
+  const handlePromptAudioUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    setPromptAudioFile(file);
+    updateParent(topics, voiceStyle, file);
+  };
 
   return (
     <>
@@ -347,9 +370,9 @@ function ConversationStep({
             </button>
 
             <StepMenu
-              onMoveUp={() => console.log("Move Up")}
-              onMoveDown={() => console.log("Move Down")}
-              onDelete={() => console.log("Delete Step")}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onDelete={onDelete}
             />
           </div>
         </div>
@@ -431,6 +454,24 @@ function ConversationStep({
           >
             + Add another
           </button>
+
+          <label className="mt-4 block text-sm font-medium">
+            Recorded voice for this conversation prompt (Optional)
+          </label>
+
+          <input
+            type="file"
+            accept="audio/*"
+            capture
+            onChange={handlePromptAudioUpload}
+            className="mt-2 w-full border border-gray-300 bg-white p-2 text-sm"
+          />
+
+          {promptAudioFile && (
+            <p className="mt-2 text-sm text-[#5B4B8A]">
+              Using recorded voice: {promptAudioFile.name}
+            </p>
+          )}
         </div>
       </div>
 
@@ -440,7 +481,7 @@ function ConversationStep({
         selectedStyle={voiceStyle}
         onSelectStyle={(style) => {
           setVoiceStyle(style);
-          updateParent(topics, style);
+          updateParent(topics, style, promptAudioFile);
         }}
         stepType="ask"
       />

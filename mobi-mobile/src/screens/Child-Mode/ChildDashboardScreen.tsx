@@ -48,6 +48,24 @@ const getLocalImage = (index: number) => {
   return sample4;
 };
 
+const getPhoneSafeImageUrl = (value: unknown) => {
+  if (typeof value !== 'string') return '';
+
+  const url = value.trim();
+
+  if (
+    url === '' ||
+    url.startsWith('blob:') ||
+    url.startsWith('data:') ||
+    url.includes('localhost') ||
+    url.includes('127.0.0.1')
+  ) {
+    return '';
+  }
+
+  return /^https?:\/\//i.test(url) ? url : '';
+};
+
 export default function ChildDashboardScreen() {
   const navigation = useNavigation<NavigationProp<'ChildDashboard'>>();
   const { width } = useWindowDimensions();
@@ -79,26 +97,40 @@ export default function ChildDashboardScreen() {
       try {
         const data = await getActivities();
 
-        const recommendation =
-          await getNextRecommendedActivity(
-            TEST_LEARNER_ID,
+        try {
+          const recommendation =
+            await getNextRecommendedActivity(
+              TEST_LEARNER_ID,
+            );
+
+          setRecommendedActivityId(
+            recommendation.nextActivity?.activityId ??
+              null,
           );
+        } catch (recommendationError) {
+          console.log(
+            'Failed to load recommendation:',
+            recommendationError,
+          );
+          setRecommendedActivityId(null);
+        }
 
-        setRecommendedActivityId(
-          recommendation.nextActivity?.activityId ??
-            null,
-        );
-
-        const mappedActivities: Activity[] = data.map((item: any) => ({
+        const mappedActivities: Activity[] = data
+          .filter((item: any) =>
+            item.status === 'published' &&
+            !item.archived_at &&
+            item.activity_type !== 'Regulatory Activity'
+          )
+          .map((item: any) => ({
           id: item.id as any,
-          title: item.title,
-          level: item.speech_ladder_level || 'word',
-          category: item.activity_type || 'Activities',
+          title: String(item.title || 'Untitled Activity'),
+          level: String(item.speech_ladder_level || 'word'),
+          category: String(item.activity_type || 'Activities'),
           difficulty: 'Custom',
           target_answers: '',
           acceptable_answers: '',
           next_activity: '',
-          teach_prompt: item.description || 'No description provided.',
+          teach_prompt: String(item.description || 'No description provided.'),
           teach_tone: 'friendly',
           ask_prompt: 'What do you see?',
           max_attempts: item.max_attempts || 3,
@@ -111,7 +143,7 @@ export default function ChildDashboardScreen() {
           support_prompt: 'Let us try again together.',
           support_tone: 'gentle',
           failed_action: 'repeat',
-          activity_image_url: item.thumbnail_url || '',
+          activity_image_url: getPhoneSafeImageUrl(item.thumbnail_url),
           created_at: item.created_at,
         }));
 

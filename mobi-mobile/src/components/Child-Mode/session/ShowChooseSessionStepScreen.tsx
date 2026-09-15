@@ -102,7 +102,7 @@ export default function ShowChooseSessionStepScreen({
               </View>
 
               <Text style={styles.choiceLabel}>
-                Choice {String.fromCharCode(65 + index)}
+                {choice.label || `Choice ${String.fromCharCode(65 + index)}`}
               </Text>
             </Pressable>
           );

@@ -23,18 +23,12 @@
    - backend error messages
 ========================================================= */
 
-/*
-  The API URL is read from your frontend environment file.
-
-  Example .env:
-
-  VITE_API_URL=http://localhost:5050/api
-
-  The fallback is useful during local development.
-*/
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  "http://localhost:5050/api";
+import {
+  API_BASE_URL,
+} from "../apiBase";
+import {
+  getAuthHeaders,
+} from "../auth";
 
 /* =========================================================
    TYPES
@@ -208,6 +202,7 @@ export async function enrollLearner(
       `${API_BASE_URL}/learners/enroll`,
       {
         method: "POST",
+        headers: getAuthHeaders(),
 
         /*
           Do not manually set Content-Type here.
@@ -365,6 +360,25 @@ export interface GetLearnersParams {
     | "desc";
 }
 
+export interface LearnerProfileSettings {
+  adaptationSettings?: Record<string, unknown> | null;
+  childSafetySettings?: Record<string, unknown> | null;
+  sessionPreferences?: Record<string, unknown> | null;
+  permissions?: {
+    canViewSettings: boolean;
+    canModifyClinical: boolean;
+    canModifyScreenTime: boolean;
+  };
+}
+
+export interface UpdateLearnerProfileSettingsInput {
+  adaptationSettings?: Record<string, unknown>;
+  childSafetySettings?: {
+    dailyScreenTimeLimitSeconds?: number | null;
+  };
+  sessionPreferences?: Record<string, unknown>;
+}
+
 /* =========================================================
    GET LEARNERS
 ========================================================= */
@@ -430,7 +444,12 @@ export async function getLearners(
   let response: Response;
 
   try {
-    response = await fetch(url);
+    response = await fetch(
+      url,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
   } catch (error) {
     console.error(
       "Unable to connect to learner list API:",
@@ -463,4 +482,68 @@ export async function getLearners(
   }
 
   return result;
+}
+
+export async function getLearnerProfileSettings(
+  learnerId: string,
+): Promise<LearnerProfileSettings> {
+  const response = await fetch(
+    `${API_BASE_URL}/learners/${learnerId}/profile-settings`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+
+  const result =
+    await parseJsonResponse<
+      {
+        success: boolean;
+        settings?: LearnerProfileSettings;
+      } & ApiErrorResponse
+    >(response);
+
+  if (!response.ok || !result?.settings) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Unable to load learner settings.",
+    );
+  }
+
+  return result.settings;
+}
+
+export async function updateLearnerProfileSettings(
+  learnerId: string,
+  payload: UpdateLearnerProfileSettingsInput,
+): Promise<LearnerProfileSettings> {
+  const response = await fetch(
+    `${API_BASE_URL}/learners/${learnerId}/profile-settings`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  const result =
+    await parseJsonResponse<
+      {
+        success: boolean;
+        settings?: LearnerProfileSettings;
+      } & ApiErrorResponse
+    >(response);
+
+  if (!response.ok || !result?.settings) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Unable to save learner settings.",
+    );
+  }
+
+  return result.settings;
 }

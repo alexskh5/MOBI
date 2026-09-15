@@ -16,19 +16,32 @@ type AskStepData = {
   expected_answers: string[];
   accepted_variations: string[];
   ai_voice_style: string;
+  media_file?: File | null;
+  prompt_audio_file?: File | null;
 };
 
 type AskStepProps = {
   stepKey: string;
+  initialData?: Partial<AskStepData>;
   onChange: (stepKey: string, data: AskStepData) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 };
 
-function AskStep({ stepKey, onChange }: AskStepProps) {
+function AskStep({
+  stepKey,
+  initialData,
+  onChange,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: AskStepProps) {
   const [showVoiceModal, setShowVoiceModal] =
     useState(false);
 
   const [voiceStyle, setVoiceStyle] =
-    useState("Curious");
+    useState(initialData?.ai_voice_style || "Curious");
 
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
@@ -36,11 +49,14 @@ function AskStep({ stepKey, onChange }: AskStepProps) {
   const [previewUrl, setPreviewUrl] =
     useState<string | null>(null);
 
+  const [promptAudioFile, setPromptAudioFile] =
+    useState<File | null>(null);
+
   const [question, setQuestion] =
-    useState("");
+    useState(initialData?.question || "");
 
   const [answers, setAnswers] =
-    useState<string[]>([]);
+    useState<string[]>(initialData?.expected_answers || []);
 
   const [answerInput, setAnswerInput] =
     useState("");
@@ -54,13 +70,17 @@ function AskStep({ stepKey, onChange }: AskStepProps) {
   const updateParent = (
   nextQuestion = question,
   nextAnswers = answers,
-  nextVoiceStyle = voiceStyle
+  nextVoiceStyle = voiceStyle,
+  nextMediaFile = selectedFile,
+  nextPromptAudioFile = promptAudioFile
 ) => {
   onChange(stepKey, {
     question: nextQuestion,
     expected_answers: nextAnswers,
     accepted_variations: nextAnswers,
     ai_voice_style: nextVoiceStyle,
+    media_file: nextMediaFile,
+    prompt_audio_file: nextPromptAudioFile,
   });
 };
 
@@ -73,11 +93,21 @@ function AskStep({ stepKey, onChange }: AskStepProps) {
 
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+    updateParent(question, answers, voiceStyle, file);
   };
 
   const handleRemoveMedia = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
+    updateParent(question, answers, voiceStyle, null);
+  };
+
+  const handlePromptAudioUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    setPromptAudioFile(file);
+    updateParent(question, answers, voiceStyle, selectedFile, file);
   };
 
   const handleQuestionChange = (
@@ -182,9 +212,9 @@ function AskStep({ stepKey, onChange }: AskStepProps) {
 
             {/* MENU */}
             <StepMenu
-              onMoveUp={() => console.log("Move Up")}
-              onMoveDown={() => console.log("Move Down")}
-              onDelete={() => console.log("Delete Step")}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onDelete={onDelete}
             />
 
           </div>
@@ -321,6 +351,24 @@ function AskStep({ stepKey, onChange }: AskStepProps) {
               </button>
 
             </div>
+
+            <label className="mt-3 block text-sm font-medium">
+              Recorded voice for this prompt (Optional)
+            </label>
+
+            <input
+              type="file"
+              accept="audio/*"
+              capture
+              onChange={handlePromptAudioUpload}
+              className="mt-2 w-full border border-gray-300 bg-white p-2 text-sm"
+            />
+
+            {promptAudioFile && (
+              <p className="mt-2 text-sm text-[#5B4B8A]">
+                Using recorded voice: {promptAudioFile.name}
+              </p>
+            )}
 
           </div>
           

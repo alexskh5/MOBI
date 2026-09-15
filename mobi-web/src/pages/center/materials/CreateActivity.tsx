@@ -1,6 +1,7 @@
 // MOBI/mobi-web/src/pages/center/materials/CreateActivity.tsx
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
+  Play,
   Undo2,
   Redo2,
 } from "lucide-react";
@@ -32,36 +33,103 @@ import ActivityAIVoice from "../../../components/center/materials/ActivityAIVoic
 // newly added
 import ActivityLimits from "../../../components/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
+import ActivityPlayPreviewModal from "../../../components/center/materials/preview/ActivityPlayPreviewModal";
+import type {
+  PreviewActivity,
+  PreviewStep,
+} from "../../../components/center/materials/preview/previewTypes";
 
-import { createActivity } from "../../../services/activityApi";
+import {
+  createActivity,
+  uploadActivityAsset,
+} from "../../../services/activityApi";
 
 import ActivityAssignLearner from "../../../pages/center/materials/ActivityAssignLearner";
 
+type BuilderStep = {
+  id: string;
+  type: string;
+};
+
+type StepSnapshot = {
+  steps: BuilderStep[];
+  data: Record<string, any>;
+};
+
+const ACTIVITY_DRAFT_STORAGE_KEY = "mobi-center-activity-drafts-v1";
+
+function createTemplateSteps(template: string): BuilderStep[] {
+  const templateSteps =
+    ACTIVITY_TEMPLATES[
+      template as keyof typeof ACTIVITY_TEMPLATES
+    ] || [];
+
+  return templateSteps.map((stepType, index) => ({
+    id: `template-${index}-${stepType.replace(/[^a-z0-9]/gi, "-").toLowerCase()}`,
+    type: stepType,
+  }));
+}
+
+function sanitizeStepDataForDraft(stepData: Record<string, any>) {
+  return Object.fromEntries(
+    Object.entries(stepData).map(([stepKey, data]) => {
+      const cleanData = { ...data };
+
+      delete cleanData.media_file;
+      delete cleanData.prompt_audio_file;
+      delete cleanData.correct_audio_file;
+      delete cleanData.wrong_audio_file;
+      delete cleanData.max_attempts_audio_file;
+
+      if (Array.isArray(cleanData.choices)) {
+        cleanData.choices = cleanData.choices.map((choice: any) => {
+          const {
+            image_file,
+            ...cleanChoice
+          } = choice;
+
+          return cleanChoice;
+        });
+      }
+
+      return [stepKey, cleanData];
+    }),
+  );
+}
+
 function CreateActivity() {
   const location = useLocation();
+  const draftData = location.state?.draftData || null;
 
   const navigate = useNavigate();
 
   const [title, setTitle] =
-    useState("");
+    useState(draftData?.title || "");
 
   const [selectedTemplate] =
     useState(
-      location.state?.template || "Teach & Practice"
+      draftData?.selectedTemplate ||
+        location.state?.template ||
+        "Teach & Practice"
     );
 
   const [description, setDescription] =
-    useState("");
+    useState(draftData?.description || "");
 
   const [thumbnail, setThumbnail] =
-    useState<string | null>(null);
+    useState<string | null>(draftData?.thumbnail || null);
+
+  const [thumbnailFile, setThumbnailFile] =
+    useState<File | null>(null);
 
       // newly added 
-  const [maxAttempts, setMaxAttempts] = useState(3);
-  const [estimatedMinutes, setEstimatedMinutes] = useState(5); 
-  const [stepData, setStepData] = useState<Record<string, any>>({});
-  const [aiVoiceGender, setAiVoiceGender] = useState("girl");
-  const [aiVoiceSpeed, setAiVoiceSpeed] = useState("moderate");
+  const [maxAttempts, setMaxAttempts] = useState(draftData?.maxAttempts || 3);
+  const [estimatedMinutes, setEstimatedMinutes] = useState(draftData?.estimatedMinutes || 5); 
+  const [stepData, setStepData] = useState<Record<string, any>>(
+    draftData?.stepData || {},
+  );
+  const [aiVoiceGender, setAiVoiceGender] = useState(draftData?.aiVoiceGender || "girl");
+  const [aiVoiceSpeed, setAiVoiceSpeed] = useState(draftData?.aiVoiceSpeed || "moderate");
 
   /*
   Activity assignment state.
@@ -74,12 +142,30 @@ function CreateActivity() {
   assigned_only = activity is intended only for selected learners
 */
   const [selectedLearners, setSelectedLearners] =
-    useState<string[]>([]);
+    useState<string[]>(draftData?.selectedLearners || []);
 
   const [assignmentType, setAssignmentType] =
     useState<
       "center_library" | "assigned_only"
-    >("center_library");
+    >(draftData?.assignmentType || "center_library");
+
+  const [draftId, setDraftId] =
+    useState<string | null>(location.state?.draftId || draftData?.id || null);
+
+  const [isSavingDraft, setIsSavingDraft] =
+    useState(false);
+
+  const saveDraftInFlightRef =
+    useRef(false);
+
+  const [isPublishing, setIsPublishing] =
+    useState(false);
+
+  const publishInFlightRef =
+    useRef(false);
+
+  const [previewActivity, setPreviewActivity] =
+    useState<PreviewActivity | null>(null);
 
     
   const updateStepData = (stepKey: string, data: any) => {
@@ -89,10 +175,21 @@ function CreateActivity() {
   }));
 };
 
-  const steps =
-    ACTIVITY_TEMPLATES[
-      selectedTemplate as keyof typeof ACTIVITY_TEMPLATES
-    ];
+  const [builderSteps, setBuilderSteps] =
+    useState<BuilderStep[]>(() =>
+      draftData?.builderSteps?.length
+        ? draftData.builderSteps
+        : createTemplateSteps(selectedTemplate),
+    );
+
+  const [stepHistory, setStepHistory] =
+    useState<{
+      past: StepSnapshot[];
+      future: StepSnapshot[];
+    }>({
+      past: [],
+      future: [],
+    });
 
   const speechLadderRef =
     useRef<HTMLDivElement>(null);
@@ -134,111 +231,343 @@ function CreateActivity() {
   const [highlightedSection, setHighlightedSection] =
     useState("");
 
-  const [customSteps, setCustomSteps] =
-    useState<string[]>([]);
+  const [pendingAddedStepKey, setPendingAddedStepKey] =
+    useState<string | null>(null);
+
+  const stepRefs =
+    useRef<Record<string, HTMLDivElement | null>>({});
+
+  const commitStepChange = (
+    updater: (currentSteps: BuilderStep[]) => BuilderStep[],
+    nextStepData = stepData,
+  ) => {
+    setBuilderSteps((currentSteps) => {
+      const nextSteps = updater(currentSteps);
+
+      if (nextSteps === currentSteps) {
+        return currentSteps;
+      }
+
+      setStepHistory((currentHistory) => ({
+        past: [
+          ...currentHistory.past,
+          {
+            steps: currentSteps,
+            data: stepData,
+          },
+        ],
+        future: [],
+      }));
+
+      setStepData(nextStepData);
+
+      return nextSteps;
+    });
+  };
 
   const addStep = (
     stepType: string
   ) => {
-    setCustomSteps([
-      ...customSteps,
-      stepType,
+    const nextStep = {
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: stepType,
+    };
+
+    commitStepChange((currentSteps) => [
+      ...currentSteps,
+      nextStep,
     ]);
+    setPendingAddedStepKey(nextStep.id);
   };
 
-  const handlePublish = async () => {
-  try {
-    if (!title.trim()) {
-      alert("Please add an activity title.");
+  const moveStep = (
+    stepId: string,
+    direction: "up" | "down",
+  ) => {
+    commitStepChange((currentSteps) => {
+      const index = currentSteps.findIndex(
+        (step) => step.id === stepId,
+      );
+
+      const targetIndex =
+        direction === "up" ? index - 1 : index + 1;
+
+      if (
+        index < 0 ||
+        targetIndex < 0 ||
+        targetIndex >= currentSteps.length
+      ) {
+        return currentSteps;
+      }
+
+      const nextSteps = [...currentSteps];
+      const [movedStep] = nextSteps.splice(index, 1);
+      nextSteps.splice(targetIndex, 0, movedStep);
+
+      setPendingAddedStepKey(stepId);
+
+      return nextSteps;
+    });
+  };
+
+  const deleteStep = (stepId: string) => {
+    const confirmDelete = window.confirm(
+      "Remove this step from the activity?",
+    );
+
+    if (!confirmDelete) {
       return;
     }
 
-    const allSteps = [...steps, ...customSteps];
+    const nextStepData = (() => {
+      const {
+        [stepId]: _removed,
+        ...remainingData
+      } = stepData;
 
-    console.log("STEP DATA");
-    console.log(JSON.stringify(stepData, null, 2));
+      return remainingData;
+    })();
 
-    const formattedSteps = allSteps.map((step, index) => {
-    const stepKey =
-      index < steps.length
-        ? `template-${index}`
-        : `custom-${index - steps.length}`;
+    commitStepChange(
+      (currentSteps) =>
+        currentSteps.filter((step) => step.id !== stepId),
+      nextStepData,
+    );
+  };
 
-        
-    const savedStepData = stepData[stepKey] || {};
-      
-      const stepTypeMap: Record<string, string> = {
-        Teach: "teach",
-        Ask: "ask",
-        Feedback: "feedback",
-        Conversation: "conversation",
-        "Learn by Doing": "do_it",
-        "Show & Choose": "show_choose",
-      };
+  const undoStepChange = () => {
+    setStepHistory((currentHistory) => {
+      const previousSnapshot =
+        currentHistory.past[currentHistory.past.length - 1];
+
+      if (!previousSnapshot) {
+        return currentHistory;
+      }
+
+      setBuilderSteps(previousSnapshot.steps);
+      setStepData(previousSnapshot.data);
 
       return {
+        past: currentHistory.past.slice(0, -1),
+        future: [
+          {
+            steps: builderSteps,
+            data: stepData,
+          },
+          ...currentHistory.future,
+        ],
+      };
+    });
+  };
+
+  const redoStepChange = () => {
+    setStepHistory((currentHistory) => {
+      const nextSteps = currentHistory.future[0];
+
+      if (!nextSteps) {
+        return currentHistory;
+      }
+
+      setBuilderSteps(nextSteps.steps);
+      setStepData(nextSteps.data);
+
+      return {
+        past: [
+          ...currentHistory.past,
+          {
+            steps: builderSteps,
+            data: stepData,
+          },
+        ],
+        future: currentHistory.future.slice(1),
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (!pendingAddedStepKey) {
+      return;
+    }
+
+    stepRefs.current[pendingAddedStepKey]?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+
+    setHighlightedSection(pendingAddedStepKey);
+
+    const timeout = window.setTimeout(() => {
+      setHighlightedSection("");
+      setPendingAddedStepKey(null);
+    }, 1200);
+
+    return () => window.clearTimeout(timeout);
+  }, [builderSteps, pendingAddedStepKey]);
+
+  const uploadOptionalAsset = async (
+    file: File | null | undefined,
+    category: "thumbnail" | "step-media" | "prompt-audio",
+  ) => {
+    if (!file) {
+      return null;
+    }
+
+    return uploadActivityAsset(file, category);
+  };
+
+  const uploadStepAssets = async (step: any) => {
+    const uploadedMedia =
+      await uploadOptionalAsset(step.media_file, "step-media");
+
+    const uploadedPromptAudio =
+      await uploadOptionalAsset(step.prompt_audio_file, "prompt-audio");
+
+    const feedbackAudioUrls = {
+      correct:
+        (await uploadOptionalAsset(step.correct_audio_file, "prompt-audio"))
+          ?.url || null,
+      wrong:
+        (await uploadOptionalAsset(step.wrong_audio_file, "prompt-audio"))
+          ?.url || null,
+      max_attempts:
+        (await uploadOptionalAsset(
+          step.max_attempts_audio_file,
+          "prompt-audio",
+        ))?.url || null,
+    };
+
+    const choices = await Promise.all(
+      (step.choices || []).map(async (choice: any) => {
+        const uploadedChoiceImage = await uploadOptionalAsset(
+          choice.image_file,
+          "step-media",
+        );
+
+        const {
+          image_file,
+          ...choiceData
+        } = choice;
+
+        return {
+          ...choiceData,
+          image_url:
+            uploadedChoiceImage?.url ||
+            choice.image_url ||
+            null,
+        };
+      }),
+    );
+
+    const {
+      media_file,
+      prompt_audio_file,
+      correct_audio_file,
+      wrong_audio_file,
+      max_attempts_audio_file,
+      ...cleanStep
+    } = step;
+
+    return {
+      ...cleanStep,
+      media_url:
+        uploadedMedia?.url ||
+        cleanStep.media_url ||
+        null,
+      media: uploadedMedia
+        ? [uploadedMedia]
+        : cleanStep.media || [],
+      prompt_audio_url:
+        uploadedPromptAudio?.url ||
+        cleanStep.prompt_audio_url ||
+        null,
+      feedback_audio_urls: feedbackAudioUrls,
+      choices,
+    };
+  };
+
+  const formatBuilderSteps = (): PreviewStep[] => {
+    const stepTypeMap: Record<string, string> = {
+      Teach: "teach",
+      Ask: "ask",
+      Feedback: "feedback",
+      Conversation: "conversation",
+      "Learn by Doing": "do_it",
+      "Show & Choose": "show_choose",
+    };
+
+    return builderSteps.map((step, index) => {
+      const savedStepData = stepData[step.id] || {};
+
+      const correctFeedback =
+        step.type === "Feedback"
+          ? savedStepData.correct_feedback?.[0] || ""
+          : "";
+
+      const wrongFeedback =
+        step.type === "Feedback"
+          ? savedStepData.wrong_feedback?.[0] || ""
+          : "";
+
+      return {
+        id: step.id,
         step_order: index + 1,
-        step_type: stepTypeMap[step] || step.toLowerCase(),
+        step_type: stepTypeMap[step.type] || step.type.toLowerCase(),
 
         instruction:
-          step === "Learn by Doing"
+          step.type === "Learn by Doing"
             ? savedStepData.instruction || ""
-            : `${step} step`,
+            : `${step.type} step`,
 
         materials_needed:
-          step === "Learn by Doing"
-          ? savedStepData.materials_needed || []
-          : [],
+          step.type === "Learn by Doing"
+            ? savedStepData.materials_needed || []
+            : [],
 
         prompt:
-          step === "Ask"
-            ? savedStepData.question || `Ask step for ${title}.`
-            : step === "Teach"
-            ? savedStepData.lesson || `Teach step for ${title}.`
-            : step === "Show & Choose"
-            ? savedStepData.question || `Show and choose step for ${title}.`
-            : step === "Learn by Doing"
-            ? savedStepData.instruction || `Learn by doing step for ${title}.`
-            : step === "Conversation"
-            ? savedStepData.topics?.[0] || `Conversation step for ${title}.`
-            : `This is a ${step} step for ${title}.`,
-   
+          step.type === "Ask"
+            ? savedStepData.question || ""
+            : step.type === "Teach"
+            ? savedStepData.lesson || ""
+            : step.type === "Show & Choose"
+            ? savedStepData.question || ""
+            : step.type === "Learn by Doing"
+            ? savedStepData.instruction || ""
+            : step.type === "Conversation"
+            ? savedStepData.topics?.[0] || ""
+            : correctFeedback || wrongFeedback || "",
 
         lesson:
-          step === "Teach" ? savedStepData.lesson || "" : undefined,
+          step.type === "Teach" ? savedStepData.lesson || "" : undefined,
 
         question:
-          step === "Ask" || step === "Show & Choose"
+          step.type === "Ask" || step.type === "Show & Choose"
             ? savedStepData.question || ""
             : undefined,
 
         expected_answers:
-          step === "Ask" ? savedStepData.expected_answers || [] : [],
+          step.type === "Ask" ? savedStepData.expected_answers || [] : [],
 
         accepted_variations:
-          step === "Ask" ? savedStepData.accepted_variations || [] : [],
+          step.type === "Ask" ? savedStepData.accepted_variations || [] : [],
 
         choices:
-          step === "Show & Choose" ? savedStepData.choices || [] : [],
+          step.type === "Show & Choose" ? savedStepData.choices || [] : [],
 
-        correct_feedback:
-          step === "Feedback" ? savedStepData.correct_feedback || [] : [],
-
-        wrong_feedback:
-          step === "Feedback" ? savedStepData.wrong_feedback || [] : [],
+        correct_feedback: correctFeedback,
+        wrong_feedback: wrongFeedback,
 
         max_attempts_feedback:
-          step === "Feedback" ? savedStepData.max_attempts_feedback || [] : [],
+          step.type === "Feedback" ? savedStepData.max_attempts_feedback || [] : [],
 
         topics:
-          step === "Conversation" ? savedStepData.topics || [] : [],
+          step.type === "Conversation" ? savedStepData.topics || [] : [],
 
         can_repeat: true,
         can_give_hint: true,
         can_skip: true,
 
         ai_voice_style:
-          step === "Feedback"
+          step.type === "Feedback"
             ? {
                 correct: savedStepData.correct_voice_style || "Celebratory",
                 wrong: savedStepData.wrong_voice_style || "Encouraging",
@@ -247,198 +576,293 @@ function CreateActivity() {
 
         ai_feedback_rules: {
           correct:
-            step === "Feedback" ? savedStepData.correct_feedback || [] : [],
+            step.type === "Feedback" ? savedStepData.correct_feedback || [] : [],
           wrong:
-            step === "Feedback" ? savedStepData.wrong_feedback || [] : [],
+            step.type === "Feedback" ? savedStepData.wrong_feedback || [] : [],
           max_attempts_reached:
-            step === "Feedback" ? savedStepData.max_attempts_feedback || [] : [],
+            step.type === "Feedback" ? savedStepData.max_attempts_feedback || [] : [],
         },
-      };
+
+        media_file:
+          savedStepData.media_file || null,
+
+        media_url:
+          savedStepData.media_url || null,
+
+        media:
+          savedStepData.media || [],
+
+        prompt_audio_file:
+          savedStepData.prompt_audio_file || null,
+
+        prompt_audio_url:
+          savedStepData.prompt_audio_url || null,
+
+        correct_audio_file:
+          savedStepData.correct_audio_file || null,
+
+        wrong_audio_file:
+          savedStepData.wrong_audio_file || null,
+
+        max_attempts_audio_file:
+          savedStepData.max_attempts_audio_file || null,
+      } as PreviewStep;
+    });
+  };
+
+  const validateActivity = () => {
+    const errors: string[] = [];
+
+    if (!title.trim()) {
+      errors.push("Add an activity title.");
+    }
+
+    if (!description.trim()) {
+      errors.push("Add an activity description.");
+    }
+
+    if (!builderSteps.length) {
+      errors.push("Add at least one activity step.");
+    }
+
+    if (maxAttempts < 1) {
+      errors.push("Max attempts must be at least 1.");
+    }
+
+    if (estimatedMinutes < 1) {
+      errors.push("Estimated minutes must be at least 1.");
+    }
+
+    builderSteps.forEach((step, index) => {
+      const savedStepData = stepData[step.id] || {};
+      const label = `Step ${index + 1} (${step.type})`;
+
+      if (step.type === "Teach" && !savedStepData.lesson?.trim()) {
+        errors.push(`${label}: add the lesson text.`);
+      }
+
+      if (step.type === "Ask") {
+        if (!savedStepData.question?.trim()) {
+          errors.push(`${label}: add the question.`);
+        }
+
+        if (!savedStepData.expected_answers?.length) {
+          errors.push(`${label}: add at least one expected answer.`);
+        }
+      }
+
+      if (step.type === "Show & Choose") {
+        const choices = savedStepData.choices || [];
+
+        if (!savedStepData.question?.trim()) {
+          errors.push(`${label}: add the question.`);
+        }
+
+        if (choices.length < 2) {
+          errors.push(`${label}: add at least two choices.`);
+        }
+
+        if (choices.filter((choice: any) => choice.is_correct).length !== 1) {
+          errors.push(`${label}: select exactly one correct choice.`);
+        }
+      }
+
+      if (
+        step.type === "Learn by Doing" &&
+        !savedStepData.instruction?.trim()
+      ) {
+        errors.push(`${label}: add the instruction.`);
+      }
+
+      if (
+        step.type === "Conversation" &&
+        !(savedStepData.topics || []).some((topic: string) => topic.trim())
+      ) {
+        errors.push(`${label}: add at least one conversation topic.`);
+      }
+
+      if (step.type === "Feedback") {
+        if (!savedStepData.correct_feedback?.length) {
+          errors.push(`${label}: add correct-answer feedback.`);
+        }
+
+        if (!savedStepData.wrong_feedback?.length) {
+          errors.push(`${label}: add try-again feedback.`);
+        }
+      }
     });
 
-    // const payload = {
-    //   title,
-    //   description,
-    //   activity_type: selectedTemplate,
-    //   speech_ladder_level: "word",
-    //   max_attempts: maxAttempts,
-    //   estimated_minutes: estimatedMinutes,
-    //   allow_skip: true,
-    //   success_required_count: 1,
-    //   thumbnail_url: thumbnail,
-    //   ai_voice_gender: aiVoiceGender,
-    //   ai_voice_speed: aiVoiceSpeed,
-    //   status: "published",
-    //   uploaded_by: "Center Admin",
-    //   // center_id: "d5ae1649-0343-46d4-b433-575c97e064e1",
-    //   access_scope: assignmentType,
-    //   learner_ids: selectedLearners,
-    //   steps: formattedSteps,
-    // };
+    return errors;
+  };
 
-    const payload = {
-  title,
-  description,
-  activity_type: selectedTemplate,
-  speech_ladder_level: "word",
-  max_attempts: maxAttempts,
-  estimated_minutes: estimatedMinutes,
-  allow_skip: true,
-  success_required_count: 1,
-  thumbnail_url: thumbnail,
-  ai_voice_gender: aiVoiceGender,
-  ai_voice_speed: aiVoiceSpeed,
-  status: "published",
-  uploaded_by: "Center Admin",
+  const buildActivityPayload = async (status: "published") => {
+    const formattedSteps = formatBuilderSteps();
 
-  /*
-    Controls whether this activity belongs to the
-    general Center library or is limited to assigned learners.
-  */
-  access_scope: assignmentType,
+    const uploadedThumbnail =
+      await uploadOptionalAsset(thumbnailFile, "thumbnail");
 
-  /*
-    Selected learner UUIDs.
+    const uploadedSteps = await Promise.all(
+      formattedSteps.map(uploadStepAssets),
+    );
 
-    The backend removes this before inserting the activity
-    and uses it to create learner_activity_assignments.
-  */
-  learner_ids: selectedLearners,
+    const finalSteps = uploadedSteps.map((step, index) => ({
+      ...step,
+      step_order: index + 1,
+    }));
 
-  steps: formattedSteps,
-};
-    console.log("Formatted steps:");
-    console.dir(formattedSteps, { depth: null });
+    return {
+      title: title.trim(),
+      description,
+      activity_type: selectedTemplate,
+      speech_ladder_level: "word",
+      max_attempts: maxAttempts,
+      estimated_minutes: estimatedMinutes,
+      allow_skip: true,
+      success_required_count: 1,
+      thumbnail_url: uploadedThumbnail?.url || thumbnail,
+      ai_voice_gender: aiVoiceGender,
+      ai_voice_speed: aiVoiceSpeed,
+      status,
+      uploaded_by: "Center Admin",
+      delivery_mode: "screen",
+      attention_demand: "medium",
+      sensory_load: "medium",
+      movement_level: "light",
+      interaction_mode: "choice",
+      topic_tags: [],
+      visual_support_level: "standard",
+      communication_mode: "spoken_words",
+      assistance_level: "some_assistance",
+      sensory_features: [],
+      access_scope: assignmentType,
+      learner_ids: selectedLearners,
+      steps: finalSteps,
+    };
+  };
 
-    console.log("Payload:");
-    console.dir(payload, { depth: null });
+  const handleSaveDraft = () => {
+    if (isSavingDraft || isPublishing || saveDraftInFlightRef.current) {
+      return;
+    }
 
-    // await createActivity(payload);
+    saveDraftInFlightRef.current = true;
+    setIsSavingDraft(true);
 
-    // alert("Activity published successfully!");
-    // navigate("/center/materials");
+    try {
+      const nextDraftId =
+        draftId ||
+        `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    /* =====================================================
-   1. CREATE THE ACTIVITY FIRST
-===================================================== */
+      const draft = {
+        id: nextDraftId,
+        title: title.trim() || "Untitled Activity Draft",
+        description,
+        selectedTemplate,
+        thumbnail,
+        maxAttempts,
+        estimatedMinutes,
+        aiVoiceGender,
+        aiVoiceSpeed,
+        selectedLearners,
+        assignmentType,
+        builderSteps,
+        stepData: sanitizeStepDataForDraft(stepData),
+        updatedAt: new Date().toISOString(),
+      };
 
-const createResult =
-  await createActivity(
-    payload,
-  );
+      const existingDrafts = JSON.parse(
+        localStorage.getItem(ACTIVITY_DRAFT_STORAGE_KEY) || "[]",
+      );
 
-console.log(
-  "Created activity:",
-  createResult,
-);
+      const nextDrafts = Array.isArray(existingDrafts)
+        ? [
+            draft,
+            ...existingDrafts.filter((item: any) => item.id !== nextDraftId),
+          ]
+        : [draft];
 
-// /*
-//   Your backend returns:
+      localStorage.setItem(
+        ACTIVITY_DRAFT_STORAGE_KEY,
+        JSON.stringify(nextDrafts),
+      );
 
-//   {
-//     message: "...",
-//     activity: {
-//       id: "UUID",
-//       ...
-//     }
-//   }
+      setDraftId(nextDraftId);
+      alert("Draft saved. You can continue it from Draft Materials.");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save draft.");
+    } finally {
+      saveDraftInFlightRef.current = false;
+      setIsSavingDraft(false);
+    }
+  };
 
-//   We need that UUID before learner assignments can be
-//   created.
-// */
-// const activityId =
-//   createResult?.activity?.id;
+  const handlePreviewActivity = () => {
+    const errors = validateActivity();
 
-// if (!activityId) {
-//   throw new Error(
-//     "The activity was created but no activity ID was returned.",
-//   );
-// }
+    if (errors.length > 0) {
+      alert(`Please complete these before preview:\n\n${errors.join("\n")}`);
+      return;
+    }
 
-// /* =====================================================
-//    2. ASSIGN TO SELECTED LEARNERS
+    setPreviewActivity({
+      id: draftId || "builder-preview",
+      title: title.trim(),
+      description,
+      thumbnail_url: thumbnail,
+      activity_steps: formatBuilderSteps(),
+    });
+  };
 
-//    Learner assignment is optional.
+  const handlePublish = async () => {
+    if (isPublishing || publishInFlightRef.current) {
+      return;
+    }
 
-//    Therefore:
-//    0 selected learners
-//       → no assignment rows are created
+    const errors = validateActivity();
 
-//    1+ selected learners
-//       → create learner_activity_assignments rows
-// ===================================================== */
+    if (errors.length > 0) {
+      alert(`Please complete these before publish:\n\n${errors.join("\n")}`);
+      return;
+    }
 
-// if (
-//   selectedLearners.length >
-//   0
-// ) {
-//   const assignmentResult =
-//     await assignActivityToLearners(
-//       {
-//         activityId,
+    publishInFlightRef.current = true;
+    setIsPublishing(true);
 
-//         learnerIds:
-//           selectedLearners,
+    try {
+      const payload = await buildActivityPayload("published");
+      await createActivity(payload);
 
-//         /*
-//           For now selected activities are treated as
-//           recommendations.
+      if (draftId) {
+        const existingDrafts = JSON.parse(
+          localStorage.getItem(ACTIVITY_DRAFT_STORAGE_KEY) || "[]",
+        );
 
-//           Later, therapist UI can separately choose:
+        const nextDrafts = Array.isArray(existingDrafts)
+          ? existingDrafts.filter((item: any) => item.id !== draftId)
+          : [];
 
-//           Required
-//           Recommended
+        localStorage.setItem(
+          ACTIVITY_DRAFT_STORAGE_KEY,
+          JSON.stringify(nextDrafts),
+        );
+      }
 
-//           Do NOT map "assigned_only" to "required";
-//           those mean different things.
-//         */
-//         assignmentType:
-//           "recommended",
+      alert(
+        selectedLearners.length > 0
+          ? `Activity published and assigned to ${selectedLearners.length} learner(s)!`
+          : "Activity published successfully!",
+      );
 
-//         priority:
-//           1,
-
-//         /*
-//           null means use the normal activity/learner
-//           adaptation settings rather than overriding them
-//           specifically for this assignment.
-//         */
-//         maxAttemptsOverride:
-//           null,
-
-//         estimatedMinutesOverride:
-//           null,
-
-//         allowSkipOverride:
-//           null,
-//       },
-//     );
-
-//   console.log(
-//     "Activity assignments:",
-//     assignmentResult,
-//   );
-// }
-
-/* =====================================================
-   3. COMPLETE PUBLISH FLOW
-===================================================== */
-
-alert(
-  selectedLearners.length >
-    0
-    ? `Activity published and assigned to ${selectedLearners.length} learner(s)!`
-    : "Activity published successfully!",
-);
-
-navigate(
-  "/center/materials",
-);
-  } catch (error) {
-    console.error(error);
-    alert("Failed to publish activity.");
-  }
-};
+      navigate("/center/materials");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to publish activity.");
+    } finally {
+      publishInFlightRef.current = false;
+      setIsPublishing(false);
+    }
+  };
 
   return (
     <div className="h-screen bg-[#F7F7F7] flex flex-col">
@@ -497,21 +921,43 @@ navigate(
           </button>
 
           <button
-            // onClick={handleSaveDraft}
-            // className="text-gray-600 hover:text-gray-800"
+            type="button"
+            onClick={handlePreviewActivity}
+            className="flex items-center gap-2 text-[#7A5D7F]"
           >
-            Save Draft
+            <Play size={22} />
+            Preview
           </button>
 
           <button
-            onClick={handlePublish}
-            className="text-[#E37D4A]"
+            type="button"
+            disabled={isSavingDraft || isPublishing}
+            onClick={handleSaveDraft}
+            className="text-gray-600 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Publish
+            {isSavingDraft ? "Saving..." : "Save Draft"}
+          </button>
+
+          <button
+            type="button"
+            disabled={isPublishing || isSavingDraft}
+            onClick={handlePublish}
+            className="text-[#E37D4A] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPublishing ? "Publishing..." : "Publish"}
           </button>
         </div>
 
       </header>
+
+      {previewActivity && (
+        <ActivityPlayPreviewModal
+          open={Boolean(previewActivity)}
+          activity={previewActivity}
+          fallbackImage={thumbnail || undefined}
+          onClose={() => setPreviewActivity(null)}
+        />
+      )}
 
       {/* BODY */}
       <div className="flex flex-1 gap-6 p-6 overflow-hidden">
@@ -573,6 +1019,9 @@ navigate(
             <div className="mr-4 flex items-center gap-2">
 
               <button
+                type="button"
+                disabled={stepHistory.past.length === 0}
+                onClick={undoStepChange}
                 className="
                   flex
                   h-10
@@ -587,12 +1036,17 @@ navigate(
                   transition
                   hover:bg-[#F8EFFA]
                   hover:text-[#A85CB5]
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
                 "
               >
                 <Undo2 size={20} />
               </button>
 
               <button
+                type="button"
+                disabled={stepHistory.future.length === 0}
+                onClick={redoStepChange}
                 className="
                   flex
                   h-10
@@ -607,6 +1061,8 @@ navigate(
                   transition
                   hover:bg-[#F8EFFA]
                   hover:text-[#A85CB5]
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
                 "
               >
                 <Redo2 size={20} />
@@ -633,132 +1089,112 @@ navigate(
             {/* autoload step template */}
             <div className="space-y-6">
 
-              {steps.map((step, index) => {
+              {builderSteps.map((step, index) => {
+                const stepKey = step.id;
+                let stepComponent = null;
 
-                switch (step) {
+                const stepControls = {
+                  onMoveUp: () => moveStep(step.id, "up"),
+                  onMoveDown: () => moveStep(step.id, "down"),
+                  onDelete: () => deleteStep(step.id),
+                };
+
+                switch (step.type) {
 
                   case "Teach":
-                    return (
+                    stepComponent = (
                       <TeachStep
-                        key={index}
-                        stepKey={`template-${index}`}
+                        stepKey={stepKey}
+                        variant={
+                          selectedTemplate === "Story" ? "story" : "teach"
+                        }
+                        initialData={stepData[stepKey]}
                         onChange={updateStepData}
+                        {...stepControls}
                       />
                     );
+                    break;
 
                   case "Ask":
-                    return (
+                    stepComponent = (
                       <AskStep
-                        key={index}
-                        stepKey={`template-${index}`}
+                        stepKey={stepKey}
+                        initialData={stepData[stepKey]}
                         onChange={updateStepData}
+                        {...stepControls}
                       />
                     );
+                    break;
 
                   case "Feedback":
-                    return (
+                    stepComponent = (
                       <FeedbackStep
-                      key={index}
-                      stepKey={`template-${index}`}
+                      stepKey={stepKey}
+                      initialData={stepData[stepKey]}
                       onChange={updateStepData}
+                      {...stepControls}
                     />
                     );
+                    break;
 
                   case "Conversation":
-                    return (
+                    stepComponent = (
                       <ConversationStep
-                        key={index}
-                        stepKey={`template-${index}`}
+                        stepKey={stepKey}
+                        initialData={stepData[stepKey]}
                         onChange={updateStepData}
+                        {...stepControls}
                       />
                     );
+                    break;
 
                   case "Learn by Doing":
-                    return (
+                    stepComponent = (
                       <DoItStep
-                        key={index}
-                        stepKey={`template-${index}`}
+                        stepKey={stepKey}
+                        initialData={stepData[stepKey]}
                         onChange={updateStepData}
+                        {...stepControls}
                       />
                     );
+                    break;
 
                   case "Show & Choose":
-                    return (
+                    stepComponent = (
                       <ShowChooseStep
-                        key={index}
-                        stepKey={`template-${index}`}
+                        stepKey={stepKey}
+                        initialData={stepData[stepKey]}
                         onChange={updateStepData}
+                        {...stepControls}
                       />
                     );
+                    break;
 
                   default:
                     return null;
                 }
+
+                return (
+                  <div
+                    key={stepKey}
+                    ref={(element) => {
+                      stepRefs.current[stepKey] = element;
+                    }}
+                    className={`
+                      transition-all duration-500
+                      ${
+                        highlightedSection === stepKey
+                          ? "rounded-[30px] shadow-[0_0_25px_rgba(229,155,231,0.5)]"
+                          : ""
+                      }
+                    `}
+                  >
+                    {stepComponent}
+                  </div>
+                );
               })}
 
-              {customSteps.map((step, index) => {
-                switch (step) {
-
-                  case "Teach":
-                    return (
-                      <TeachStep
-                        key={index}
-                        stepKey={`custom-${index}`}
-                        onChange={updateStepData}
-                      />
-                    );
-
-                  case "Ask":
-                    return (
-                      <AskStep
-                        key={index}
-                        stepKey={`custom-${index}`}
-                        onChange={updateStepData}
-                      />
-                    );
-
-                  case "Feedback":
-                    return (
-                      <FeedbackStep
-                      key={index}
-                      stepKey={`custom-${index}`}
-                      onChange={updateStepData}
-                    />
-                    );
-
-                  case "Conversation":
-                    return (
-                      <ConversationStep
-                        key={index}
-                        stepKey={`custom-${index}`}
-                        onChange={updateStepData}
-                      />
-                    );
-
-                  case "Learn by Doing":
-                    return (
-                      <DoItStep
-                        key={index}
-                        stepKey={`custom-${index}`}
-                        onChange={updateStepData}
-                      />
-                    );
-
-                  case "Show & Choose":
-                    return (
-                      <ShowChooseStep
-                        key={index}
-                        stepKey={`custom-${index}`}
-                        onChange={updateStepData}
-                      />
-                    );
-
-                  default:
-                    return null;
-                }
-              })}
-
-              <StepDropZone />
+              <StepDropZone onDropStep={addStep} />
 
               {/* other tools */}
               <div
@@ -807,6 +1243,7 @@ navigate(
                 <ActivityThumbnail
                   thumbnail={thumbnail}
                   setThumbnail={setThumbnail}
+                  setThumbnailFile={setThumbnailFile}
                 />
               </div>
 

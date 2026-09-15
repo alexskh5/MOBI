@@ -42,10 +42,26 @@ export interface PerActivityStepResult {
   status:
     | "correct"
     | "needs-practice"
+    | "approximation"
+    | "communication-attempt"
+    | "no-response"
+    | "skipped"
     | null;
 
   supportUsed:
     string | null;
+
+  responseType: string | null;
+
+  matchingMethod: string | null;
+
+  shouldScore: boolean;
+
+  communicationAttempt: boolean;
+
+  approximationDetected: boolean;
+
+  skipReason: string | null;
 }
 
 /* =========================================================
@@ -240,6 +256,7 @@ export async function getPerActivityAnalysis(
       attempt_order,
       response_type,
       transcript,
+      expected_choice_id,
       selected_choice_id,
       expected_answers,
       matched_answer,
@@ -248,9 +265,13 @@ export async function getPerActivityAnalysis(
       target_achieved,
       accepted,
       is_correct,
+      should_score,
+      matching_method,
       hint_used,
       repeat_prompt_used,
-      one_more_try_used
+      one_more_try_used,
+      was_skipped,
+      skip_reason
     `)
     .in(
       "session_id",
@@ -529,8 +550,8 @@ export async function getPerActivityAnalysis(
     const scoredAttempts =
       activityAttempts.filter(
         (attempt) =>
-          typeof attempt.is_correct ===
-          "boolean",
+          attempt.should_score === true &&
+          typeof attempt.is_correct === "boolean",
       );
 
     const correctAnswers =
@@ -600,13 +621,16 @@ export async function getPerActivityAnalysis(
 
             const expectedAnswer =
               attempt.matched_answer ??
+              attempt.expected_choice_id ??
               expectedAnswers[0] ??
               null;
 
             let learnerAnswer =
               "";
 
-            if (
+            if (attempt.was_skipped === true) {
+              learnerAnswer = "Step skipped";
+            } else if (
               typeof attempt.transcript ===
                 "string" &&
               attempt.transcript.trim()
@@ -625,7 +649,9 @@ export async function getPerActivityAnalysis(
               "action"
             ) {
               learnerAnswer =
-                "Action recorded";
+                attempt.target_achieved === true
+                  ? "Action completed"
+                  : "Action not completed";
             } else {
               learnerAnswer =
                 "No response recorded";
@@ -634,21 +660,30 @@ export async function getPerActivityAnalysis(
             let status:
               | "correct"
               | "needs-practice"
+              | "approximation"
+              | "communication-attempt"
+              | "no-response"
+              | "skipped"
               | null =
               null;
 
-            if (
-              attempt.is_correct ===
-              true
-            ) {
+            if (attempt.was_skipped === true) {
+              status = "skipped";
+            } else if (attempt.target_achieved === true) {
               status =
                 "correct";
+            } else if (attempt.approximation_detected === true) {
+              status = "approximation";
             } else if (
-              attempt.is_correct ===
-              false
+              attempt.should_score === true &&
+              attempt.is_correct === false
             ) {
               status =
                 "needs-practice";
+            } else if (attempt.communication_attempt === true) {
+              status = "communication-attempt";
+            } else if (attempt.response_type !== "system") {
+              status = "no-response";
             }
 
             const supportUsedParts:
@@ -710,6 +745,26 @@ export async function getPerActivityAnalysis(
                   ? supportUsedParts.join(
                       ", ",
                     )
+                  : null,
+
+              responseType:
+                attempt.response_type ?? null,
+
+              matchingMethod:
+                attempt.matching_method ?? null,
+
+              shouldScore:
+                attempt.should_score === true,
+
+              communicationAttempt:
+                attempt.communication_attempt === true,
+
+              approximationDetected:
+                attempt.approximation_detected === true,
+
+              skipReason:
+                typeof attempt.skip_reason === "string"
+                  ? attempt.skip_reason
                   : null,
             };
           },

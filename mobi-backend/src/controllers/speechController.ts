@@ -11,6 +11,20 @@ type MulterRequest = Request & {
 
 };
 
+function removeUploadedFile(filePath?: string) {
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (error) {
+    console.warn("Unable to remove uploaded speech file:", error);
+  }
+}
+
 export async function transcribeSpeech(req: MulterRequest, res: Response) {
   try {
     if (!req.file) {
@@ -21,11 +35,12 @@ export async function transcribeSpeech(req: MulterRequest, res: Response) {
     console.log(req.file);
     const result = await transcribeAudio(req.file.path);
 
-    fs.unlinkSync(req.file.path);
+    removeUploadedFile(req.file.path);
 
     return res.status(200).json(result);
   } catch (error: any) {
     console.error("STT error:", error);
+    removeUploadedFile(req.file?.path);
 
     return res.status(500).json({
       message: "Failed to transcribe audio.",
@@ -72,7 +87,7 @@ export async function transcribeAndEvaluateSpeech(
     // 1. Speech → Text
     const transcription = await transcribeAudio(req.file.path);
 
-    fs.unlinkSync(req.file.path);
+    removeUploadedFile(req.file.path);
 
     // 2. Evaluate
     const evaluation = evaluateSpeech({
@@ -91,6 +106,7 @@ export async function transcribeAndEvaluateSpeech(
 
   } catch (error: any) {
     console.error(error);
+    removeUploadedFile(req.file?.path);
 
     return res.status(500).json({
       message: "Evaluation failed.",
@@ -143,4 +159,3 @@ export async function generateSpeechAudio(req: Request, res: Response) {
     });
   }
 }
-
