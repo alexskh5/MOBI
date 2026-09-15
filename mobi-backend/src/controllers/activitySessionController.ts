@@ -8,7 +8,7 @@ import type {
 
 
 import {
-  // finishActivitySession,
+  finishActivitySession,
   getActivitySessionById,
   saveActivityAttempt,
   startActivitySession,
@@ -46,21 +46,25 @@ import type {
 import {
   continueLearningSession,
 } from "../services/activity/learningSessionFlowService";
+import {
+  getRequestCenterId,
+} from "../middleware/centerContext";
+import {
+  getDailyScreenTimeStatus,
+} from "../services/activity/screenTimeService";
+import {
+  endLearningSession,
+} from "../services/activity/learningSessionService";
+import {
+  getNextInteractiveStep,
+  getStepResponseType,
+  type InteractiveStepResponseType,
+} from "../services/activity/activityStepFlowService";
 // import {
 //   getOrCreateBanditState,
 //   sampleThompsonScore,
 //   updateBanditOutcome,
 // } from "../services/activity/thompsonSamplingService";
-
-/* =========================================================
-   TEMPORARY CENTER ID
-
-   Later, this must come from the authenticated Center,
-   Therapist, Parent, or mobile user session.
-========================================================= */
-
-const CENTER_ID =
-  "d5ae1649-0343-46d4-b433-575c97e064e1";
 
 /* =========================================================
    SMALL HELPERS
@@ -87,6 +91,33 @@ function getRouteParam(
 
   return trimmedValue ||
     null;
+}
+
+type LearnerResponseType = InteractiveStepResponseType;
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isNonNegativeFiniteNumber(
+  value: unknown,
+  maximum: number,
+) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= maximum
+  );
+}
+
+function isPlainRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
 /*
@@ -226,7 +257,7 @@ export async function startSession(
     const result =
       await startActivitySession({
         centerId:
-          CENTER_ID,
+          getRequestCenterId(req)!,
 
         learnerId:
           learnerId.trim(),
@@ -326,7 +357,7 @@ export async function saveAttempt(
         req.params.sessionId,
       );
 
-    if (!sessionId) {
+    if (!sessionId || !UUID_PATTERN.test(sessionId)) {
       return res.status(400).json({
         success: false,
         message:
@@ -915,7 +946,7 @@ export async function finishSession(
         req.params.sessionId,
       );
 
-    if (!sessionId) {
+    if (!sessionId || !UUID_PATTERN.test(sessionId)) {
       return res.status(400).json({
         success: false,
         message:
@@ -954,7 +985,7 @@ export async function finishSession(
     if (
       typeof learnerId !==
         "string" ||
-      !learnerId.trim()
+      !UUID_PATTERN.test(learnerId.trim())
     ) {
       return res.status(400).json({
         success: false,
@@ -1004,6 +1035,48 @@ export async function finishSession(
           ActivitySessionStatus,
           "in_progress"
         >;
+    }
+
+    const numericInputs = [
+      ["totalDurationSeconds", totalDurationSeconds, 86_400],
+      ["inactivitySeconds", inactivitySeconds, 86_400],
+      ["gazePresentSeconds", gazePresentSeconds, 86_400],
+      ["gazeAwaySeconds", gazeAwaySeconds, 86_400],
+      ["breakCount", breakCount, 1_000],
+    ] as const;
+
+    for (const [name, value, maximum] of numericInputs) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        (
+          !isNonNegativeFiniteNumber(value, maximum) ||
+          (name === "breakCount" && !Number.isInteger(value))
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            `${name} must be a non-negative finite ${name === "breakCount" ? "integer" : "number"} within the supported range.`,
+        });
+      }
+    }
+
+    for (const [name, value] of [
+      ["gazeDetectionAvailable", gazeDetectionAvailable],
+      ["breakSuggested", breakSuggested],
+      ["engagementOverrideTriggered", engagementOverrideTriggered],
+    ] as const) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        typeof value !== "boolean"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `${name} must be a boolean when provided.`,
+        });
+      }
     }
 
     const allowedNextActions:
@@ -1143,14 +1216,17 @@ export async function finishSession(
     //         : null,
     //   });
 
-    const learningSessionId =
+const learningSessionId =
   typeof req.body.learningSessionId ===
     "string" &&
   req.body.learningSessionId.trim()
     ? req.body.learningSessionId.trim()
     : null;
 
-if (!learningSessionId) {
+if (
+  learningSessionId &&
+  !UUID_PATTERN.test(learningSessionId)
+) {
   return res.status(400).json({
     success: false,
     message:
@@ -1159,112 +1235,217 @@ if (!learningSessionId) {
 }
 
 const result =
-  await continueLearningSession({
-    learningSessionId,
+  learningSessionId
+    ? await continueLearningSession({
+        learningSessionId,
 
-    centerId:
-      CENTER_ID,
+        centerId:
+          getRequestCenterId(req)!,
 
-    learnerId:
-      learnerId.trim(),
+        learnerId:
+          learnerId.trim(),
 
-    sessionId,
+        sessionId,
 
-    status:
-      normalizedStatus,
+        status:
+          normalizedStatus,
 
-    totalDurationSeconds:
-      typeof totalDurationSeconds ===
-        "number"
-        ? totalDurationSeconds
-        : 0,
+        totalDurationSeconds:
+          typeof totalDurationSeconds ===
+            "number"
+            ? totalDurationSeconds
+            : 0,
 
-    inactivitySeconds:
-      typeof inactivitySeconds ===
-        "number"
-        ? inactivitySeconds
-        : 0,
+        inactivitySeconds:
+          typeof inactivitySeconds ===
+            "number"
+            ? inactivitySeconds
+            : 0,
 
-    gazePresentSeconds:
-      typeof gazePresentSeconds ===
-        "number"
-        ? gazePresentSeconds
-        : 0,
+        gazePresentSeconds:
+          typeof gazePresentSeconds ===
+            "number"
+            ? gazePresentSeconds
+            : 0,
 
-    gazeAwaySeconds:
-      typeof gazeAwaySeconds ===
-        "number"
-        ? gazeAwaySeconds
-        : 0,
+        gazeAwaySeconds:
+          typeof gazeAwaySeconds ===
+            "number"
+            ? gazeAwaySeconds
+            : 0,
 
-    gazeDetectionAvailable:
-      typeof gazeDetectionAvailable ===
-        "boolean"
-        ? gazeDetectionAvailable
-        : false,
+        gazeDetectionAvailable:
+          typeof gazeDetectionAvailable ===
+            "boolean"
+            ? gazeDetectionAvailable
+            : false,
 
-    breakCount:
-      typeof breakCount ===
-        "number"
-        ? breakCount
-        : 0,
+        breakCount:
+          typeof breakCount ===
+            "number"
+            ? breakCount
+            : 0,
 
-    breakSuggested:
-      typeof breakSuggested ===
-        "boolean"
-        ? breakSuggested
-        : false,
+        breakSuggested:
+          typeof breakSuggested ===
+            "boolean"
+            ? breakSuggested
+            : false,
 
-    engagementOverrideTriggered:
-      typeof engagementOverrideTriggered ===
-        "boolean"
-        ? engagementOverrideTriggered
-        : false,
+        engagementOverrideTriggered:
+          typeof engagementOverrideTriggered ===
+            "boolean"
+            ? engagementOverrideTriggered
+            : false,
 
-    engagementOverrideReason:
-      typeof engagementOverrideReason ===
-        "string"
-        ? engagementOverrideReason
-        : null,
+        engagementOverrideReason:
+          typeof engagementOverrideReason ===
+            "string"
+            ? engagementOverrideReason
+            : null,
 
-    skippedBy:
-      typeof skippedBy ===
-        "string"
-        ? skippedBy
-        : null,
+        skippedBy:
+          typeof skippedBy ===
+            "string"
+            ? skippedBy
+            : null,
 
-    skipReason:
-      typeof skipReason ===
-        "string"
-        ? skipReason
-        : null,
+        skipReason:
+          typeof skipReason ===
+            "string"
+            ? skipReason
+            : null,
 
-    stoppedBy:
-      typeof stoppedBy ===
-        "string"
-        ? stoppedBy
-        : null,
+        stoppedBy:
+          typeof stoppedBy ===
+            "string"
+            ? stoppedBy
+            : null,
 
-    stopReason:
-      typeof stopReason ===
-        "string"
-        ? stopReason
-        : null,
+        stopReason:
+          typeof stopReason ===
+            "string"
+            ? stopReason
+            : null,
 
-    recommendedNextAction:
-      recommendedNextAction ===
-        null
-        ? null
-        : recommendedNextAction as
-            | RecommendedNextAction
-            | undefined,
+        recommendedNextAction:
+          recommendedNextAction ===
+            null
+            ? null
+            : recommendedNextAction as
+                | RecommendedNextAction
+                | undefined,
 
-    therapistSessionNotes:
-      typeof therapistSessionNotes ===
-        "string"
-        ? therapistSessionNotes
-        : null,
-  });
+        therapistSessionNotes:
+          typeof therapistSessionNotes ===
+            "string"
+            ? therapistSessionNotes
+            : null,
+      })
+    : await finishActivitySession({
+        centerId:
+          getRequestCenterId(req)!,
+
+        learnerId:
+          learnerId.trim(),
+
+        sessionId,
+
+        status:
+          normalizedStatus,
+
+        totalDurationSeconds:
+          typeof totalDurationSeconds ===
+            "number"
+            ? totalDurationSeconds
+            : 0,
+
+        inactivitySeconds:
+          typeof inactivitySeconds ===
+            "number"
+            ? inactivitySeconds
+            : 0,
+
+        gazePresentSeconds:
+          typeof gazePresentSeconds ===
+            "number"
+            ? gazePresentSeconds
+            : 0,
+
+        gazeAwaySeconds:
+          typeof gazeAwaySeconds ===
+            "number"
+            ? gazeAwaySeconds
+            : 0,
+
+        gazeDetectionAvailable:
+          typeof gazeDetectionAvailable ===
+            "boolean"
+            ? gazeDetectionAvailable
+            : false,
+
+        breakCount:
+          typeof breakCount ===
+            "number"
+            ? breakCount
+            : 0,
+
+        breakSuggested:
+          typeof breakSuggested ===
+            "boolean"
+            ? breakSuggested
+            : false,
+
+        engagementOverrideTriggered:
+          typeof engagementOverrideTriggered ===
+            "boolean"
+            ? engagementOverrideTriggered
+            : false,
+
+        engagementOverrideReason:
+          typeof engagementOverrideReason ===
+            "string"
+            ? engagementOverrideReason
+            : null,
+
+        skippedBy:
+          typeof skippedBy ===
+            "string"
+            ? skippedBy
+            : null,
+
+        skipReason:
+          typeof skipReason ===
+            "string"
+            ? skipReason
+            : null,
+
+        stoppedBy:
+          typeof stoppedBy ===
+            "string"
+            ? stoppedBy
+            : null,
+
+        stopReason:
+          typeof stopReason ===
+            "string"
+            ? stopReason
+            : null,
+
+        recommendedNextAction:
+          recommendedNextAction ===
+            null
+            ? null
+            : recommendedNextAction as
+                | RecommendedNextAction
+                | undefined,
+
+        therapistSessionNotes:
+          typeof therapistSessionNotes ===
+            "string"
+            ? therapistSessionNotes
+            : null,
+      });
 
     return res.status(200).json({
       success: true,
@@ -1312,7 +1493,7 @@ export async function getSession(
         ? req.query.learnerId.trim()
         : "";
 
-    if (!sessionId) {
+    if (!sessionId || !UUID_PATTERN.test(sessionId)) {
       return res.status(400).json({
         success: false,
         message:
@@ -1320,7 +1501,7 @@ export async function getSession(
       });
     }
 
-    if (!learnerId) {
+    if (!UUID_PATTERN.test(learnerId)) {
       return res.status(400).json({
         success: false,
         message:
@@ -1331,7 +1512,7 @@ export async function getSession(
     const session =
       await getActivitySessionById(
         sessionId,
-        CENTER_ID,
+        getRequestCenterId(req)!,
         learnerId,
       );
 
@@ -1352,6 +1533,221 @@ export async function getSession(
         "Unable to fetch the activity session.",
       error:
         getErrorMessage(error),
+    });
+  }
+}
+
+/* =========================================================
+   SKIP ONE INTERACTIVE ACTIVITY STEP
+========================================================= */
+
+export async function skipActivityStep(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const sessionId = getRouteParam(req.params.sessionId);
+    const activityStepId = getRouteParam(req.params.activityStepId);
+    const learnerId =
+      typeof req.body?.learnerId === "string"
+        ? req.body.learnerId.trim()
+        : "";
+    const attemptOrder = req.body?.attemptOrder;
+    const stepAttemptNumber = req.body?.stepAttemptNumber ?? 1;
+    const skipReason =
+      typeof req.body?.skipReason === "string"
+        ? req.body.skipReason.trim() || null
+        : null;
+    const actorId = req.header("x-actor-id")?.trim() ?? "";
+    const actorRole =
+      req.header("x-actor-role")?.trim().toLowerCase() ?? "";
+
+    if (
+      !sessionId ||
+      !activityStepId ||
+      !UUID_PATTERN.test(sessionId) ||
+      !UUID_PATTERN.test(activityStepId) ||
+      !UUID_PATTERN.test(learnerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid session, learner, and activity step IDs are required.",
+      });
+    }
+
+    if (
+      !UUID_PATTERN.test(actorId) ||
+      !["parent", "therapist", "center_admin"].includes(actorRole)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "A parent, therapist, or center administrator must confirm the step skip.",
+      });
+    }
+
+    if (
+      typeof attemptOrder !== "number" ||
+      !Number.isInteger(attemptOrder) ||
+      attemptOrder < 1 ||
+      typeof stepAttemptNumber !== "number" ||
+      !Number.isInteger(stepAttemptNumber) ||
+      stepAttemptNumber < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Attempt order values must be positive integers.",
+      });
+    }
+
+    if (skipReason && skipReason.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Skip reason must be at most 500 characters.",
+      });
+    }
+
+    const session = await getActivitySessionById(
+      sessionId,
+      getRequestCenterId(req)!,
+      learnerId,
+    );
+
+    if (session.status !== "in_progress") {
+      return res.status(409).json({
+        success: false,
+        message: "Only an in-progress activity step can be skipped.",
+      });
+    }
+
+    const activitySteps = Array.isArray(session.activity?.activity_steps)
+      ? session.activity.activity_steps
+      : [];
+    const step = activitySteps.find(
+      (candidate: { id?: unknown }) => candidate.id === activityStepId,
+    );
+    const savedAttempts = Array.isArray(session.attempts)
+      ? session.attempts
+      : [];
+    const configuredMaximumAttempts = Number(
+      session.effective_max_attempts ?? 3,
+    );
+    const maximumAttempts =
+      Number.isInteger(configuredMaximumAttempts) &&
+      configuredMaximumAttempts > 0
+        ? configuredMaximumAttempts
+        : 3;
+    const expectedStep = getNextInteractiveStep(
+      activitySteps,
+      savedAttempts,
+      maximumAttempts,
+    );
+
+    if (!step || !getStepResponseType(String(step.step_type ?? ""))) {
+      return res.status(400).json({
+        success: false,
+        message: "The requested step is not an interactive activity step.",
+      });
+    }
+
+    if (expectedStep?.id !== activityStepId) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Only the current therapist-authored interactive step can be skipped.",
+        expectedActivityStepId: expectedStep?.id ?? null,
+      });
+    }
+
+    if (
+      session.effective_allow_skip !== true ||
+      step.can_skip === false
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Skipping is not enabled for this activity step.",
+      });
+    }
+
+    const expectedAttemptOrder = savedAttempts.length + 1;
+    const expectedStepAttemptNumber =
+      savedAttempts.filter(
+        (attempt: { activity_step_id?: unknown }) =>
+          attempt.activity_step_id === activityStepId,
+      ).length + 1;
+
+    if (
+      attemptOrder !== expectedAttemptOrder ||
+      stepAttemptNumber !== expectedStepAttemptNumber
+    ) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Attempt order changed. Reload the activity session before retrying.",
+        expectedAttemptOrder,
+        expectedStepAttemptNumber,
+      });
+    }
+
+    const attempt = await saveActivityAttempt({
+      sessionId,
+      activityStepId,
+      attemptOrder,
+      stepAttemptNumber,
+      responseType: "system",
+      expectedAnswers: Array.isArray(step.expected_answers)
+        ? step.expected_answers.filter(
+            (value: unknown): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          )
+        : [],
+      acceptedVariations: Array.isArray(step.accepted_variations)
+        ? step.accepted_variations.filter(
+            (value: unknown): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          )
+        : [],
+      communicationAttempt: false,
+      approximationDetected: false,
+      targetAchieved: false,
+      shouldScore: false,
+      accepted: false,
+      isCorrect: null,
+      wasSkipped: true,
+      skipReason,
+      feedbackType: "skip",
+      engagementData: {
+        skippedByActorId: actorId,
+        skippedByRole: actorRole,
+      },
+    });
+    const attemptsAfterSkip = [
+      ...savedAttempts,
+      {
+        activity_step_id: activityStepId,
+        was_skipped: true,
+      },
+    ];
+    const nextStep = getNextInteractiveStep(
+      activitySteps,
+      attemptsAfterSkip,
+      maximumAttempts,
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Activity step skipped.",
+      attempt,
+      activityCompleted: nextStep === null,
+      nextActivityStepId: nextStep?.id ?? null,
+    });
+  } catch (error) {
+    console.error("Skip activity step error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to skip the activity step.",
+      error: getErrorMessage(error),
     });
   }
 }
@@ -1387,19 +1783,10 @@ export async function getNextActivity(
     const learnerId =
       learnerIdRaw.trim();
 
-    /*
-      TEMPORARY CENTER ID.
-
-      Later this should come from the authenticated
-      Center / Therapist / Parent session.
-    */
-    const CENTER_ID =
-      "d5ae1649-0343-46d4-b433-575c97e064e1";
-
     const selection =
       await selectNextActivity({
         centerId:
-          CENTER_ID,
+          getRequestCenterId(req)!,
 
         learnerId,
       });
@@ -1506,7 +1893,7 @@ export async function startNextSession(
     const selection =
       await selectNextActivity({
         centerId:
-          CENTER_ID,
+          getRequestCenterId(req)!,
 
         learnerId:
           normalizedLearnerId,
@@ -1573,7 +1960,7 @@ export async function startNextSession(
     const sessionResult =
       await startActivitySession({
         centerId:
-          CENTER_ID,
+          getRequestCenterId(req)!,
 
         learnerId:
           normalizedLearnerId,
@@ -1614,7 +2001,7 @@ export async function startNextSession(
       try {
         banditSelection =
           await recordBanditSelection(
-            CENTER_ID,
+            getRequestCenterId(req)!,
             normalizedLearnerId,
             selection.activityId,
           );
@@ -1775,6 +2162,9 @@ export async function testActivityRuntime(
       processLearnerResponse(
         context,
         {
+          responseType:
+            "speech",
+
           transcript,
 
           expectedAnswers,
@@ -1801,13 +2191,16 @@ export async function testActivityRuntime(
           reachedMaximumAttempts:
             false,
 
-          activityCompleted:
+          isFinalActivityStep:
             false,
 
           therapistRequestedStop:
             false,
 
           parentRequestedStop:
+            false,
+
+          screenTimeLimitReached:
             false,
 
           adaptiveSettings: {
@@ -1821,6 +2214,12 @@ export async function testActivityRuntime(
               true,
 
             allowBreakSuggestion:
+              true,
+
+            allowHint:
+              true,
+
+            allowRepeatPrompt:
               true,
           },
         },
@@ -1897,7 +2296,7 @@ export async function testProgression(
     const progression =
       await evaluateLearnerProgression({
         centerId:
-          CENTER_ID,
+          getRequestCenterId(req)!,
 
         learnerId:
           learnerId.trim(),
@@ -1954,7 +2353,7 @@ export async function respondToActivity(
         req.params.sessionId,
       );
 
-    if (!sessionId) {
+    if (!sessionId || !UUID_PATTERN.test(sessionId)) {
       return res.status(400).json({
         success: false,
         message:
@@ -1968,9 +2367,17 @@ export async function respondToActivity(
       attemptOrder,
       stepAttemptNumber = 1,
 
-      transcript,
-      expectedAnswers,
-      acceptedVariations = [],
+      activityStepId,
+
+      responseType,
+      transcript = "",
+      selectedChoiceId = null,
+      actionCompleted = null,
+
+      sttConfidence = null,
+      sttProvider = null,
+      sttModel = null,
+      sttMetadata = {},
 
       responseTimeMs,
 
@@ -1979,13 +2386,9 @@ export async function respondToActivity(
       gazeAwaySeconds = 0,
       inactivitySeconds = 0,
 
-      reachedMaximumAttempts = false,
-      activityCompleted = false,
-
       therapistRequestedStop = false,
       parentRequestedStop = false,
 
-      adaptiveSettings,
     } = req.body;
 
     /* =====================================================
@@ -1995,7 +2398,7 @@ export async function respondToActivity(
     if (
       typeof learnerId !==
         "string" ||
-      !learnerId.trim()
+      !UUID_PATTERN.test(learnerId.trim())
     ) {
       return res.status(400).json({
         success: false,
@@ -2020,26 +2423,150 @@ export async function respondToActivity(
     }
 
     if (
-      typeof transcript !==
-        "string"
+      typeof stepAttemptNumber !== "number" ||
+      !Number.isInteger(stepAttemptNumber) ||
+      stepAttemptNumber < 1
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "Transcript is required.",
+          "Step attempt number must be a positive integer.",
+      });
+    }
+
+    if (typeof transcript !== "string") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Transcript must be a string.",
+      });
+    }
+
+    const allowedResponseTypes: LearnerResponseType[] = [
+      "speech",
+      "choice",
+      "action",
+      "conversation",
+    ];
+
+    if (
+      responseType !== undefined &&
+      (
+        typeof responseType !== "string" ||
+        !allowedResponseTypes.includes(
+          responseType as LearnerResponseType,
+        )
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid learner response type.",
       });
     }
 
     if (
-      !Array.isArray(
-        expectedAnswers,
+      typeof activityStepId !== "string" ||
+      !UUID_PATTERN.test(activityStepId.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A valid activityStepId is required.",
+      });
+    }
+
+    if (
+      sttConfidence !== null &&
+      (
+        typeof sttConfidence !== "number" ||
+        !Number.isFinite(sttConfidence) ||
+        sttConfidence < 0 ||
+        sttConfidence > 1
       )
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "expectedAnswers must be an array.",
+          "STT confidence must be between 0 and 1 when provided.",
       });
+    }
+
+    const numericInputs = [
+      {
+        value: responseTimeMs,
+        maximum: 86_400_000,
+        name: "responseTimeMs",
+      },
+      {
+        value: gazeAwaySeconds,
+        maximum: 86_400,
+        name: "gazeAwaySeconds",
+      },
+      {
+        value: inactivitySeconds,
+        maximum: 86_400,
+        name: "inactivitySeconds",
+      },
+    ];
+
+    for (const input of numericInputs) {
+      if (
+        input.value !== undefined &&
+        input.value !== null &&
+        !isNonNegativeFiniteNumber(input.value, input.maximum)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            `${input.name} must be a non-negative finite number within the supported range.`,
+        });
+      }
+    }
+
+    const booleanInputs = [
+      ["gazeDetectionAvailable", gazeDetectionAvailable],
+      ["gazePresent", gazePresent],
+      ["therapistRequestedStop", therapistRequestedStop],
+      ["parentRequestedStop", parentRequestedStop],
+    ] as const;
+
+    for (const [name, value] of booleanInputs) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        typeof value !== "boolean"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `${name} must be a boolean when provided.`,
+        });
+      }
+    }
+
+    if (!isPlainRecord(sttMetadata)) {
+      return res.status(400).json({
+        success: false,
+        message: "sttMetadata must be an object.",
+      });
+    }
+
+    for (const [name, value] of [
+      ["sttProvider", sttProvider],
+      ["sttModel", sttModel],
+    ] as const) {
+      if (
+        value !== null &&
+        (
+          typeof value !== "string" ||
+          value.trim().length > 100
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            `${name} must be a string of at most 100 characters when provided.`,
+        });
+      }
     }
 
     /* =====================================================
@@ -2049,7 +2576,7 @@ export async function respondToActivity(
     const activitySession =
       await getActivitySessionById(
         sessionId,
-        CENTER_ID,
+        getRequestCenterId(req)!,
         learnerId.trim(),
       );
 
@@ -2082,6 +2609,215 @@ export async function respondToActivity(
       });
     }
 
+    const activitySteps =
+      Array.isArray(session.activity?.activity_steps)
+        ? session.activity.activity_steps
+        : [];
+    const activityStep = activitySteps.find(
+      (step: { id?: unknown }) =>
+        step.id === activityStepId.trim(),
+    );
+
+    if (!activityStep) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "The activity step does not belong to this session.",
+      });
+    }
+
+    const savedAttempts =
+      Array.isArray(session.attempts)
+        ? session.attempts
+        : [];
+    const configuredMaximumAttempts = Number(
+      session.effective_max_attempts ?? 3,
+    );
+    const maximumAttempts =
+      Number.isInteger(configuredMaximumAttempts) &&
+      configuredMaximumAttempts > 0
+        ? configuredMaximumAttempts
+        : 3;
+    const expectedInteractiveStep = getNextInteractiveStep(
+      activitySteps,
+      savedAttempts,
+      maximumAttempts,
+    );
+
+    if (!expectedInteractiveStep) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "All interactive activity steps are already resolved. Finish the activity session before continuing.",
+      });
+    }
+
+    if (expectedInteractiveStep.id !== activityStepId.trim()) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Responses must follow the therapist-authored interactive step order.",
+        expectedActivityStepId: expectedInteractiveStep.id,
+      });
+    }
+
+    const expectedAttemptOrder =
+      savedAttempts.length + 1;
+
+    if (attemptOrder !== expectedAttemptOrder) {
+      return res.status(409).json({
+        success: false,
+        message:
+          `Expected attempt order ${expectedAttemptOrder}. Refresh the active session before retrying.`,
+      });
+    }
+
+    const existingStepAttempts = savedAttempts.filter(
+      (attempt: { activity_step_id?: unknown }) =>
+        attempt.activity_step_id === activityStepId.trim(),
+    ).length;
+    const expectedStepAttemptNumber =
+      existingStepAttempts + 1;
+
+    if (stepAttemptNumber !== expectedStepAttemptNumber) {
+      return res.status(409).json({
+        success: false,
+        message:
+          `Expected step attempt number ${expectedStepAttemptNumber}. Refresh the active session before retrying.`,
+      });
+    }
+
+    const expectedAnswers = Array.isArray(
+      activityStep.expected_answers,
+    )
+      ? activityStep.expected_answers.filter(
+          (value: unknown): value is string =>
+            typeof value === "string" &&
+            value.trim().length > 0,
+        )
+      : [];
+    const acceptedVariations = Array.isArray(
+      activityStep.accepted_variations,
+    )
+      ? activityStep.accepted_variations.filter(
+          (value: unknown): value is string =>
+            typeof value === "string" &&
+            value.trim().length > 0,
+        )
+      : [];
+    const stepType =
+      typeof activityStep.step_type === "string"
+        ? activityStep.step_type
+        : "";
+    const expectedResponseType = getStepResponseType(stepType);
+
+    if (!expectedResponseType) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This activity step presents content and does not accept a learner response.",
+      });
+    }
+    const normalizedResponseType =
+      typeof responseType === "string"
+        ? responseType
+        : expectedResponseType;
+
+    if (normalizedResponseType !== expectedResponseType) {
+      return res.status(400).json({
+        success: false,
+        message:
+          `This activity step requires a ${expectedResponseType} response.`,
+      });
+    }
+
+    const metadata =
+      activityStep.metadata &&
+      typeof activityStep.metadata === "object"
+        ? activityStep.metadata
+        : {};
+    const choices = Array.isArray(metadata.choices)
+      ? metadata.choices
+      : [];
+    const expectedChoices = choices.filter(
+      (choice: { is_correct?: unknown }) =>
+        choice.is_correct === true,
+    );
+    const expectedChoice =
+      expectedChoices.length === 1 ? expectedChoices[0] : null;
+    const expectedChoiceId =
+      expectedChoice?.id !== undefined &&
+      expectedChoice?.id !== null
+        ? String(expectedChoice.id)
+        : null;
+    const normalizedSelectedChoiceId =
+      selectedChoiceId !== null &&
+      selectedChoiceId !== undefined
+        ? String(selectedChoiceId)
+        : null;
+    const validChoiceIds = new Set(
+      choices
+        .map((choice: { id?: unknown }) =>
+          choice.id !== undefined && choice.id !== null
+            ? String(choice.id)
+            : null,
+        )
+        .filter(
+          (value: string | null): value is string => value !== null,
+        ),
+    );
+
+    if (
+      expectedResponseType === "choice" &&
+      (
+        !expectedChoiceId ||
+        !normalizedSelectedChoiceId ||
+        expectedChoices.length !== 1 ||
+        !validChoiceIds.has(normalizedSelectedChoiceId)
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "The step must have exactly one therapist-defined correct choice, and the selected choice must belong to the step.",
+      });
+    }
+
+    if (
+      expectedResponseType === "action" &&
+      typeof actionCompleted !== "boolean"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "actionCompleted must be confirmed for a guided action step.",
+      });
+    }
+
+    const actionObserverId =
+      req.header("x-actor-id")?.trim() ?? "";
+    const actionObserverRole =
+      req.header("x-actor-role")?.trim().toLowerCase() ?? "";
+    const allowedActionObserverRoles = new Set([
+      "parent",
+      "therapist",
+      "center_admin",
+    ]);
+
+    if (
+      expectedResponseType === "action" &&
+      (
+        !UUID_PATTERN.test(actionObserverId) ||
+        !allowedActionObserverRoles.has(actionObserverRole)
+      )
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "A parent, therapist, or center administrator must identify the observed action.",
+      });
+    }
+
     /* =====================================================
        3. BUILD ORCHESTRATOR CONTEXT
     ===================================================== */
@@ -2097,7 +2833,7 @@ export async function respondToActivity(
           learnerId.trim(),
 
         centerId:
-          CENTER_ID,
+          getRequestCenterId(req)!,
 
         state:
           "waiting_for_response",
@@ -2157,65 +2893,93 @@ export async function respondToActivity(
        4. PROCESS RESPONSE THROUGH RUNTIME
     ===================================================== */
 
-    const effectiveAdaptiveSettings =
-      adaptiveSettings &&
-      typeof adaptiveSettings ===
-        "object"
-        ? adaptiveSettings
-        : {
-            inactivityBreakSeconds:
-              30,
-
-            inactivityAutoStopSeconds:
-              120,
-
-            oneMoreTryEnabled:
-              true,
-
-            allowBreakSuggestion:
-              true,
-          };
+    const effectiveSettings =
+      session.effective_settings ?? {};
+    const breakSuggestionMinutes = Math.max(
+      0,
+      Number(effectiveSettings.breakSuggestionMinutes ?? 2),
+    );
+    const highestStepOrder = activitySteps
+      .filter((step: { step_type?: unknown }) =>
+        typeof step.step_type === "string" &&
+        getStepResponseType(step.step_type) !== null,
+      )
+      .reduce(
+      (highest: number, step: { step_order?: unknown }) =>
+        Math.max(highest, Number(step.step_order ?? 0)),
+      0,
+    );
+    const isFinalActivityStep =
+      Number(activityStep.step_order ?? 0) === highestStepOrder;
+    const screenTimeStatus =
+      session.activity?.delivery_mode === "guided_off_screen"
+        ? {
+            limitSeconds: null,
+            usedSeconds: 0,
+            remainingSeconds: null,
+            limitReached: false,
+          }
+        : await getDailyScreenTimeStatus({
+            centerId: getRequestCenterId(req)!,
+            learnerId: learnerId.trim(),
+          });
 
     const runtimeResult =
       processLearnerResponse(
         context,
         {
+          responseType:
+            normalizedResponseType as
+              | "speech"
+              | "choice"
+              | "action"
+              | "conversation",
+
           transcript,
+
+          selectedChoiceId:
+            normalizedSelectedChoiceId,
+
+          expectedChoiceId,
+
+          actionCompleted:
+            typeof actionCompleted === "boolean"
+              ? actionCompleted
+              : null,
 
           expectedAnswers:
             expectedAnswers.filter(
               (
-                value,
+                value: unknown,
               ): value is string =>
                 typeof value ===
                 "string",
             ),
 
           acceptedVariations:
-            Array.isArray(
-              acceptedVariations,
-            )
-              ? acceptedVariations.filter(
-                  (
-                    value,
-                  ): value is string =>
-                    typeof value ===
-                    "string",
-                )
-              : [],
+            acceptedVariations,
+
+          sttConfidence:
+            expectedResponseType === "speech" ||
+            expectedResponseType === "conversation"
+              ? sttConfidence
+              : null,
 
           evaluationSettings: {
+            minimumConfidence:
+              effectiveSettings.minimumConfidence,
+
             levenshteinThreshold:
-              session.effective_settings
-                ?.levenshteinThreshold,
+              effectiveSettings.levenshteinThreshold,
 
             phoneticMatchingEnabled:
-              session.effective_settings
-                ?.phoneticMatchingEnabled,
+              effectiveSettings.phoneticMatchingEnabled,
+
+            semanticMatchingEnabled:
+              effectiveSettings.semanticMatchingEnabled,
 
             acceptedVariationsEnabled:
-              session.effective_settings
-                ?.acceptedVariationsEnabled,
+              effectiveSettings.acceptedVariationsEnabled,
           },
 
           engagement: {
@@ -2251,12 +3015,9 @@ export async function respondToActivity(
           },
 
           reachedMaximumAttempts:
-            reachedMaximumAttempts ===
-            true,
+            expectedStepAttemptNumber >= maximumAttempts,
 
-          activityCompleted:
-            activityCompleted ===
-            true,
+          isFinalActivityStep,
 
           therapistRequestedStop:
             therapistRequestedStop ===
@@ -2266,30 +3027,35 @@ export async function respondToActivity(
             parentRequestedStop ===
             true,
 
+          screenTimeLimitReached:
+            screenTimeStatus.limitReached,
+
           adaptiveSettings: {
             inactivityBreakSeconds:
-              Number(
-                effectiveAdaptiveSettings
-                  .inactivityBreakSeconds ??
-                  30,
-              ),
+              breakSuggestionMinutes * 60,
 
             inactivityAutoStopSeconds:
-              Number(
-                effectiveAdaptiveSettings
-                  .inactivityAutoStopSeconds ??
-                  120,
+              Math.max(
+                breakSuggestionMinutes * 60,
+                Number(
+                  effectiveSettings.inactivityAutoStopSeconds ??
+                  900,
+                ),
               ),
 
             oneMoreTryEnabled:
-              effectiveAdaptiveSettings
-                .oneMoreTryEnabled !==
-              false,
+              effectiveSettings.oneMoreTryEnabled !== false,
 
             allowBreakSuggestion:
-              effectiveAdaptiveSettings
-                .allowBreakSuggestion !==
-              false,
+              breakSuggestionMinutes > 0,
+
+            allowHint:
+              effectiveSettings.allowHint !== false &&
+              activityStep.can_give_hint !== false,
+
+            allowRepeatPrompt:
+              effectiveSettings.allowRepeatPrompt !== false &&
+              activityStep.can_repeat !== false,
           },
         },
       );
@@ -2317,18 +3083,8 @@ export async function respondToActivity(
     No response:
         do not score.
     */
-    const hasDefinedTarget =
-    expectedAnswers.length > 0;
-
     const shouldScore =
-    hasDefinedTarget &&
-    (
-        communication.targetAchieved ||
-        (
-        communication.communicationAttempt &&
-        !communication.approximationDetected
-        )
-    );
+      communication.shouldScore;
 
     const isCorrect =
     shouldScore
@@ -2351,6 +3107,9 @@ export async function respondToActivity(
       await saveActivityAttempt({
         sessionId,
 
+        activityStepId:
+          activityStepId.trim(),
+
         attemptOrder,
 
         stepAttemptNumber:
@@ -2360,11 +3119,16 @@ export async function respondToActivity(
             : 1,
 
         responseType:
-          "speech",
+          normalizedResponseType as AttemptResponseType,
 
         expectedAnswers,
 
         acceptedVariations,
+
+        expectedChoiceId,
+
+        selectedChoiceId:
+          normalizedSelectedChoiceId,
 
         transcript:
           communication.transcript,
@@ -2372,6 +3136,26 @@ export async function respondToActivity(
         normalizedTranscript:
           communication
             .normalizedTranscript,
+
+        sttConfidence:
+          communication.confidence,
+
+        sttProvider:
+          typeof sttProvider === "string"
+            ? sttProvider
+            : null,
+
+        sttModel:
+          typeof sttModel === "string"
+            ? sttModel
+            : null,
+
+        sttMetadata:
+          typeof sttMetadata === "object" &&
+          sttMetadata !== null &&
+          !Array.isArray(sttMetadata)
+            ? sttMetadata
+            : {},
 
         matchingMethod:
           communication
@@ -2382,6 +3166,18 @@ export async function respondToActivity(
         matchedAnswer:
           communication
             .matchedAnswer,
+
+        levenshteinDistance:
+          communication.levenshteinDistance,
+
+        phoneticMatch:
+          communication.phoneticMatch,
+
+        semanticMatch:
+          communication.semanticMatch,
+
+        minimumConfidenceUsed:
+          communication.minimumConfidenceUsed,
 
         levenshteinThresholdUsed:
           typeof session.effective_settings
@@ -2394,25 +3190,36 @@ export async function respondToActivity(
           session.effective_settings
             ?.phoneticMatchingEnabled !== false,
 
+        semanticMatchingEnabled:
+          session.effective_settings
+            ?.semanticMatchingEnabled !== false,
+
         acceptedVariationsEnabled:
           session.effective_settings
             ?.acceptedVariationsEnabled !== false,
 
         evaluationSettings: {
+          minimumConfidence:
+            communication.minimumConfidenceUsed,
+
           levenshteinThreshold:
-            typeof session.effective_settings
-              ?.levenshteinThreshold === "number"
-              ? session.effective_settings
+            typeof effectiveSettings
+              .levenshteinThreshold === "number"
+              ? effectiveSettings
                   .levenshteinThreshold
               : 2,
 
           phoneticMatchingEnabled:
-            session.effective_settings
-              ?.phoneticMatchingEnabled !== false,
+            effectiveSettings
+              .phoneticMatchingEnabled !== false,
+
+          semanticMatchingEnabled:
+            effectiveSettings
+              .semanticMatchingEnabled !== false,
 
           acceptedVariationsEnabled:
-            session.effective_settings
-              ?.acceptedVariationsEnabled !== false,
+            effectiveSettings
+              .acceptedVariationsEnabled !== false,
         },
 
         communicationAttempt:
@@ -2460,6 +3267,15 @@ export async function respondToActivity(
         engagementData: {
           gazeDetectionAvailable,
           gazeAwaySeconds,
+          ...(expectedResponseType === "action"
+            ? {
+                actionObservation: {
+                  observedByActorId: actionObserverId,
+                  observedByRole: actionObserverRole,
+                  completed: actionCompleted,
+                },
+              }
+            : {}),
         },
 
         feedbackType,
@@ -2467,6 +3283,31 @@ export async function respondToActivity(
         feedbackText:
           null,
       });
+
+    let endedLearningSession = null;
+    const systemAutoStop =
+      runtimeResult.decision.nextState === "auto_stopped" &&
+      session.learning_session_id;
+
+    if (systemAutoStop) {
+      endedLearningSession = await endLearningSession({
+        centerId: getRequestCenterId(req)!,
+        learningSessionId: session.learning_session_id,
+        endReason: screenTimeStatus.limitReached
+          ? "screen_time_limit"
+          : "auto_inactivity",
+        stoppedBy: "system",
+        totalDurationSeconds: 0,
+        totalActivityRuns: 0,
+        completedActivityRuns: 0,
+        skippedActivityRuns: 0,
+        totalInactivitySeconds:
+          typeof inactivitySeconds === "number"
+            ? Math.max(0, inactivitySeconds)
+            : 0,
+        totalBreakCount: session.break_count ?? 0,
+      });
+    }
 
     /* =====================================================
        6. RETURN ONE COMPLETE RUNTIME CYCLE
@@ -2488,6 +3329,12 @@ export async function respondToActivity(
 
       attempt:
         savedAttempt,
+
+      screenTime:
+        screenTimeStatus,
+
+      learningSessionEnded:
+        endedLearningSession,
     });
   } catch (error) {
     console.error(

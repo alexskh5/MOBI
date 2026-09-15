@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio, Video, ResizeMode } from 'expo-av';
 
 import { SessionMedia } from './SessionTypes';
 
@@ -76,6 +77,28 @@ export default function SessionMediaHolder({
               },
             ]}
           />
+        ) : item.type === 'video' && item.url ? (
+          <Video
+            key={item.id}
+            source={{ uri: item.url }}
+            style={[
+              styles.image,
+              {
+                width: imageWidth,
+                height: imageHeight,
+              },
+            ]}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+          />
+        ) : item.type === 'audio' && item.url ? (
+          <AudioMaterial
+            key={item.id}
+            url={item.url}
+            name={item.name}
+            width={imageWidth}
+            height={imageHeight}
+          />
         ) : (
           <View
             key={item.id}
@@ -113,6 +136,81 @@ export default function SessionMediaHolder({
           </View>
         ),
       )}
+    </View>
+  );
+}
+
+function AudioMaterial({
+  url,
+  name,
+  width,
+  height,
+}: {
+  url: string;
+  name?: string;
+  width: number;
+  height: number;
+}) {
+  const [playing, setPlaying] = React.useState(false);
+  const soundRef = React.useRef<Audio.Sound | null>(null);
+
+  const toggleAudio = async () => {
+    try {
+      if (playing && soundRef.current) {
+        await soundRef.current.pauseAsync();
+        setPlaying(false);
+        return;
+      }
+
+      if (!soundRef.current) {
+        const { sound } = await Audio.Sound.createAsync({ uri: url });
+        soundRef.current = sound;
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setPlaying(false);
+          }
+        });
+      }
+
+      await soundRef.current.playAsync();
+      setPlaying(true);
+    } catch (error) {
+      console.log('Audio material playback error:', error);
+      setPlaying(false);
+    }
+  };
+
+  React.useEffect(() => {
+    return () => {
+      soundRef.current?.unloadAsync();
+    };
+  }, []);
+
+  return (
+    <View
+      style={[
+        styles.placeholder,
+        {
+          width,
+          height,
+        },
+      ]}
+    >
+      <Ionicons
+        name={playing ? 'pause-circle' : 'play-circle'}
+        size={56}
+        color="#8759D6"
+        onPress={toggleAudio}
+      />
+
+      <Text style={styles.placeholderTitle}>
+        {playing ? 'Playing Audio' : 'Play Audio'}
+      </Text>
+
+      <Text style={styles.placeholderText}>
+        {name || 'Audio material'}
+      </Text>
     </View>
   );
 }

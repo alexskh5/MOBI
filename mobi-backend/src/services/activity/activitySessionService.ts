@@ -3,7 +3,7 @@
 import { supabase } from "../../config/supabase";
 
 import {
-  updateBanditOutcome,
+  recordActivityBanditOutcome,
 } from "./thompsonSamplingService";
 
 import {
@@ -16,8 +16,20 @@ import {
 
 import {
   calculateActivityMastery,
-  calculateMaximumConsecutiveSuccesses,
 } from "./masteryService";
+
+import {
+  summarizeAttempts,
+} from "./attemptAggregationService";
+import {
+  areInteractiveStepsResolved,
+} from "./activityStepFlowService";
+import {
+  getLearnerChildSafetySettings,
+} from "../learner/childSafetySettingsService";
+import {
+  getLearnerSessionPreferences,
+} from "../learner/sessionPreferenceService";
 
 
 // import {
@@ -543,6 +555,32 @@ export async function startActivitySession(
     throw settingsError;
   }
 
+  const [
+    childSafetySettings,
+    sessionPreferences,
+  ] = await Promise.all([
+    getLearnerChildSafetySettings(
+      learnerId,
+      centerId,
+    ).catch((error) => {
+      console.error(
+        "Unable to fetch learner child-safety settings for session:",
+        error,
+      );
+      return null;
+    }),
+    getLearnerSessionPreferences(
+      learnerId,
+      centerId,
+    ).catch((error) => {
+      console.error(
+        "Unable to fetch learner session preferences:",
+        error,
+      );
+      return null;
+    }),
+  ]);
+
   /* =======================================================
      5. RESOLVE EFFECTIVE SETTINGS
 
@@ -684,6 +722,73 @@ export async function startActivitySession(
       learnerSettings
         ?.declining_success_window ??
       3,
+
+    inactivityAutoStopSeconds:
+      learnerSettings
+        ?.inactivity_auto_stop_seconds ??
+      900,
+
+    allowHint:
+      learnerSettings
+        ?.allow_hint ??
+      true,
+
+    allowRepeatPrompt:
+      learnerSettings
+        ?.allow_repeat_prompt ??
+      true,
+
+    thompsonSamplingWeight:
+      learnerSettings
+        ?.thompson_sampling_weight ??
+      0.75,
+
+    /*
+      Learner profile/session preferences.
+    */
+    dailyScreenTimeLimitSeconds:
+      childSafetySettings
+        ?.daily_screen_time_limit_seconds ??
+      null,
+
+    visualTheme:
+      sessionPreferences?.visual_theme ??
+      "default",
+
+    lowContrastEnabled:
+      sessionPreferences
+        ?.low_contrast_enabled ??
+      false,
+
+    softPastelEnabled:
+      sessionPreferences
+        ?.soft_pastel_enabled ??
+      false,
+
+    matteUiEnabled:
+      sessionPreferences
+        ?.matte_ui_enabled ??
+      false,
+
+    reduceMotionEnabled:
+      sessionPreferences
+        ?.reduce_motion_enabled ??
+      false,
+
+    namePromptingEnabled:
+      sessionPreferences
+        ?.name_prompting_enabled ??
+      true,
+
+    namePromptingFrequency:
+      sessionPreferences
+        ?.name_prompting_frequency ??
+      "as_needed",
+
+    sensoryProfile:
+      sessionPreferences
+        ?.sensory_profile ??
+      {},
   };
 
   /* =======================================================
@@ -1163,6 +1268,55 @@ export async function saveActivityAttempt(
     throw attemptError;
   }
 
+  const {
+    data: aggregateAttempts,
+    error: aggregateAttemptsError,
+  } = await supabase
+    .from("learner_activity_attempts")
+    .select(`
+      should_score,
+      is_correct,
+      communication_attempt,
+      response_time_ms
+    `)
+    .eq("session_id", sessionId);
+
+  if (aggregateAttemptsError) {
+    console.error(
+      "Attempt saved, but activity aggregates could not be loaded:",
+      aggregateAttemptsError,
+    );
+
+    return attempt;
+  }
+
+  const aggregate = summarizeAttempts(
+    aggregateAttempts ?? [],
+  );
+
+  const { error: aggregateUpdateError } = await supabase
+    .from("learner_activity_sessions")
+    .update({
+      total_scored_attempts: aggregate.totalScoredAttempts,
+      correct_attempts: aggregate.correctAttempts,
+      incorrect_attempts: aggregate.incorrectAttempts,
+      communication_attempts: aggregate.communicationAttempts,
+      unscored_attempts: aggregate.unscoredAttempts,
+      success_rate: aggregate.successRate,
+      consecutive_successes: aggregate.consecutiveSuccesses,
+      total_response_time_ms: aggregate.totalResponseTimeMs,
+      average_response_time_ms: aggregate.averageResponseTimeMs,
+    })
+    .eq("id", sessionId)
+    .eq("status", "in_progress");
+
+  if (aggregateUpdateError) {
+    console.error(
+      "Attempt saved, but activity aggregates could not be refreshed:",
+      aggregateUpdateError,
+    );
+  }
+
   return attempt;
 }
 
@@ -1190,7 +1344,19 @@ export async function getActivitySessionById(
         description,
         activity_type,
         speech_ladder_level,
-        thumbnail_url
+        thumbnail_url,
+        delivery_mode,
+        activity_steps (
+          id,
+          step_order,
+          step_type,
+          expected_answers,
+          accepted_variations,
+          metadata,
+          can_repeat,
+          can_give_hint,
+          can_skip
+        )
       ),
       learner_activity_attempts (
         *
@@ -1295,6 +1461,7 @@ export async function finishActivitySession(
       activity_id,
       assignment_id,
       status,
+      effective_max_attempts,
       effective_settings
     `)
     .eq("id", sessionId)
@@ -1336,10 +1503,16 @@ export async function finishActivitySession(
     )
     .select(`
       id,
+      activity_step_id,
       attempt_order,
+      response_type,
+      expected_answers,
+      accepted_variations,
+      evaluation_settings,
       should_score,
       is_correct,
       communication_attempt,
+      target_achieved,
       response_time_ms,
       was_skipped
     `)
@@ -1363,85 +1536,49 @@ export async function finishActivitySession(
   const attempts =
     attemptsData ?? [];
 
+  if (status === "completed") {
+    const { data: activitySteps, error: activityStepsError } =
+      await supabase
+        .from("activity_steps")
+        .select("id, step_order, step_type")
+        .eq("activity_id", session.activity_id);
+
+    if (activityStepsError) {
+      throw activityStepsError;
+    }
+
+    if (
+      !areInteractiveStepsResolved(
+        activitySteps ?? [],
+        attempts,
+        Number(session.effective_max_attempts ?? 3),
+      )
+    ) {
+      throw new Error(
+        "The activity cannot be completed until every interactive step is resolved.",
+      );
+    }
+  }
+
   /* =======================================================
      3. CALCULATE PERFORMANCE SUMMARY
   ======================================================= */
 
-  const scoredAttempts =
-    attempts.filter(
-      (attempt) =>
-        attempt.should_score,
-    );
-
-  const correctAttempts =
-    scoredAttempts.filter(
-      (attempt) =>
-        attempt.is_correct === true,
-    ).length;
-
-  const incorrectAttempts =
-    scoredAttempts.filter(
-      (attempt) =>
-        attempt.is_correct === false,
-    ).length;
-
-  const communicationAttempts =
-    attempts.filter(
-      (attempt) =>
-        attempt.communication_attempt,
-    ).length;
-
-  const unscoredAttempts =
-    attempts.filter(
-      (attempt) =>
-        !attempt.should_score,
-    ).length;
-
-  const successRate =
-    scoredAttempts.length > 0
-      ? Number(
-          (
-            (correctAttempts /
-              scoredAttempts.length) *
-            100
-          ).toFixed(2),
-        )
-      : null;
-
-  const consecutiveSuccesses =
-    calculateMaximumConsecutiveSuccesses(
-      attempts,
-    );
-
-  const responseTimes =
-    attempts
-      .map(
-        (attempt) =>
-          attempt.response_time_ms,
-      )
-      .filter(
-        (
-          responseTime,
-        ): responseTime is number =>
-          typeof responseTime ===
-            "number" &&
-          responseTime >= 0,
-      );
-
-  const totalResponseTimeMs =
-    responseTimes.reduce(
-      (total, responseTime) =>
-        total + responseTime,
-      0,
-    );
-
-  const averageResponseTimeMs =
-    responseTimes.length > 0
-      ? Math.round(
-          totalResponseTimeMs /
-            responseTimes.length,
-        )
-      : null;
+  const aggregate =
+    summarizeAttempts(attempts);
+  const scoredAttempts = attempts.filter(
+    (attempt) => attempt.should_score === true,
+  );
+  const {
+    correctAttempts,
+    incorrectAttempts,
+    communicationAttempts,
+    unscoredAttempts,
+    successRate,
+    consecutiveSuccesses,
+    totalResponseTimeMs,
+    averageResponseTimeMs,
+  } = aggregate;
 
   /* =======================================================
      4. DETERMINE SESSION MASTERY
@@ -1677,6 +1814,7 @@ const {
     .eq("id", sessionId)
     .eq("center_id", centerId)
     .eq("learner_id", learnerId)
+    .eq("status", "in_progress")
     .select("*")
     .single();
 
@@ -1793,17 +1931,11 @@ const {
   ) {
     try {
       banditOutcome =
-        await updateBanditOutcome({
+        await recordActivityBanditOutcome(
           centerId,
-
           learnerId,
-
-          activityId:
-            session.activity_id,
-
-          successful:
-            activityMastered,
-        });
+          sessionId,
+        );
     } catch (banditError) {
       /*
         The clinical/session record has already been saved.
@@ -1824,11 +1956,19 @@ const {
    8. EVALUATE LEARNER PROGRESSION
 ======================================================= */
 
-const progression =
-  await evaluateLearnerProgression({
+let progression = null;
+
+try {
+  progression = await evaluateLearnerProgression({
     centerId,
     learnerId,
   });
+} catch (progressionError) {
+  console.error(
+    "Session finished, but progression could not be evaluated:",
+    progressionError,
+  );
+}
 
   /* =======================================================
    9. REFRESH LEARNER TRANSACTIONAL PROFILE

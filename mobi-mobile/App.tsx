@@ -88,7 +88,6 @@ import LogInScreen from './src/screens/LogInScreen';
 
 // Child-Mode
 import ChildDashboardScreen from './src/screens/Child-Mode/ChildDashboardScreen';
-import ActivitySessionScreen from './src/screens/Child-Mode/ActivitySessionScreen';
 
 // Adult-Mode
 import AdultDashboardScreen from './src/screens/Adult-Mode/AdultDashboardScreen';
@@ -100,6 +99,13 @@ import LearnerProfileScreen from './src/screens/Adult-Mode/LearnerProfileScreen'
 import { RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function ActivitySessionRoute(props: any) {
+  const ActivitySessionScreen =
+    require('./src/screens/Child-Mode/ActivitySessionScreen').default;
+
+  return <ActivitySessionScreen {...props} />;
+}
 
 export default function App() {
   return (
@@ -124,7 +130,7 @@ export default function App() {
 
           <Stack.Screen
             name="ActivitySession"
-            component={ActivitySessionScreen}
+            component={ActivitySessionRoute}
           />
 
           <Stack.Screen

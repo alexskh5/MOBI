@@ -428,6 +428,8 @@ import CenterLayout from "../../../layouts/CenterLayout";
 
 import {
   getLearners,
+  getLearnerProfileSettings,
+  updateLearnerProfileSettings,
 } from "../../../services/learner/learnerApi";
 
 import type {
@@ -723,6 +725,44 @@ const Learner = () => {
     LearnerListItem | null
   >(null);
 
+  const [
+    showSettingsModal,
+    setShowSettingsModal,
+  ] = useState(false);
+
+  const [
+    settingsLoading,
+    setSettingsLoading,
+  ] = useState(false);
+
+  const [
+    settingsSaving,
+    setSettingsSaving,
+  ] = useState(false);
+
+  const [
+    settingsError,
+    setSettingsError,
+  ] = useState("");
+
+  const [
+    settingsForm,
+    setSettingsForm,
+  ] = useState({
+    dailyLimitMinutes: "90",
+    visualTheme: "default",
+    lowContrastEnabled: false,
+    softPastelEnabled: false,
+    matteUiEnabled: false,
+    reduceMotionEnabled: false,
+    namePromptingEnabled: true,
+    namePromptingFrequency: "as_needed",
+    attemptsWindow: "5",
+    requiredSuccessPercentage: "80",
+    requiredSuccessCount: "4",
+    breakSuggestionMinutes: "10",
+  });
+
   /* =======================================================
      SEARCH DEBOUNCE
   ======================================================= */
@@ -985,6 +1025,158 @@ const Learner = () => {
       setSelectedLearner(
         null,
       );
+    };
+
+  const openLearnerSettings =
+    async (learner: LearnerListItem) => {
+      setSelectedLearner(learner);
+      setShowSettingsModal(true);
+      setSettingsLoading(true);
+      setSettingsError("");
+
+      try {
+        const settings =
+          await getLearnerProfileSettings(
+            learner.id,
+          );
+
+        const adaptation =
+          settings.adaptationSettings ?? {};
+        const safety =
+          settings.childSafetySettings ?? {};
+        const preferences =
+          settings.sessionPreferences ?? {};
+
+        setSettingsForm({
+          dailyLimitMinutes: String(
+            Math.round(
+              Number(
+                safety.daily_screen_time_limit_seconds ??
+                  5400,
+              ) / 60,
+            ),
+          ),
+          visualTheme: String(
+            preferences.visual_theme ??
+              "default",
+          ),
+          lowContrastEnabled:
+            preferences.low_contrast_enabled === true,
+          softPastelEnabled:
+            preferences.soft_pastel_enabled === true,
+          matteUiEnabled:
+            preferences.matte_ui_enabled === true,
+          reduceMotionEnabled:
+            preferences.reduce_motion_enabled === true,
+          namePromptingEnabled:
+            preferences.name_prompting_enabled !== false,
+          namePromptingFrequency: String(
+            preferences.name_prompting_frequency ??
+              "as_needed",
+          ),
+          attemptsWindow: String(
+            adaptation.attempts_window ?? 5,
+          ),
+          requiredSuccessPercentage: String(
+            adaptation.required_success_percentage ??
+              80,
+          ),
+          requiredSuccessCount: String(
+            adaptation.required_success_count ??
+              4,
+          ),
+          breakSuggestionMinutes: String(
+            adaptation.break_suggestion_minutes ??
+              10,
+          ),
+        });
+      } catch (loadError) {
+        setSettingsError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load learner settings.",
+        );
+      } finally {
+        setSettingsLoading(false);
+      }
+    };
+
+  const closeLearnerSettings = () => {
+    setShowSettingsModal(false);
+    setSettingsError("");
+    setSelectedLearner(null);
+  };
+
+  const saveLearnerSettings =
+    async () => {
+      if (!selectedLearner) {
+        return;
+      }
+
+      setSettingsSaving(true);
+      setSettingsError("");
+
+      try {
+        const dailyLimitSeconds =
+          Number(settingsForm.dailyLimitMinutes) > 0
+            ? Math.round(
+                Number(settingsForm.dailyLimitMinutes) *
+                  60,
+              )
+            : null;
+
+        await updateLearnerProfileSettings(
+            selectedLearner.id,
+            {
+              childSafetySettings: {
+                dailyScreenTimeLimitSeconds:
+                  dailyLimitSeconds,
+              },
+              sessionPreferences: {
+                visual_theme:
+                  settingsForm.visualTheme,
+                low_contrast_enabled:
+                  settingsForm.lowContrastEnabled,
+                soft_pastel_enabled:
+                  settingsForm.softPastelEnabled,
+                matte_ui_enabled:
+                  settingsForm.matteUiEnabled,
+                reduce_motion_enabled:
+                  settingsForm.reduceMotionEnabled,
+                name_prompting_enabled:
+                  settingsForm.namePromptingEnabled,
+                name_prompting_frequency:
+                  settingsForm.namePromptingFrequency,
+              },
+              adaptationSettings: {
+                attempts_window: Number(
+                  settingsForm.attemptsWindow,
+                ),
+                required_success_percentage:
+                  Number(
+                    settingsForm
+                      .requiredSuccessPercentage,
+                  ),
+                required_success_count: Number(
+                  settingsForm.requiredSuccessCount,
+                ),
+                break_suggestion_minutes: Number(
+                  settingsForm.breakSuggestionMinutes,
+                ),
+              },
+            },
+          );
+
+        setShowSettingsModal(false);
+      } catch (saveError) {
+        setSettingsError(
+          saveError instanceof Error
+            ? saveError.message
+            : "Unable to save learner settings.",
+        );
+      } finally {
+        setSettingsSaving(false);
+      }
     };
 
   /* =======================================================
@@ -1429,6 +1621,26 @@ const Learner = () => {
 
                                   <button
                                     type="button"
+                                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                                    onClick={(
+                                      event,
+                                    ) => {
+                                      event.stopPropagation();
+
+                                      setOpenMenu(
+                                        null,
+                                      );
+
+                                      void openLearnerSettings(
+                                        learner,
+                                      );
+                                    }}
+                                  >
+                                    Learner Settings
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     className="block w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
                                     onClick={(
                                       event,
@@ -1597,6 +1809,242 @@ const Learner = () => {
 
               </div>
 
+            </div>
+          )}
+
+          {showSettingsModal && (
+            <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+              <div className="bg-[#F8F2F8] rounded-3xl p-7 w-[760px] max-h-[88vh] overflow-y-auto shadow-xl">
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <div>
+                    <h2 className="text-2xl font-semibold">
+                      Learner Settings
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      {selectedLearner?.firstName} {selectedLearner?.lastName}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={closeLearnerSettings}
+                    className="h-9 w-9 rounded-full bg-white"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {settingsLoading ? (
+                  <p className="text-sm text-gray-600">
+                    Loading settings...
+                  </p>
+                ) : (
+                  <div className="space-y-5">
+                    {settingsError && (
+                      <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {settingsError}
+                      </div>
+                    )}
+
+                    <section className="rounded-2xl bg-white p-5">
+                      <h3 className="font-semibold mb-3">
+                        Sensory-friendly session display
+                      </h3>
+
+                      <label className="block text-sm font-medium mb-2">
+                        Visual theme
+                      </label>
+                      <select
+                        value={settingsForm.visualTheme}
+                        onChange={(event) =>
+                          setSettingsForm((current) => ({
+                            ...current,
+                            visualTheme: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2 mb-4"
+                      >
+                        <option value="default">Default</option>
+                        <option value="sensory_friendly">Sensory friendly</option>
+                        <option value="low_contrast">Low contrast</option>
+                      </select>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        {[
+                          ["lowContrastEnabled", "Low contrast"],
+                          ["softPastelEnabled", "Soft pastel colors"],
+                          ["matteUiEnabled", "Matte, less shiny UI"],
+                          ["reduceMotionEnabled", "Reduce motion"],
+                        ].map(([key, label]) => (
+                          <label key={key} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(
+                                settingsForm[
+                                  key as keyof typeof settingsForm
+                                ],
+                              )}
+                              onChange={(event) =>
+                                setSettingsForm((current) => ({
+                                  ...current,
+                                  [key]: event.target.checked,
+                                }))
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl bg-white p-5">
+                      <h3 className="font-semibold mb-3">
+                        Adaptive thresholds
+                      </h3>
+
+                      <div className="grid grid-cols-4 gap-3">
+                        <label className="text-sm">
+                          Attempts window
+                          <input
+                            type="number"
+                            value={settingsForm.attemptsWindow}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                attemptsWindow: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2"
+                          />
+                        </label>
+
+                        <label className="text-sm">
+                          Required correct
+                          <input
+                            type="number"
+                            value={settingsForm.requiredSuccessCount}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                requiredSuccessCount: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2"
+                          />
+                        </label>
+
+                        <label className="text-sm">
+                          Success %
+                          <input
+                            type="number"
+                            value={settingsForm.requiredSuccessPercentage}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                requiredSuccessPercentage:
+                                  event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2"
+                          />
+                        </label>
+
+                        <label className="text-sm">
+                          Break minutes
+                          <input
+                            type="number"
+                            value={settingsForm.breakSuggestionMinutes}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                breakSuggestionMinutes:
+                                  event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2"
+                          />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl bg-white p-5">
+                      <h3 className="font-semibold mb-3">
+                        Session prompting and daily limit
+                      </h3>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <label className="text-sm">
+                          Daily limit minutes
+                          <input
+                            type="number"
+                            value={settingsForm.dailyLimitMinutes}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                dailyLimitMinutes: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2"
+                          />
+                        </label>
+
+                        <label className="text-sm">
+                          Name prompting
+                          <select
+                            value={settingsForm.namePromptingFrequency}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                namePromptingFrequency:
+                                  event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2"
+                          >
+                            <option value="never">Never</option>
+                            <option value="start_only">Start only</option>
+                            <option value="as_needed">As needed</option>
+                            <option value="frequent">Frequent</option>
+                          </select>
+                        </label>
+
+                        <label className="flex items-center gap-2 text-sm mt-6">
+                          <input
+                            type="checkbox"
+                            checked={settingsForm.namePromptingEnabled}
+                            onChange={(event) =>
+                              setSettingsForm((current) => ({
+                                ...current,
+                                namePromptingEnabled:
+                                  event.target.checked,
+                              }))
+                            }
+                          />
+                          Allow child name prompts
+                        </label>
+                      </div>
+                    </section>
+
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={closeLearnerSettings}
+                        className="px-5 py-2 rounded-xl bg-white border border-gray-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveLearnerSettings}
+                        disabled={settingsSaving}
+                        className="px-5 py-2 rounded-xl bg-[#B48BC7] text-white disabled:opacity-60"
+                      >
+                        {settingsSaving ? "Saving..." : "Save Settings"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

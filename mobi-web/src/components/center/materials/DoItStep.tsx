@@ -351,19 +351,32 @@ type DoItStepData = {
   instruction: string;
   materials_needed: string[];
   ai_voice_style: string,
+  media_file?: File | null;
+  prompt_audio_file?: File | null;
 };
 
 type DoItStepProps = {
   stepKey: string;
+  initialData?: Partial<DoItStepData>;
   onChange: (stepKey: string, data: DoItStepData) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 };
 
-function DoItStep({ stepKey, onChange }: DoItStepProps) {
+function DoItStep({
+  stepKey,
+  initialData,
+  onChange,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: DoItStepProps) {
   const [showVoiceModal, setShowVoiceModal] =
     useState(false);
 
   const [voiceStyle, setVoiceStyle] =
-    useState("Teaching");
+    useState(initialData?.ai_voice_style || "Teaching");
 
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
@@ -371,17 +384,20 @@ function DoItStep({ stepKey, onChange }: DoItStepProps) {
   const [previewUrl, setPreviewUrl] =
     useState<string | null>(null);
 
+  const [promptAudioFile, setPromptAudioFile] =
+    useState<File | null>(null);
+
   const textareaRef =
     useRef<HTMLTextAreaElement>(null);
 
   const [instruction, setInstruction] =
-    useState("");
+    useState(initialData?.instruction || "");
 
   const [materialInput, setMaterialInput] =
     useState("");
 
   const [materials, setMaterials] =
-    useState<string[]>([]);
+    useState<string[]>(initialData?.materials_needed || []);
 
     // for tts
     const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
@@ -389,12 +405,16 @@ function DoItStep({ stepKey, onChange }: DoItStepProps) {
   const updateParent = (
     nextInstruction = instruction,
     nextMaterials = materials,
-    nextVoiceStyle = voiceStyle
+    nextVoiceStyle = voiceStyle,
+    nextMediaFile = selectedFile,
+    nextPromptAudioFile = promptAudioFile
   ) => {
     onChange(stepKey, {
       instruction: nextInstruction,
       materials_needed: nextMaterials,
       ai_voice_style: nextVoiceStyle,
+      media_file: nextMediaFile,
+      prompt_audio_file: nextPromptAudioFile,
     });
   };
 
@@ -436,11 +456,21 @@ function DoItStep({ stepKey, onChange }: DoItStepProps) {
 
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+    updateParent(instruction, materials, voiceStyle, file);
   };
 
   const handleRemoveMedia = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
+    updateParent(instruction, materials, voiceStyle, null);
+  };
+
+  const handlePromptAudioUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    setPromptAudioFile(file);
+    updateParent(instruction, materials, voiceStyle, selectedFile, file);
   };
 
   const handleInstructionChange = (
@@ -516,9 +546,9 @@ function DoItStep({ stepKey, onChange }: DoItStepProps) {
 
             {/* MENU */}
             <StepMenu
-              onMoveUp={() => console.log("Move Up")}
-              onMoveDown={() => console.log("Move Down")}
-              onDelete={() => console.log("Delete Step")}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onDelete={onDelete}
             />
 
           </div>
@@ -651,6 +681,24 @@ function DoItStep({ stepKey, onChange }: DoItStepProps) {
               </button>
 
             </div>
+
+            <label className="mt-3 block text-sm font-medium">
+              Recorded voice for this prompt (Optional)
+            </label>
+
+            <input
+              type="file"
+              accept="audio/*"
+              capture
+              onChange={handlePromptAudioUpload}
+              className="mt-2 w-full border border-gray-300 bg-white p-2 text-sm"
+            />
+
+            {promptAudioFile && (
+              <p className="mt-2 text-sm text-[#5B4B8A]">
+                Using recorded voice: {promptAudioFile.name}
+              </p>
+            )}
 
           </div>
 

@@ -16,6 +16,9 @@ import {
 import {
   getLearnerList,
 } from "../services/learner/learnerListService";
+import {
+  getAuthUserFromAccessToken,
+} from "../services/authService";
 /* =========================================================
    ENROLL LEARNER CONTROLLER
 ========================================================= */
@@ -282,13 +285,37 @@ export const getLearners = async (
        1. CENTER ID
     ===================================================== */
 
-    /*
-      TEMPORARY:
+    const authHeader =
+      req.header("authorization") ?? "";
 
-      Later this will come from authentication.
-    */
+    const accessToken =
+      authHeader.toLowerCase().startsWith("bearer ")
+        ? authHeader.slice(7).trim()
+        : "";
+
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Please log in before viewing learners.",
+      });
+    }
+
+    const authUser =
+      await getAuthUserFromAccessToken(
+        accessToken,
+      );
+
+    if (!authUser.centerId) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "This account is not connected to a center.",
+      });
+    }
+
     const CENTER_ID =
-      "d5ae1649-0343-46d4-b433-575c97e064e1";
+      authUser.centerId;
 
     /* =====================================================
        2. QUERY PARAMETERS
@@ -376,6 +403,12 @@ export const getLearners = async (
           sortBy,
 
           sortOrder,
+
+          actorId:
+            authUser.actorId,
+
+          actorRole:
+            authUser.role,
         },
       );
 

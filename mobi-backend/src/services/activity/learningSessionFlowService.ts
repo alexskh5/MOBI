@@ -1,5 +1,7 @@
 // mobi-backend/src/services/activity/learningSessionFlowService.ts
 
+import { supabase } from "../../config/supabase";
+
 import {
   finishActivitySession,
 } from "./activitySessionService";
@@ -13,8 +15,8 @@ import {
 } from "./activitySelectionService";
 
 import {
-  endLearningSession,
-} from "./learningSessionService";
+  savePendingActivityRecommendation,
+} from "./activityRecommendationService";
 
 
 export async function continueLearningSession(
@@ -27,6 +29,36 @@ export async function continueLearningSession(
     learningSessionId,
     ...finishInput
   } = input;
+
+  const {
+    data: sessionLink,
+    error: sessionLinkError,
+  } = await supabase
+    .from("learner_activity_sessions")
+    .select(`
+      id,
+      learning_session_id,
+      learning_session:learner_learning_sessions!inner(
+        id,
+        status
+      )
+    `)
+    .eq("id", finishInput.sessionId)
+    .eq("learning_session_id", learningSessionId)
+    .eq("center_id", finishInput.centerId)
+    .eq("learner_id", finishInput.learnerId)
+    .eq("learning_session.status", "in_progress")
+    .maybeSingle();
+
+  if (sessionLinkError) {
+    throw sessionLinkError;
+  }
+
+  if (!sessionLink) {
+    throw new Error(
+      "The activity session does not belong to this active learning session.",
+    );
+  }
 
   /* =======================================================
      1. FINISH CURRENT ACTIVITY SESSION
@@ -105,6 +137,16 @@ export async function continueLearningSession(
     };
   }
 
+  const recommendation =
+    await savePendingActivityRecommendation({
+      learningSessionId,
+      centerId: finishInput.centerId,
+      learnerId: finishInput.learnerId,
+      selection: nextActivity,
+    });
+  const breakRecommended =
+    nextActivity.selectionReason.breakRecommended === true;
+
   /* =======================================================
      5. RETURN RECOMMENDATION
 
@@ -124,13 +166,23 @@ export async function continueLearningSession(
 
     nextActivity,
 
+    recommendation: {
+      id: recommendation.id,
+      activityId: recommendation.activity_id,
+      expiresAt: recommendation.expires_at,
+    },
+
     shouldContinue:
       true,
+
+    breakRecommended,
 
     requiresAdultConfirmation:
       true,
 
     reason:
-      "A next activity recommendation is available.",
+      breakRecommended
+        ? "A break is recommended before the next activity. The adult may continue when the learner is ready."
+        : "A next activity recommendation is available.",
   };
 }

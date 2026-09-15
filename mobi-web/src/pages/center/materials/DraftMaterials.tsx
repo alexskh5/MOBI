@@ -1,53 +1,92 @@
 // MOBI/mobi-web/src/pages/center/materials/DraftMaterials.tsx
 
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import CenterLayout from "../../../layouts/CenterLayout";
 
+const ACTIVITY_DRAFT_STORAGE_KEY = "mobi-center-activity-drafts-v1";
+
+type ActivityDraft = {
+  id: string;
+  title: string;
+  description: string;
+  selectedTemplate: string;
+  thumbnail: string | null;
+  updatedAt: string;
+  builderSteps: {
+    id: string;
+    type: string;
+  }[];
+  stepData: Record<string, any>;
+};
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500";
+
+function readDrafts(): ActivityDraft[] {
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(ACTIVITY_DRAFT_STORAGE_KEY) || "[]",
+    );
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatLastEdited(updatedAt: string) {
+  const date = new Date(updatedAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Recently";
+  }
+
+  return date.toLocaleString();
+}
+
 const DraftMaterials = () => {
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<ActivityDraft[]>([]);
 
-  const drafts = [
-    {
-      id: 1,
-      title: "Saying Hello: Social Story",
-      description:
-        "Guide using first-person language to help children practice making eye contact and offering a friendly wave.",
-      image:
-        "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500",
-      type: "Story",
-      lastEdited: "2 hours ago",
-    },
-    {
-      id: 2,
-      title: "Brushing Teeth Routine",
-      description:
-        "Teach brushing teeth through simple visual steps.",
-      image:
-        "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=500",
-      type: "Life Skills",
-      lastEdited: "Yesterday",
-    },
-    {
-      id: 3,
-      title: "Learning Colors",
-      description:
-        "Identify primary colors through picture matching.",
-      image:
-        "https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=500",
-      type: "Teach & Practice",
-      lastEdited: "3 days ago",
-    },
-  ];
+  useEffect(() => {
+    setDrafts(readDrafts());
+  }, []);
+
+  const continueDraft = (draft: ActivityDraft) => {
+    navigate("/center/materials/CreateActivity", {
+      state: {
+        mode: "draft",
+        draftId: draft.id,
+        draftData: draft,
+      },
+    });
+  };
+
+  const deleteDraft = (draftId: string) => {
+    const confirmDelete = window.confirm(
+      "Delete this draft? Published activities are protected, but drafts can still be removed.",
+    );
+
+    if (!confirmDelete) return;
+
+    const nextDrafts = drafts.filter((draft) => draft.id !== draftId);
+
+    localStorage.setItem(
+      ACTIVITY_DRAFT_STORAGE_KEY,
+      JSON.stringify(nextDrafts),
+    );
+
+    setDrafts(nextDrafts);
+    setOpenMenu(null);
+  };
 
   return (
     <CenterLayout>
       {(sidebarOpen, setSidebarOpen) => (
         <div className="inter bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 flex flex-col">
-          {/* Header */}
           <div className="flex justify-between items-center mb-8">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
@@ -83,124 +122,108 @@ const DraftMaterials = () => {
             </button>
           </div>
 
-          {/* Draft Cards */}
-          <div className="grid grid-cols-4 gap-4">
-            {drafts.map((draft) => (
-              <div
-                key={draft.id}
-                onClick={() =>
-                  navigate("/center/materials/CreateActivity", {
-                    state: {
-                      mode: "draft",
-                      draftId: draft.id,
-                      draftData: draft,
-                    },
-                  })
-                }
-                className="
-                  bg-white
-                  rounded-3xl
-                  shadow-md
-                  overflow-hidden
-                  cursor-pointer
-                  hover:shadow-lg
-                  transition
-                  h-96
-                  flex
-                  flex-col
-                "
-              >
-                <img
-                  src={draft.image}
-                  alt={draft.title}
-                  className="w-full h-48 object-cover shrink-0"
-                />
+          {drafts.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center rounded-[24px] bg-white/70 p-8 text-center">
+              <div>
+                <h2 className="itim text-4xl text-[#1F1D28]">
+                  No saved drafts yet
+                </h2>
 
-                <div className="p-4 flex flex-col flex-1">
-                  <h3 className="font-bold text-lg leading-tight mb-2">
-                    {draft.title}
-                  </h3>
+                <p className="mt-2 text-gray-600">
+                  Drafts you save from the activity builder will appear here.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-4">
+              {drafts.map((draft) => (
+                <div
+                  key={draft.id}
+                  onClick={() => continueDraft(draft)}
+                  className="
+                    bg-white
+                    rounded-3xl
+                    shadow-md
+                    overflow-hidden
+                    cursor-pointer
+                    hover:shadow-lg
+                    transition
+                    h-96
+                    flex
+                    flex-col
+                  "
+                >
+                  <img
+                    src={draft.thumbnail || fallbackImage}
+                    alt={draft.title}
+                    className="w-full h-48 object-cover shrink-0"
+                  />
 
-                  <p className="text-sm text-gray-600 line-clamp-2 min-h-10 mt-2">
-                    {draft.description}
-                  </p>
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="font-bold text-lg leading-tight mb-2">
+                      {draft.title || "Untitled Activity Draft"}
+                    </h3>
 
-                  <div className="mt-auto">
-                    <p className="text-xs text-gray-500 mb-2">
-                      Type: {draft.type}
+                    <p className="text-sm text-gray-600 line-clamp-2 min-h-10 mt-2">
+                      {draft.description || "No description yet."}
                     </p>
 
-                    <p className="text-xs font-semibold">
-                      Draft
-                    </p>
+                    <div className="mt-auto">
+                      <p className="text-xs text-gray-500 mb-2">
+                        Type: {draft.selectedTemplate}
+                      </p>
 
-                    <p className="text-xs text-gray-500 mt-2">
-                      Last edited: {draft.lastEdited}
-                    </p>
+                      <p className="text-xs font-semibold">
+                        Draft
+                      </p>
 
-                    <div className="flex justify-end relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenu(
-                            openMenu === draft.id ? null : draft.id
-                          );
-                        }}
-                        className="text-2xl text-gray-500 hover:text-gray-700"
-                      >
-                        ⋯
-                      </button>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Last edited: {formatLastEdited(draft.updatedAt)}
+                      </p>
 
-                      {openMenu === draft.id && (
-                        <div className="absolute right-0 bottom-8 w-40 bg-white rounded-xl shadow-lg py-2 z-50">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                      <div className="flex justify-end relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenu(
+                              openMenu === draft.id ? null : draft.id,
+                            );
+                          }}
+                          className="text-2xl text-gray-500 hover:text-gray-700"
+                        >
+                          ⋯
+                        </button>
 
-                              navigate("/center/materials/CreateActivity", {
-                                state: {
-                                  mode: "draft",
-                                  draftId: draft.id,
-                                  draftData: draft,
-                                },
-                              });
+                        {openMenu === draft.id && (
+                          <div className="absolute right-0 bottom-8 w-40 bg-white rounded-xl shadow-lg py-2 z-50">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                continueDraft(draft);
+                              }}
+                              className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                            >
+                              Continue Draft
+                            </button>
 
-                              setOpenMenu(null);
-                            }}
-                            className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                          >
-                            Continue Edit
-                          </button>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-
-                              const confirmDelete = window.confirm(
-                                "Are you sure you want to delete this draft?"
-                              );
-
-                              if (!confirmDelete) return;
-
-                              // TODO:
-                              // Delete Draft
-                              // Backend later:
-                              // await deleteDraftActivity(draft.id)
-
-                              setOpenMenu(null);
-                            }}
-                            className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
-                          >
-                            Delete Draft
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteDraft(draft.id);
+                              }}
+                              className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+                            >
+                              Delete Draft
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </CenterLayout>

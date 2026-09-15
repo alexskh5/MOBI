@@ -63,6 +63,10 @@ export function determineAttemptOutcome(
     hasDefinedTarget,
   } = input;
 
+  if (!communication.evaluationReliable) {
+    return "not_evaluable";
+  }
+
   /* =======================================================
      1. NO COMMUNICATION
   ======================================================= */

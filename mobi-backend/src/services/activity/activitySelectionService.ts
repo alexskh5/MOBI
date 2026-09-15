@@ -96,10 +96,6 @@ export async function selectNextActivity(
      1. VERIFY LEARNER
   ======================================================= */
 
-  console.log("========== SELECT NEXT ==========");
-console.log("centerId:", centerId);
-console.log("learnerId:", learnerId);
-
   const {
     data: learner,
     error: learnerError,
@@ -119,9 +115,6 @@ console.log("learnerId:", learnerId);
       centerId,
     )
     .single();
-
-console.log("learner:", learner);
-console.log("learnerError:", learnerError);
 
   if (
     learnerError ||
@@ -174,52 +167,29 @@ console.log("learnerError:", learnerError);
       ],
     );
 
-  if (
-    assignments.length > 0
-  ) {
-    const assignment =
-      assignments[0];
+  const highestPriorityAssignment =
+    assignments.find((assignment) => assignment.activity?.id) ?? null;
 
-    const activity =
-      assignment.activity;
+  if (highestPriorityAssignment) {
+    const activity = highestPriorityAssignment.activity!;
+    const source: ActivitySelectionSource =
+      highestPriorityAssignment.assignment_type === "required"
+        ? "assigned_required"
+        : "assigned_recommended";
 
-    if (activity?.id) {
-      const source:
-        ActivitySelectionSource =
-          assignment.assignment_type ===
-          "required"
-            ? "assigned_required"
-            : "assigned_recommended";
-
-      return {
-        activityId:
-          activity.id,
-
-        assignmentId:
-          assignment.id,
-
-        source,
-
-        selectionAlgorithm:
-          "assigned_priority",
-
-        selectionReason: {
-          reason:
-            "The learner has an unfinished assigned activity.",
-
-          assignmentType:
-            assignment.assignment_type,
-
-          priority:
-            assignment.priority,
-
-          assignmentStatus:
-            assignment.status,
-        },
-
-        activity,
-      };
-    }
+    return {
+      activityId: activity.id,
+      assignmentId: highestPriorityAssignment.id,
+      source,
+      selectionAlgorithm: "assigned_priority",
+      selectionReason: {
+        reason: "The learner has an unfinished assigned activity.",
+        assignmentType: highestPriorityAssignment.assignment_type,
+        priority: highestPriorityAssignment.priority,
+        assignmentStatus: highestPriorityAssignment.status,
+      },
+      activity,
+    };
   }
 
   /* =======================================================
@@ -285,7 +255,8 @@ console.log("learnerError:", learnerError);
     .select(`
       gaze_away_threshold_seconds,
       slow_response_threshold_seconds,
-      declining_success_window
+      declining_success_window,
+      break_suggestion_minutes
     `)
     .eq(
       "learner_id",
@@ -328,7 +299,14 @@ console.log("learnerError:", learnerError);
       average_response_time_ms,
       correct_attempts,
       incorrect_attempts,
-      total_scored_attempts
+      total_scored_attempts,
+      learner_activity_attempts (
+        attempt_order,
+        should_score,
+        is_correct,
+        response_time_ms,
+        was_skipped
+      )
     `)
     .eq(
       "learner_id",
@@ -369,40 +347,27 @@ console.log("learnerError:", learnerError);
     Later, mobile/session integration can provide more
     detailed real-time attempt evidence.
   */
-  const recentAttempts =
-    recentSessionRows.map(
-      (session) => {
-        const scoredCount =
-          Number(
-            session.total_scored_attempts ??
-              0,
-          );
-
-        const incorrectCount =
-          Number(
-            session.incorrect_attempts ??
-              0,
-          );
-
-        return {
-          shouldScore:
-            scoredCount > 0,
-
+  const recentAttempts = [...recentSessionRows]
+    .reverse()
+    .flatMap((session) =>
+      [...(session.learner_activity_attempts ?? [])]
+        .sort(
+          (a, b) =>
+            Number(a.attempt_order ?? 0) -
+            Number(b.attempt_order ?? 0),
+        )
+        .map((attempt) => ({
+          shouldScore: attempt.should_score === true,
           isCorrect:
-            scoredCount > 0
-              ? incorrectCount === 0
+            typeof attempt.is_correct === "boolean"
+              ? attempt.is_correct
               : null,
-
           responseTimeMs:
-            typeof session.average_response_time_ms ===
-              "number"
-              ? session.average_response_time_ms
+            typeof attempt.response_time_ms === "number"
+              ? attempt.response_time_ms
               : null,
-
-          wasSkipped:
-            false,
-        };
-      },
+          wasSkipped: attempt.was_skipped === true,
+        })),
     );
 
   const latestSession =
@@ -445,6 +410,13 @@ console.log("learnerError:", learnerError);
         ?.slow_response_threshold_seconds ??
         15,
     ),
+
+    inactivityThresholdSeconds:
+      Number(
+        learnerAdaptationSettings
+          ?.break_suggestion_minutes ??
+          2,
+      ) * 60,
 
     decliningSuccessWindow:
     Number(
@@ -704,13 +676,6 @@ const learnerPreferences =
       adaptationPolicy,
     );
 
-  /*
-    Keep activities that have at least some adaptation fit.
-
-    Because the scoring system is preference-based rather
-    than a hard safety filter, we fall back to the entire
-    scored pool if no activity receives a positive score.
-  */
 const adaptationEligibleActivities =
   adaptationPolicy
     .minimumNormalizedScore ===
@@ -725,10 +690,11 @@ const adaptationEligibleActivities =
       );
 
   const finalEligibleActivities =
-    adaptationEligibleActivities.length >
-    0
-      ? adaptationEligibleActivities
-      : scoredActivities;
+    adaptationEligibleActivities;
+
+  if (finalEligibleActivities.length === 0) {
+    return null;
+  }
 
 /* =======================================================
    SCORE ADAPTATION-ELIGIBLE ACTIVITIES FOR
@@ -808,6 +774,11 @@ let selectedThompsonSample =
 let selectedPreferenceScore =
   0;
 
+  const configuredThompsonWeight = 0.75;
+  const thompsonWeight = Number.isFinite(configuredThompsonWeight)
+    ? Math.min(1, Math.max(0.5, configuredThompsonWeight))
+    : 0.75;
+
   const candidateSamples: Array<{
     activityId: string;
     alpha: number;
@@ -830,12 +801,26 @@ let selectedPreferenceScore =
       Existing combinations reuse what MOBI has learned from
       that learner's previous completed sessions.
     */
-    const banditState =
-      await getOrCreateBanditState(
+    let banditState;
+
+    try {
+      banditState =
+        await getOrCreateBanditState(
         centerId,
         learnerId,
         activity.id,
       );
+    } catch (error) {
+      console.warn(
+        "Using neutral bandit state during activity selection:",
+        error,
+      );
+
+      banditState = {
+        alpha: 1,
+        beta: 1,
+      };
+    }
 
     const sampledScore =
       sampleThompsonScore(
@@ -860,8 +845,8 @@ let selectedPreferenceScore =
     0.5;
 
     const finalSelectionScore =
-    sampledScore * 0.75 +
-    normalizedPreferenceScore * 0.25;
+      sampledScore * thompsonWeight +
+      normalizedPreferenceScore * (1 - thompsonWeight);
 
     candidateSamples.push({
   activityId:
@@ -958,6 +943,9 @@ let selectedPreferenceScore =
   adaptationPolicyReasons:
     adaptationPolicy.reasons,
 
+  breakRecommended:
+    adaptationPolicy.suggestBreak,
+
   minimumAdaptationScore:
     adaptationPolicy.minimumNormalizedScore,
 
@@ -969,11 +957,8 @@ let selectedPreferenceScore =
     highestFinalScore,
 
     selectionWeights: {
-    thompson:
-        0.75,
-
-    learnerPreference:
-        0.25,
+      thompson: thompsonWeight,
+      learnerPreference: 1 - thompsonWeight,
     },
 
   /*

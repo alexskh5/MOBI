@@ -63,6 +63,8 @@ export async function createActivityWithSteps(payload: any) {
         lesson: step.lesson || null,
         question: step.question || null,
         media: step.media || [],
+        prompt_audio_url: step.prompt_audio_url || null,
+        feedback_audio_urls: step.feedback_audio_urls || null,
         choices: step.choices || [],
         topics: step.topics || [],
         materials_needed: step.materials_needed || [],
@@ -178,4 +180,23 @@ export async function getActivityById(id: string) {
     steps: sortedSteps,
     activity_steps: sortedSteps,
   };
+}
+
+export async function archiveActivityById(
+  id: string,
+  centerId: string,
+) {
+  const { data, error } = await supabase
+    .from("activities")
+    .update({
+      archived_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("center_id", centerId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
 }

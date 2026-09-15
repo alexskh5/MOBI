@@ -17,6 +17,18 @@ Never sound robotic.
 Suitable for young autistic children learning speech.
 `,
 
+  Storytelling: `
+Tell the text like a gentle child-friendly story.
+
+Use a warm bedtime-story pace.
+
+Add natural pauses between story moments.
+
+Keep the voice expressive but never loud or overstimulating.
+
+Make the child feel safe, curious, and included.
+`,
+
   Curious: `
 Sound naturally curious.
 
@@ -35,6 +47,30 @@ Sound like a trusted helper.
 Smile through your voice.
 
 Keep the child engaged without overstimulation.
+`,
+
+  Cheerful: `
+Sound bright and positive.
+
+Keep the energy controlled.
+
+Never shout or become overstimulating.
+`,
+
+  Calm: `
+Speak slowly and evenly.
+
+Use a soothing tone.
+
+Keep the pacing predictable.
+`,
+
+  Gentle: `
+Speak softly and reassuringly.
+
+Use warm pauses.
+
+Make the learner feel safe.
 `,
 
   Conversational: `
@@ -75,6 +111,48 @@ Never sound disappointed.
 Normalize mistakes.
 
 Invite another attempt.
+`,
+
+  Patient: `
+Speak with extra patience.
+
+Leave comfortable pauses.
+
+Never sound rushed or frustrated.
+`,
+
+  Neutral: `
+Speak clearly and simply.
+
+Avoid extra emotion.
+
+Keep the direction easy to understand.
+`,
+
+  Proud: `
+Sound warmly proud of the learner.
+
+Celebrate effort without becoming too loud.
+`,
+
+  Motivating: `
+Encourage the learner to keep trying.
+
+Stay positive, calm, and supportive.
+`,
+
+  "Warm Praise": `
+Give praise warmly.
+
+Sound sincere and soft.
+
+Avoid loud excitement.
+`,
+
+  Supportive: `
+Support the learner through the moment.
+
+Sound safe, steady, and kind.
 `,
 
   Reassuring: `

@@ -18,6 +18,7 @@ import {
   Gauge,
   UserRound,
 } from "lucide-react";
+import { previewTTS } from "../../../services/activityApi";
 
 interface VoiceStyleModalProps {
   isOpen: boolean;
@@ -38,14 +39,18 @@ function VoiceStyleModal({
   onSelectStyle,
   stepType,
 }: VoiceStyleModalProps) {
-  if (!isOpen) return null;
-
   const voiceStyles = {
     teach: [
       {
         title: "Teaching",
         description:
           "Clear, patient, and instructional. Ideal for introducing new concepts.",
+        icon: BookOpen,
+      },
+      {
+        title: "Storytelling",
+        description:
+          "Warm, expressive narration for child-friendly story activities.",
         icon: BookOpen,
       },
       {
@@ -180,6 +185,42 @@ function VoiceStyleModal({
 
   const [showSpeedMenu, setShowSpeedMenu] =
     useState(false);
+
+  const [isPreviewing, setIsPreviewing] =
+    useState(false);
+
+  const handlePreviewVoice = async () => {
+    const voiceName =
+      voice === "Boy" ? "Puck" : "Kore";
+
+    const speedValue =
+      speed === "Slow" ? 0.82 : speed === "Fast" ? 1.15 : 1;
+
+    try {
+      setIsPreviewing(true);
+
+      await previewTTS({
+        text:
+          selected.title === "Storytelling"
+            ? "Once upon a time, MOBI helped a friend try something new."
+            : "Hello, I am MOBI. Let's try this together.",
+        voice: voiceName,
+        speed: speedValue,
+        style: selected.title,
+        emotion:
+          selected.title === "Storytelling"
+            ? "Warm"
+            : selected.title,
+      });
+    } catch (error) {
+      console.error(error);
+      alert("Failed to preview voice.");
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div className="inter fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -482,12 +523,14 @@ function VoiceStyleModal({
 
             <button
               type="button"
+              disabled={isPreviewing}
+              onClick={handlePreviewVoice}
               className="flex items-center gap-2 rounded-xl border border-[#D58CE5] px-5 py-3 text-[#B25AC7] hover:bg-[#F8EFFA] transition"
             >
               <Play size={18} />
 
               <span className="font-medium">
-                Preview Voice
+                {isPreviewing ? "Generating..." : "Preview Voice"}
               </span>
             </button>
 

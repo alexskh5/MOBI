@@ -3,14 +3,20 @@
 import { Router } from "express";
 
 import {
+  requireCenterContext,
+} from "../middleware/centerContext";
+
+import {
   startSession,
-//   endSession,
+  endSession,
   startNextLearningActivity,
 } from "../controllers/learningSessionController";
 
 
 
 const router = Router();
+
+router.use(requireCenterContext);
 
 /* =========================================================
    START LEARNING SESSION
@@ -26,6 +32,11 @@ router.post(
   startNextLearningActivity,
 );
 
+
+router.post(
+  "/end",
+  endSession,
+);
 
 // router.post(
 //   "/:learningSessionId/end",

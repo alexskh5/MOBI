@@ -1,6 +1,6 @@
 // src/screens/Adult-Mode/SettingsScreen.tsx
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,21 @@ import {
   Image,
   Modal,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../types';
+import {
+  getLearnerProfileSettings,
+  updateLearnerProfileSettings,
+} from '../../services/api';
 
 const bgImage = require('../../../assets/images/background.jpg');
 const mobiLogo = require('../../../assets/images/mobi_logo.png');
+const TEST_LEARNER_ID =
+  '6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc';
 
 type SettingsTab = 'time' | 'pin';
 
@@ -38,6 +45,49 @@ export default function SettingsScreen() {
   const [showSavedModal, setShowSavedModal] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSettings() {
+      try {
+        const settings =
+          await getLearnerProfileSettings(
+            TEST_LEARNER_ID,
+          );
+
+        const seconds =
+          settings.childSafetySettings
+            ?.daily_screen_time_limit_seconds;
+
+        if (
+          mounted &&
+          typeof seconds === 'number' &&
+          Number.isFinite(seconds)
+        ) {
+          const hours = Math.floor(seconds / 3600);
+          const minutes = Math.round(
+            (seconds % 3600) / 60,
+          );
+
+          setDailyLimit(
+            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+          );
+        }
+      } catch (error) {
+        console.log(
+          'Failed to load learner settings:',
+          error,
+        );
+      }
+    }
+
+    loadSettings();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const goToChildDashboard = () => {
     navigation.dispatch(
       CommonActions.reset({
@@ -56,9 +106,48 @@ export default function SettingsScreen() {
     setShowSavedModal(true);
   };
 
-  const handleSaveTime = () => {
-    setEditingTime(false);
-    showSavedConfirmation('Daily limit updated successfully.');
+  const handleSaveTime = async () => {
+    const [hoursText, minutesText = '0'] =
+      dailyLimit.split(':');
+    const hours = Number(hoursText);
+    const minutes = Number(minutesText);
+
+    if (
+      !Number.isFinite(hours) ||
+      !Number.isFinite(minutes) ||
+      hours < 0 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      Alert.alert(
+        'Invalid Time',
+        'Use the format HH:MM, for example 01:30.',
+      );
+      return;
+    }
+
+    const totalSeconds =
+      Math.round((hours * 60 + minutes) * 60);
+
+    try {
+      await updateLearnerProfileSettings({
+        learnerId: TEST_LEARNER_ID,
+        childSafetySettings: {
+          dailyScreenTimeLimitSeconds:
+            totalSeconds > 0 ? totalSeconds : null,
+        },
+      });
+
+      setEditingTime(false);
+      showSavedConfirmation('Daily limit updated successfully.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to Save',
+        error instanceof Error
+          ? error.message
+          : 'Please try again.',
+      );
+    }
   };
 
   const handleSavePin = () => {
@@ -202,7 +291,7 @@ export default function SettingsScreen() {
               <View style={styles.infoNotice}>
                 <Ionicons name="information-circle-outline" size={16} color="#B48BC7" />
                 <Text style={styles.infoNoticeText}>
-                  This value will later connect to backend screen-time tracking and daily usage logs.
+                  This value is saved to the learner profile and used by MOBI session limits.
                 </Text>
               </View>
 

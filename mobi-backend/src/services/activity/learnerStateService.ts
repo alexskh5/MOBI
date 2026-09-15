@@ -84,6 +84,8 @@ export interface EvaluateLearnerStateInput {
 
   slowResponseThresholdSeconds?: number;
 
+  inactivityThresholdSeconds?: number;
+
   decliningSuccessWindow?: number;
 }
 
@@ -158,6 +160,12 @@ export function evaluateLearnerState(
       input.decliningSuccessWindow ??
       3,
     );
+
+  const inactivityThresholdSeconds = Math.max(
+    1,
+    input.inactivityThresholdSeconds ??
+      slowResponseThresholdSeconds,
+  );
 
   /* =======================================================
      1. RECENT ATTEMPT EVIDENCE
@@ -304,7 +312,7 @@ export function evaluateLearnerState(
 
   const inactivityExceeded =
     inactivitySeconds >=
-      slowResponseThresholdSeconds;
+      inactivityThresholdSeconds;
 
   if (
     gazeAwayExceeded ||

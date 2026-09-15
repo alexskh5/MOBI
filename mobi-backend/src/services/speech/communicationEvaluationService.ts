@@ -1,167 +1,94 @@
-// mobi-backend/src/services/speech/communicationEvaluationService.ts
-
 import {
   evaluateSpeech,
+  normalizeSpeechText,
 } from "./evaluateSpeechService";
 
 import type {
   CommunicationEvidence,
 } from "../activity/sessionOrchestratorService";
 
-/* =========================================================
-   TYPES
-========================================================= */
-
 export interface EvaluateCommunicationInput {
   transcript: string;
-
   expectedAnswers: string[];
-
   acceptedVariations: string[];
-
+  sttConfidence?: number | null;
   settings?: {
+    minimumConfidence?: number;
     levenshteinThreshold?: number;
-
     phoneticMatchingEnabled?: boolean;
-
+    semanticMatchingEnabled?: boolean;
     acceptedVariationsEnabled?: boolean;
   };
 }
 
-/* =========================================================
-   NORMALIZE TEXT
-========================================================= */
-
-function normalizeText(
-  text: string,
-) {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/* =========================================================
-   EVALUATE COMMUNICATION
-
-   IMPORTANT:
-
-   This service does NOT require perfect pronunciation.
-
-   It uses the existing speech matching engine and converts
-   the result into CommunicationEvidence that the adaptive
-   session engine understands.
-========================================================= */
-
 export function evaluateCommunication(
   input: EvaluateCommunicationInput,
 ): CommunicationEvidence {
-
   const {
     transcript,
     expectedAnswers,
     acceptedVariations,
+    sttConfidence = null,
     settings,
   } = input;
 
-  const normalizedTranscript =
-    normalizeText(
-      transcript,
-    );
+  const normalizedTranscript = normalizeSpeechText(transcript);
+  const acceptedVariationsEnabled =
+    settings?.acceptedVariationsEnabled !== false;
+  const normalizedTargets = [
+    ...expectedAnswers,
+    ...(acceptedVariationsEnabled ? acceptedVariations : []),
+  ]
+    .map(normalizeSpeechText)
+    .filter(Boolean);
+  const hasDefinedTarget = normalizedTargets.length > 0;
 
-  const evaluation =
-    evaluateSpeech({
-      transcript,
+  const minimumConfidence =
+    typeof settings?.minimumConfidence === "number"
+      ? Math.min(1, Math.max(0, settings.minimumConfidence))
+      : 0.7;
+  const normalizedConfidence =
+    typeof sttConfidence === "number" &&
+    Number.isFinite(sttConfidence)
+      ? Math.min(1, Math.max(0, sttConfidence))
+      : null;
+  const evaluationReliable =
+    normalizedConfidence === null ||
+    normalizedConfidence >= minimumConfidence;
 
-      expectedAnswers,
-
-      acceptedVariations,
-
-      settings,
-    });
-
-  /*
-    A learner can make a meaningful communication attempt
-    without perfectly achieving the target.
-
-    The existing speech evaluator already identifies
-    communication_attempt separately from accepted.
-  */
+  const evaluation = evaluateSpeech({
+    transcript,
+    expectedAnswers,
+    acceptedVariations,
+    settings,
+  });
 
   const communicationAttempt =
-    evaluation.communication_attempt ===
-    true;
-
+    evaluation.communication_attempt === true;
   const accepted =
-    evaluation.accepted ===
-    true;
-
-  /*
-    For this first integration:
-
-    accepted = target achieved
-
-    Later we can make this more detailed, for example:
-
-    exact / accepted variation
-      → full target achievement
-
-    phonetic approximation
-      → meaningful approximation
-
-    semantic alternative
-      → accepted semantic response
-
-    without changing the Activity Runtime contract.
-  */
-  const targetAchieved =
-    accepted;
-
-  /*
-    Confidence is intentionally left null for now.
-
-    We should not invent confidence values for Soundex,
-    Levenshtein, or exact matching.
-
-    Later we can derive or store method-specific confidence
-    separately when we have a defensible scoring rule.
-  */
-
-const approximationDetected =
-  "approximation" in evaluation &&
-  evaluation.approximation === true;
-
+    evaluationReliable && evaluation.accepted === true;
+  const targetAchieved = accepted;
+  const approximationDetected =
+    evaluationReliable && evaluation.approximation === true;
+  const shouldScore =
+    evaluationReliable && evaluation.should_score === true;
 
   return {
     communicationAttempt,
-
     targetAchieved,
-
     accepted,
-
     approximationDetected,
-
-
-    transcript:
-      transcript.trim().length > 0
-        ? transcript
-        : null,
-
-    normalizedTranscript:
-      normalizedTranscript.length > 0
-        ? normalizedTranscript
-        : null,
-
-    matchingMethod:
-      evaluation.method ??
-      null,
-
-    matchedAnswer:
-      evaluation.matched_word ??
-      null,
-
-    confidence:
-      null,
+    shouldScore,
+    hasDefinedTarget,
+    evaluationReliable,
+    minimumConfidenceUsed: minimumConfidence,
+    transcript: transcript.trim() ? transcript : null,
+    normalizedTranscript: normalizedTranscript || null,
+    matchingMethod: evaluation.method,
+    matchedAnswer: evaluation.matched_word ?? null,
+    confidence: normalizedConfidence,
+    levenshteinDistance: evaluation.distance ?? null,
+    phoneticMatch: evaluation.phonetic_match === true,
+    semanticMatch: evaluation.semantic_match === true,
   };
 }

@@ -132,6 +132,27 @@ export interface CommunicationEvidence {
 
   confidence:
     number | null;
+
+  shouldScore:
+    boolean;
+
+  hasDefinedTarget:
+    boolean;
+
+  evaluationReliable:
+    boolean;
+
+  minimumConfidenceUsed:
+    number;
+
+  levenshteinDistance:
+    number | null;
+
+  phoneticMatch:
+    boolean;
+
+  semanticMatch:
+    boolean;
 }
 
 /* =========================================================
@@ -285,6 +306,9 @@ export interface ActivityResponseInput {
   parentRequestedStop:
     boolean;
 
+  screenTimeLimitReached:
+    boolean;
+
   /*
     Learner-specific adaptive settings.
 
@@ -302,6 +326,12 @@ export interface ActivityResponseInput {
       boolean;
 
     allowBreakSuggestion:
+      boolean;
+
+    allowHint:
+      boolean;
+
+    allowRepeatPrompt:
       boolean;
   };
 }
@@ -494,6 +524,19 @@ export function decideAdaptiveAction(
     };
   }
 
+  if (input.screenTimeLimitReached) {
+    return {
+      nextState: "auto_stopped",
+      action: "end_session",
+      reason: "The learner's daily screen-time limit was reached.",
+      requiresAdultConfirmation: false,
+      evidence: {
+        communication: input.communication,
+        engagement: input.engagement,
+      },
+    };
+  }
+
   /* =======================================================
      2. AUTO STOP AFTER PROLONGED INACTIVITY
 
@@ -533,7 +576,35 @@ export function decideAdaptiveAction(
   }
 
   /* =======================================================
-     3. ACTIVITY COMPLETED
+     3. BREAK SUGGESTION
+
+     A learner needing a break takes priority over moving to
+     another activity, including at an activity boundary.
+     Guided off-screen activities use inactivity rather than
+     expected gaze-away as the signal.
+  ======================================================= */
+
+  if (
+    input.adaptiveSettings.allowBreakSuggestion &&
+    input.engagement.inactivitySeconds >=
+      input.adaptiveSettings.inactivityBreakSeconds
+  ) {
+    return {
+      nextState: "break_recommended",
+      action: "suggest_break",
+      reason: isGuidedOffScreen
+        ? "Extended inactivity was detected during the guided off-screen activity."
+        : "Extended inactivity was detected during the activity.",
+      requiresAdultConfirmation: true,
+      evidence: {
+        communication: input.communication,
+        engagement: input.engagement,
+      },
+    };
+  }
+
+  /* =======================================================
+     4. ACTIVITY COMPLETED
   ======================================================= */
 
   if (
@@ -563,7 +634,7 @@ export function decideAdaptiveAction(
   }
 
   /* =======================================================
-     4. MAXIMUM ATTEMPTS REACHED
+     5. MAXIMUM ATTEMPTS REACHED
 
      Communication attempts still count positively in reports,
      but therapist-configured limits must still be respected.
@@ -586,48 +657,6 @@ export function decideAdaptiveAction(
           .communicationAttempt
           ? "Maximum attempts reached after meaningful communication attempts. Do not treat the learner's approximations as failure; move forward according to the activity settings."
           : "Maximum attempts reached without sufficient response. Move forward according to the activity settings.",
-
-      requiresAdultConfirmation:
-        true,
-
-      evidence: {
-        communication:
-          input.communication,
-
-        engagement:
-          input.engagement,
-      },
-    };
-  }
-
-  /* =======================================================
-     5. BREAK SUGGESTION
-
-     For Do It / guided off-screen activities, gaze-away is
-     expected, so this rule is based on actual inactivity.
-
-     Screen activities may later use gaze + inactivity
-     together in a richer engagement service.
-  ======================================================= */
-
-  if (
-    input.adaptiveSettings
-      .allowBreakSuggestion &&
-    input.engagement.inactivitySeconds >=
-      input.adaptiveSettings
-        .inactivityBreakSeconds
-  ) {
-    return {
-      nextState:
-        "break_recommended",
-
-      action:
-        "suggest_break",
-
-      reason:
-        isGuidedOffScreen
-          ? "Extended inactivity was detected during the guided off-screen activity."
-          : "Extended inactivity was detected during the activity.",
 
       requiresAdultConfirmation:
         true,
@@ -843,20 +872,9 @@ const attemptOutcome =
     communication:
       input.communication,
 
-    /*
-      If matchedAnswer exists, or the evaluator was working
-      against a target, the response is target-evaluable.
-
-      We will make this even more explicit later by passing
-      hasDefinedTarget directly from the runtime.
-    */
     hasDefinedTarget:
       input.communication
-        .matchedAnswer !== null ||
-      input.communication
-        .targetAchieved ||
-      input.communication
-        .approximationDetected,
+        .hasDefinedTarget,
   });
 
 /* =======================================================
@@ -877,17 +895,13 @@ const supportAction =
         input.adaptiveSettings
           .oneMoreTryEnabled,
 
-      /*
-        These are temporarily enabled here.
-
-        Later they should come from the learner/session
-        settings snapshot, just like oneMoreTryEnabled.
-      */
       allowHint:
-        true,
+        input.adaptiveSettings
+          .allowHint,
 
       allowRepeatPrompt:
-        true,
+        input.adaptiveSettings
+          .allowRepeatPrompt,
     },
   );
 
@@ -953,7 +967,7 @@ const reasonByOutcome:
       "No communication attempt detected yet. Provide another structured opportunity.",
 
     not_evaluable:
-      "Meaningful communication was detected on a response without a defined target.",
+      "The response was preserved but was not reliable or did not have a defined target for scoring.",
   };
 
 /* =======================================================
