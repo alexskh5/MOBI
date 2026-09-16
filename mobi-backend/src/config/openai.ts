@@ -1,15 +1,27 @@
 //mobi-backend/src/config/openai.ts
-import OpenAI from "openai";
 import dotenv from "dotenv";
+import type OpenAI from "openai";
 
 dotenv.config();
 
-const apiKey = process.env.OPENAI_API_KEY
+let openai: OpenAI | null = null;
 
-if (!apiKey) {
-    throw new Error("Missing OPENAI_API_KEY in dotenv");
+export async function getOpenAI() {
+    if (openai) {
+        return openai;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY
+
+    if (!apiKey) {
+        throw new Error("Missing OPENAI_API_KEY in dotenv");
+    }
+
+    const { default: OpenAIClient } = await import("openai");
+
+    openai = new OpenAIClient ({
+        apiKey,
+    });
+
+    return openai;
 }
-
-export const openai = new OpenAI ({
-    apiKey,
-});

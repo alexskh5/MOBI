@@ -1,17 +1,16 @@
 // mobi-backend/src/routes/activityRoutes.ts
 
 import { Router } from "express";
+import multer from "multer";
 
 import {
-  archiveTherapistActivity,
+  archiveActivity,
   createActivity,
   deleteTherapistActivity,
   listActivities,
   listTherapistMaterials,
   readActivity,
-  restoreTherapistActivity,
-  submitTherapistActivityForReview,
-  updateTherapistActivity,
+  uploadActivityAsset,
 } from "../controllers/activityController";
 
 import {
@@ -22,6 +21,12 @@ import {
 } from "../controllers/activityAssignmentController";
 
 const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 1024 * 1024 * 50,
+  },
+});
 
 /* =========================================================
    ACTIVITY CREATION AND LIST
@@ -32,6 +37,22 @@ router.post(
   createActivity,
 );
 
+router.post(
+  "/assets",
+  upload.single("file"),
+  uploadActivityAsset,
+);
+
+router.patch(
+  "/:id/archive",
+  archiveActivity,
+);
+
+/*
+  GET /activities
+
+  Returns the activity library.
+*/
 router.get(
   "/",
   listActivities,

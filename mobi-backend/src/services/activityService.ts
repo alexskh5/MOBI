@@ -869,9 +869,20 @@ export async function updateTherapistActivityService({
   return updated;
 }
 
-/* =========================================================
-   SUBMIT FOR REVIEW
-========================================================= */
+      metadata: {
+        lesson: step.lesson || null,
+        question: step.question || null,
+        media: step.media || [],
+        prompt_audio_url: step.prompt_audio_url || null,
+        feedback_audio_urls: step.feedback_audio_urls || null,
+        choices: step.choices || [],
+        topics: step.topics || [],
+        materials_needed: step.materials_needed || [],
+        correct_feedback: step.correct_feedback || null,
+        wrong_feedback: step.wrong_feedback || null,
+        ai_voice_style: step.ai_voice_style || null,
+      },
+    }));
 
 export async function submitTherapistActivityForReviewService({
   activityId,
@@ -1136,4 +1147,23 @@ export async function deleteTherapistActivityService({
     id:
       activityId,
   };
+}
+
+export async function archiveActivityById(
+  id: string,
+  centerId: string,
+) {
+  const { data, error } = await supabase
+    .from("activities")
+    .update({
+      archived_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("center_id", centerId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
 }

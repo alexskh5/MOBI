@@ -1,6 +1,4 @@
-// mobi-backend/src/services/progress/socialReadinessProgressService.tsimport { supabase } from "../../config/supabase";
-
-
+// mobi-backend/src/services/progress/socialReadinessProgressService.ts
 import { supabase } from "../../config/supabase";
 
 import {
@@ -134,6 +132,7 @@ export async function getSocialReadinessProgress(
       gaze_present_seconds,
       gaze_detection_available,
       average_response_time_ms,
+      activity_mastered,
 
       activity:activities!inner(
         id,
@@ -376,6 +375,19 @@ export async function getSocialReadinessProgress(
         )
       : null;
 
+  const masteredActivityIds = new Set(
+    sessions
+      .filter(
+        (session) => session.activity_mastered === true,
+      )
+      .map((session) => session.activity_id)
+      .filter(
+        (activityId): activityId is string =>
+          typeof activityId === "string" &&
+          activityId.length > 0,
+      ),
+  );
+
 //   /* =======================================================
 //      5. GET MASTERY COUNT
 
@@ -437,15 +449,8 @@ export async function getSocialReadinessProgress(
 
       averageResponseTimeMs,
 
-      /*
-  Domain-specific social-readiness mastery will be
-  calculated later from mastery records linked to
-  social_readiness activities.
-
-  Do not reuse the learner's overall mastery count here.
-*/
       activitiesMastered:
-        0,
+        masteredActivityIds.size,
     },
   };
 }

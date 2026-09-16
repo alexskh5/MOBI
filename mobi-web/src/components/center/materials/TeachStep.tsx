@@ -254,19 +254,37 @@ import { previewTTS } from "../../../services/activityApi";
 type TeachStepData = {
   lesson: string;
   ai_voice_style: string;
+  media_file?: File | null;
+  prompt_audio_file?: File | null;
 };
 
 type TeachStepProps = {
   stepKey: string;
+  variant?: "teach" | "story";
+  initialData?: Partial<TeachStepData>;
   onChange: (stepKey: string, data: TeachStepData) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 };
 
-function TeachStep({ stepKey, onChange }: TeachStepProps) {
+function TeachStep({
+  stepKey,
+  variant = "teach",
+  initialData,
+  onChange,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: TeachStepProps) {
   const [showVoiceModal, setShowVoiceModal] =
     useState(false);
 
   const [voiceStyle, setVoiceStyle] =
-    useState("Teaching");
+    useState(
+      initialData?.ai_voice_style ||
+        (variant === "story" ? "Storytelling" : "Teaching"),
+    );
 
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
@@ -274,16 +292,26 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
   const [previewUrl, setPreviewUrl] =
     useState<string | null>(null);
 
-  const [lesson, setLesson] = useState("");
+  const [promptAudioFile, setPromptAudioFile] =
+    useState<File | null>(null);
+
+  const [lesson, setLesson] = useState(initialData?.lesson || "");
 
   const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const updateParent = (nextLesson = lesson) => {
+  const updateParent = (
+    nextLesson = lesson,
+    nextMediaFile = selectedFile,
+    nextPromptAudioFile = promptAudioFile,
+    nextVoiceStyle = voiceStyle
+  ) => {
     onChange(stepKey, {
       lesson: nextLesson,
-      ai_voice_style: voiceStyle,
+      ai_voice_style: nextVoiceStyle,
+      media_file: nextMediaFile,
+      prompt_audio_file: nextPromptAudioFile,
     });
   };
   const handleMediaUpload = (
@@ -295,11 +323,21 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
 
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
+    updateParent(lesson, file);
   };
 
   const handleRemoveMedia = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
+    updateParent(lesson, null);
+  };
+
+  const handlePromptAudioUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    setPromptAudioFile(file);
+    updateParent(lesson, selectedFile, file);
   };
 
   const handleLessonChange = (
@@ -327,7 +365,7 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
       text: lesson,
       voice: "Kore",
       style: voiceStyle,
-      emotion: "gentle",
+      emotion: variant === "story" ? "Warm" : "Gentle",
     });
 
   } catch (error) {
@@ -346,7 +384,7 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
             <div className="w-6 h-6 rounded-full bg-[#AAB7DA]" />
 
             <h3 className="font-semibold text-xl">
-              Teach Step
+              {variant === "story" ? "Story Narration Step" : "Teach Step"}
             </h3>
           </div>
 
@@ -366,9 +404,9 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
             </button>
 
             <StepMenu
-              onMoveUp={() => console.log("Move Up")}
-              onMoveDown={() => console.log("Move Down")}
-              onDelete={() => console.log("Delete Step")}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onDelete={onDelete}
             />
           </div>
         </div>
@@ -376,7 +414,9 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
         <div className="bg-[#E4C9E5]/70 p-6">
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">
-              Add media as material for learning
+              {variant === "story"
+                ? "Add optional story image, video, or audio"
+                : "Add media as material for learning"}
             </label>
 
             <div className="bg-white border border-gray-300 h-64 flex items-center justify-center">
@@ -442,7 +482,9 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
                 ) : (
                   <div className="text-center">
                     <p className="font-medium">
-                      Upload Media
+                      {variant === "story"
+                        ? "Upload Optional Story Media"
+                        : "Upload Media"}
                     </p>
 
                     <p className="text-sm text-gray-500">
@@ -456,7 +498,9 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              Teach a lesson (Required)
+              {variant === "story"
+                ? "Story narration script (Required)"
+                : "Teach a lesson (Required)"}
             </label>
 
             <div className="relative">
@@ -464,7 +508,11 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
                 ref={textareaRef}
                 value={lesson}
                 onChange={handleLessonChange}
-                placeholder="Type here..."
+                placeholder={
+                  variant === "story"
+                    ? "Write the story the child will hear..."
+                    : "Type here..."
+                }
                 rows={1}
                 className="w-full resize-none overflow-hidden border border-gray-300 bg-white outline-none p-3 pr-12"
               />
@@ -488,6 +536,24 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
                 <Volume2 size={22} />
               </button>
             </div>
+
+            <label className="mt-3 block text-sm font-medium">
+              Recorded voice for this prompt (Optional)
+            </label>
+
+            <input
+              type="file"
+              accept="audio/*"
+              capture
+              onChange={handlePromptAudioUpload}
+              className="mt-2 w-full border border-gray-300 bg-white p-2 text-sm"
+            />
+
+            {promptAudioFile && (
+              <p className="mt-2 text-sm text-[#5B4B8A]">
+                Using recorded voice: {promptAudioFile.name}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -498,10 +564,7 @@ function TeachStep({ stepKey, onChange }: TeachStepProps) {
         selectedStyle={voiceStyle}
         onSelectStyle={(style) => {
           setVoiceStyle(style);
-          onChange(stepKey, {
-            lesson,
-            ai_voice_style: style,
-          });
+          updateParent(lesson, selectedFile, promptAudioFile, style);
         }}
         stepType="teach"
       />

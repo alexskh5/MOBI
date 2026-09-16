@@ -16,22 +16,9 @@ import {
 import {
   getLearnerList,
 } from "../services/learner/learnerListService";
-
 import {
-  assignLearnerDoctorService,
-  getLearnerDoctorService,
-} from "../services/learner/learnerDoctorService";
-
-import {
-  createCenterCollaborationNoteService,
-  getLearnerCollaborationNotesService,
-} from "../services/collaboration/collaborationNoteService";
-
-import {
-  assignLearnerTherapistsService,
-  getLearnerTherapistsService,
-} from "../services/learner/learnerTherapistService";
-
+  getAuthUserFromAccessToken,
+} from "../services/authService";
 /* =========================================================
    ENROLL LEARNER CONTROLLER
 ========================================================= */
@@ -298,13 +285,37 @@ export const getLearners = async (
        1. CENTER ID
     ===================================================== */
 
-    /*
-      TEMPORARY:
+    const authHeader =
+      req.header("authorization") ?? "";
 
-      Later this will come from authentication.
-    */
+    const accessToken =
+      authHeader.toLowerCase().startsWith("bearer ")
+        ? authHeader.slice(7).trim()
+        : "";
+
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Please log in before viewing learners.",
+      });
+    }
+
+    const authUser =
+      await getAuthUserFromAccessToken(
+        accessToken,
+      );
+
+    if (!authUser.centerId) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "This account is not connected to a center.",
+      });
+    }
+
     const CENTER_ID =
-      "d5ae1649-0343-46d4-b433-575c97e064e1";
+      authUser.centerId;
 
     /* =====================================================
        2. QUERY PARAMETERS
@@ -392,6 +403,12 @@ export const getLearners = async (
           sortBy,
 
           sortOrder,
+
+          actorId:
+            authUser.actorId,
+
+          actorRole:
+            authUser.role,
         },
       );
 
@@ -426,10 +443,6 @@ export const getLearners = async (
     });
   }
 };
-
-/* =========================================================
-   GET LEARNER'S CURRENT DOCTOR
-========================================================= */
 
 export const getLearnerDoctor = async (
   req: Request,
@@ -484,7 +497,6 @@ export const getLearnerDoctor = async (
 
 /* =========================================================
    ASSIGN / CHANGE LEARNER DOCTOR
-========================================================= */
 
 export const assignLearnerDoctor = async (
   req: Request,
@@ -555,7 +567,6 @@ export const assignLearnerDoctor = async (
 
 /* =========================================================
    GET LEARNER COLLABORATION NOTES
-========================================================= */
 
 export const getLearnerCollaborationNotes = async (
   req: Request,
@@ -608,7 +619,6 @@ export const getLearnerCollaborationNotes = async (
 
 /* =========================================================
    CREATE CENTER COLLABORATION NOTE
-========================================================= */
 
 export const createLearnerCollaborationNote = async (
   req: Request,
@@ -680,7 +690,6 @@ export const createLearnerCollaborationNote = async (
 
 /* =========================================================
    GET LEARNER THERAPISTS
-========================================================= */
 
 export const getLearnerTherapists = async (
   req: Request,
@@ -736,7 +745,6 @@ export const getLearnerTherapists = async (
 
 /* =========================================================
    ASSIGN LEARNER THERAPISTS
-========================================================= */
 
 export const assignLearnerTherapists = async (
   req: Request,

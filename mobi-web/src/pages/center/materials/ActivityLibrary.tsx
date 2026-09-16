@@ -4,7 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { Search, ArrowUp, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import CenterLayout from "../../../layouts/CenterLayout";
-import { getActivities } from "../../../services/activityApi";
+import {
+  archiveActivity,
+  getActivities,
+} from "../../../services/activityApi";
 
 interface ActivityData {
   id: string;
@@ -14,7 +17,11 @@ interface ActivityData {
   created_at: string;
   thumbnail_url: string | null;
   activity_type: string;
+  status?: string | null;
+  archived_at?: string | null;
 }
+
+const ACTIVITY_DRAFT_STORAGE_KEY = "mobi-center-activity-drafts-v1";
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500";
@@ -54,11 +61,23 @@ const ActivityLibrary = () => {
 
   const filterOptions = ["Mine", "All", "Therapist"];
 
-  // =======================================================
-  // TEMPORARY DRAFT DATA
-  // Replace this once the backend returns draft activities.
-  // =======================================================
-  const draftCount = 3;
+  const draftCount = (() => {
+    try {
+      const drafts = JSON.parse(
+        localStorage.getItem(ACTIVITY_DRAFT_STORAGE_KEY) || "[]",
+      );
+
+      return Array.isArray(drafts) ? drafts.length : 0;
+    } catch {
+      return 0;
+    }
+  })();
+
+  const regulatoryCount = activities.filter(
+    (activity) =>
+      activity.activity_type === "Regulatory Activity" &&
+      !activity.archived_at,
+  ).length;
 
   /*
   const [drafts, setDrafts] = useState<ActivityData[]>([]);
@@ -115,6 +134,14 @@ const ActivityLibrary = () => {
   }, [loading]);
 
   const filteredActivities = activities.filter((activity) => {
+    if (activity.activity_type === "Regulatory Activity") {
+      return false;
+    }
+
+    if (activity.archived_at || activity.status === "draft") {
+      return false;
+    }
+
     const search = searchTerm.toLowerCase();
     const uploadedBy = activity.uploaded_by || "Center Admin";
 
@@ -167,6 +194,34 @@ const ActivityLibrary = () => {
     return uploadedBy === currentUser.name;
   };
 
+  const handleArchiveActivity = async (activity: ActivityData) => {
+    const confirmArchive = window.confirm(
+      "Archive this published activity? It will be removed from the active library but not deleted.",
+    );
+
+    if (!confirmArchive) {
+      return;
+    }
+
+    try {
+      await archiveActivity(activity.id);
+      setActivities((currentActivities) =>
+        currentActivities.map((item) =>
+          item.id === activity.id
+            ? {
+                ...item,
+                archived_at: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+      setOpenMenu(null);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to archive activity.");
+    }
+  };
+
   return (
     <CenterLayout>
       {(sidebarOpen, setSidebarOpen) => (
@@ -211,17 +266,23 @@ const ActivityLibrary = () => {
                       "Turn Taking",
                       "Life Skills",
                       "Entertainment",
+                      "Regulatory Activity",
                     ].map((item) => (
                       <button
                         key={item}
-                        onClick={() =>
+                        onClick={() => {
+                          if (item === "Regulatory Activity") {
+                            navigate("/center/materials/regulatory");
+                            return;
+                          }
+
                           navigate(
                             "/center/materials/CreateActivity",
                             {
                               state: { template: item },
-                            }
-                          )
-                        }
+                            },
+                          );
+                        }}
                         className="block w-full text-left px-6 py-2 hover:bg-[#E4C9E5]"
                       >
                         {item}
@@ -405,6 +466,45 @@ const ActivityLibrary = () => {
                   </div>
                 </div>
 
+                <div
+                  onClick={() =>
+                    navigate("/center/materials/regulatory")
+                  }
+                  className="
+                    bg-white
+                    rounded-3xl
+                    shadow-md
+                    overflow-hidden
+                    cursor-pointer
+                    hover:shadow-lg
+                    hover:scale-[1.02]
+                    transition
+                    h-100
+                    flex
+                    flex-col
+                  "
+                >
+                  <div className="relative flex h-48 shrink-0 items-center justify-center bg-[#F5EEF6]">
+                    <div className="absolute top-3 left-3 rounded-full bg-white px-3 py-1 text-sm font-semibold">
+                      Items: {regulatoryCount}
+                    </div>
+
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white text-4xl shadow-md">
+                      ▶
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="text-lg font-bold">
+                      Regulatory Activities
+                    </h3>
+
+                    <p className="mt-2 min-h-[42px] text-sm text-gray-600 line-clamp-2">
+                      Upload calming, movement, yoga, and warm-up media for therapist-guided regulation.
+                    </p>
+                  </div>
+                </div>
+
                 {sortedActivities.map((activity) => (
                   <div
                     key={activity.id}
@@ -478,61 +578,16 @@ const ActivityLibrary = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-
-                                      navigate(
-                                        "/center/materials/CreateActivity",
-                                        {
-                                          state: {
-                                            mode: "edit",
-                                            activityId:
-                                              activity.id,
-                                          },
-                                        }
-                                      );
-
-                                      setOpenMenu(null);
-                                    }}
-                                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                  >
-                                    Edit Activity
-                                  </button>
-
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-
-                                      // TODO Backend:
-                                      // Archive only center admin's own activity.
-                                      // await archiveActivity(activity.id);
-
-                                      setOpenMenu(null);
+                                      handleArchiveActivity(activity);
                                     }}
                                     className="block w-full text-left px-4 py-2 hover:bg-gray-100"
                                   >
                                     Archive
                                   </button>
 
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-
-                                      const confirmDelete =
-                                        window.confirm(
-                                          "Are you sure you want to delete this activity?"
-                                        );
-
-                                      if (!confirmDelete) return;
-
-                                      // TODO Backend:
-                                      // Delete only center admin's own activity.
-                                      // await deleteActivity(activity.id);
-
-                                      setOpenMenu(null);
-                                    }}
-                                    className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
-                                  >
-                                    Delete
-                                  </button>
+                                  <p className="px-4 py-2 text-xs text-gray-500">
+                                    Published activities cannot be edited or deleted.
+                                  </p>
                                 </>
                               ) : (
                                 <p className="px-4 py-2 text-sm text-gray-500">

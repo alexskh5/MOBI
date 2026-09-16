@@ -14,6 +14,22 @@ import {
   assignLearnerTherapists,
   getLearnerTherapists,
 } from "../controllers/learnerController";
+import {
+  getAdaptationSettings,
+  getChildSafetySettings,
+  getLearnerProfileSettings,
+  patchAdaptationSettings,
+  patchChildSafetySettings,
+  patchLearnerProfileSettings,
+} from "../controllers/learnerSettingsController";
+import {
+  requireCenterContext,
+} from "../middleware/centerContext";
+import {
+  decideProgression,
+  evaluateProgression,
+  getProgressionHistory,
+} from "../controllers/progressionController";
 
 const router = Router();
 
@@ -34,36 +50,58 @@ router.post("/enroll", upload.any(), enrollLearner);
 ========================================================= */
 router.get("/", getLearners,);
 
-
 router.get(
-  "/:learnerId/doctor",
-  getLearnerDoctor,
+  "/:learnerId/profile-settings",
+  requireCenterContext,
+  getLearnerProfileSettings,
 );
 
-router.put(
-  "/:learnerId/doctor",
-  assignLearnerDoctor,
+router.patch(
+  "/:learnerId/profile-settings",
+  requireCenterContext,
+  patchLearnerProfileSettings,
 );
 
 router.get(
-  "/:learnerId/notes",
-  getLearnerCollaborationNotes,
+  "/:learnerId/adaptation-settings",
+  requireCenterContext,
+  getAdaptationSettings,
+);
+
+router.patch(
+  "/:learnerId/adaptation-settings",
+  requireCenterContext,
+  patchAdaptationSettings,
+);
+
+router.get(
+  "/:learnerId/child-safety-settings",
+  requireCenterContext,
+  getChildSafetySettings,
+);
+
+router.patch(
+  "/:learnerId/child-safety-settings",
+  requireCenterContext,
+  patchChildSafetySettings,
 );
 
 router.post(
-  "/:learnerId/notes",
-  createLearnerCollaborationNote,
+  "/:learnerId/progression/evaluate",
+  requireCenterContext,
+  evaluateProgression,
 );
-
 
 router.get(
-  "/:learnerId/therapists",
-  getLearnerTherapists,
+  "/:learnerId/progression/history",
+  requireCenterContext,
+  getProgressionHistory,
 );
 
-router.put(
-  "/:learnerId/therapists",
-  assignLearnerTherapists,
+router.post(
+  "/:learnerId/progression/:recommendationId/decision",
+  requireCenterContext,
+  decideProgression,
 );
 
 /*

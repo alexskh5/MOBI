@@ -547,3 +547,79 @@ export async function updateBanditOutcome(
       ),
   };
 }
+
+/* =========================================================
+   RECORD SESSION OUTCOME ATOMICALLY
+========================================================= */
+
+export async function recordActivityBanditOutcome(
+  centerId: string,
+  learnerId: string,
+  activitySessionId: string,
+) {
+  const { data, error } = await supabase.rpc(
+    "record_activity_bandit_outcome",
+    {
+      p_center_id: centerId,
+      p_learner_id: learnerId,
+      p_activity_session_id: activitySessionId,
+    },
+  );
+
+  if (!error && data) {
+    return data;
+  }
+
+  const missingRpc =
+    error?.code === "PGRST202" ||
+    error?.code === "42883";
+
+  if (!missingRpc) {
+    console.error(
+      "Unable to record the activity session bandit outcome:",
+      error,
+    );
+
+    throw error ?? new Error("Unable to record the bandit outcome.");
+  }
+
+  const {
+    data: session,
+    error: sessionError,
+  } = await supabase
+    .from("learner_activity_sessions")
+    .select(`
+      id,
+      activity_id,
+      status,
+      activity_mastered,
+      total_scored_attempts
+    `)
+    .eq("id", activitySessionId)
+    .eq("center_id", centerId)
+    .eq("learner_id", learnerId)
+    .maybeSingle();
+
+  if (sessionError || !session) {
+    console.error(
+      "Unable to fetch session for direct bandit outcome update:",
+      sessionError,
+    );
+
+    throw sessionError ?? new Error("Activity session was not found.");
+  }
+
+  if (
+    session.status !== "completed" ||
+    Number(session.total_scored_attempts ?? 0) <= 0
+  ) {
+    return null;
+  }
+
+  return updateBanditOutcome({
+    centerId,
+    learnerId,
+    activityId: String(session.activity_id),
+    successful: session.activity_mastered === true,
+  });
+}

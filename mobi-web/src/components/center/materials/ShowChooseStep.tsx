@@ -337,6 +337,7 @@ type Choice = {
   id: number;
   label: string;
   image_url?: string;
+  image_file?: File | null;
   is_correct: boolean;
 };
 
@@ -344,35 +345,55 @@ type ShowChooseStepData = {
   question: string;
   choices: Choice[];
   ai_voice_style: string;
+  prompt_audio_file?: File | null;
 };
 
 type ShowChooseStepProps = {
   stepKey: string;
+  initialData?: Partial<ShowChooseStepData>;
   onChange: (stepKey: string, data: ShowChooseStepData) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete?: () => void;
 };
 
-function ShowAndChooseStep({ stepKey, onChange }: ShowChooseStepProps) {
+function ShowAndChooseStep({
+  stepKey,
+  initialData,
+  onChange,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: ShowChooseStepProps) {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
-  const [voiceStyle, setVoiceStyle] = useState("Friendly");
-  const [question, setQuestion] = useState("");
+  const [voiceStyle, setVoiceStyle] = useState(initialData?.ai_voice_style || "Friendly");
+  const [question, setQuestion] = useState(initialData?.question || "");
   const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
+  const [promptAudioFile, setPromptAudioFile] =
+    useState<File | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [choices, setChoices] = useState<Choice[]>([
-    { id: 1, label: "Choice A", image_url: undefined, is_correct: false },
-    { id: 2, label: "Choice B", image_url: undefined, is_correct: false },
-  ]);
+  const [choices, setChoices] = useState<Choice[]>(
+    initialData?.choices?.length
+      ? initialData.choices
+      : [
+          { id: 1, label: "Choice A", image_url: undefined, is_correct: false },
+          { id: 2, label: "Choice B", image_url: undefined, is_correct: false },
+        ],
+  );
 
   const updateParent = (
     nextQuestion = question,
     nextChoices = choices,
-    nextVoiceStyle = voiceStyle
+    nextVoiceStyle = voiceStyle,
+    nextPromptAudioFile = promptAudioFile
   ) => {
     onChange(stepKey, {
       question: nextQuestion,
       choices: nextChoices,
       ai_voice_style: nextVoiceStyle,
+      prompt_audio_file: nextPromptAudioFile,
     });
   };
 
@@ -402,6 +423,7 @@ function ShowAndChooseStep({ stepKey, onChange }: ShowChooseStepProps) {
     updated[index] = {
       ...updated[index],
       image_url: URL.createObjectURL(file),
+      image_file: file,
     };
 
     setChoices(updated);
@@ -443,6 +465,14 @@ function ShowAndChooseStep({ stepKey, onChange }: ShowChooseStepProps) {
 
     e.target.style.height = "auto";
     e.target.style.height = `${e.target.scrollHeight}px`;
+  };
+
+  const handlePromptAudioUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    setPromptAudioFile(file);
+    updateParent(question, choices, voiceStyle, file);
   };
 
   const handlePreviewQuestion = async () => {
@@ -496,9 +526,9 @@ function ShowAndChooseStep({ stepKey, onChange }: ShowChooseStepProps) {
             </button>
 
             <StepMenu
-              onMoveUp={() => console.log("Move Up")}
-              onMoveDown={() => console.log("Move Down")}
-              onDelete={() => console.log("Delete Step")}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onDelete={onDelete}
             />
           </div>
         </div>
@@ -533,6 +563,24 @@ function ShowAndChooseStep({ stepKey, onChange }: ShowChooseStepProps) {
               <Volume2 size={22} />
             </button>
           </div>
+
+          <label className="mt-3 block text-sm font-medium">
+            Recorded voice for this prompt (Optional)
+          </label>
+
+          <input
+            type="file"
+            accept="audio/*"
+            capture
+            onChange={handlePromptAudioUpload}
+            className="mt-2 w-full border border-gray-300 bg-white p-2 text-sm"
+          />
+
+          {promptAudioFile && (
+            <p className="mt-2 text-sm text-[#5B4B8A]">
+              Using recorded voice: {promptAudioFile.name}
+            </p>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-3 mt-5">
@@ -621,7 +669,7 @@ function ShowAndChooseStep({ stepKey, onChange }: ShowChooseStepProps) {
         selectedStyle={voiceStyle}
         onSelectStyle={(style) => {
           setVoiceStyle(style);
-          updateParent(question, choices, style);
+          updateParent(question, choices, style, promptAudioFile);
         }}
         stepType="ask"
       />

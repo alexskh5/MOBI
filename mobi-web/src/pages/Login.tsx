@@ -1,59 +1,15 @@
 import {
-  useEffect,
   useState,
-  type FormEvent,
 } from "react";
 import {
-  useLocation,
   useNavigate,
 } from "react-router-dom";
-import {
-  ArrowRight,
-  Eye,
-  EyeOff,
-  KeyRound,
-  LockKeyhole,
-  Mail,
-  ShieldCheck,
-  Stethoscope,
-  UsersRound,
-} from "lucide-react";
 
 import Navbar from "../components/Navbar";
 import bg from "../assets/bg1.png";
 import {
-  supabaseAuth,
-} from "../config/supabaseAuth";
-import {
-  passwordLogin,
-  requestPasswordResetCode,
-  requestStaffLoginCode,
-  verifyPasswordResetCode,
-  verifyStaffOtp,
-  type StaffRole,
-  type StaffSessionResponse,
-} from "../services/auth/staffAuthApi";
-
-type LoginMode =
-  | "password"
-  | "activate"
-  | "forgot";
-
-type Feedback = {
-  type:
-    | "error"
-    | "info"
-    | "success";
-  message: string;
-} | null;
-
-function dashboardForRole(
-  role: StaffRole,
-) {
-  return role === "doctor"
-    ? "/doctor/DocDashboardScreen"
-    : "/therapist/dashboard";
-}
+  loginUser,
+} from "../services/auth";
 
 function Login() {
   const navigate = useNavigate();
@@ -162,20 +118,60 @@ function Login() {
       );
     }
 
-    localStorage.setItem(
-      "mobi_staff_role",
-      result.role,
-    );
-    localStorage.setItem(
-      "mobi_staff_profile_id",
-      result.profile.id,
-    );
-    localStorage.removeItem(
-      "mobi_doctor_id",
-    );
-    localStorage.removeItem(
-      "mobi_therapist_id",
-    );
+  const [
+    email,
+    setEmail,
+  ] = useState("");
+
+  const [
+    password,
+    setPassword,
+  ] = useState("");
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const handleLogin = async () => {
+    if (loading) {
+      return;
+    }
+
+    setError("");
+
+    if (!email.trim() || !password.trim()) {
+      setError(
+        "Please enter your email and password.",
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const user = await loginUser({
+        email,
+        password,
+      });
+
+      navigate(user.defaultWebRoute, {
+        replace: true,
+      });
+    } catch (loginError) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Unable to log in.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const switchMode = (
@@ -487,9 +483,152 @@ function Login() {
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       }}
     >
-      <div className="shrink-0">
-        <Navbar />
-      </div>
+      <Navbar />
+
+      <main
+        className="
+          flex
+          min-h-[calc(100vh-80px)]
+          flex-col
+          items-center
+          justify-center
+          px-4
+          py-10
+          sm:px-6
+        "
+      >
+        {/* LOGIN CARD */}
+        <div
+          className="
+            w-full
+            max-w-md
+            rounded-3xl
+            border
+            border-gray-300
+            bg-white
+            p-5
+            shadow-xl
+            sm:p-8
+          "
+        >
+          <h1 className="text-center font-itim text-3xl sm:text-4xl">
+            LOG IN
+          </h1>
+
+          <p
+            className="
+              inter
+              mt-2
+              text-center
+              text-sm
+              leading-relaxed
+              text-gray-700
+            "
+          >
+            MOBI is happy to see you again!
+            <br />
+            Continue learning with us!
+          </p>
+
+          <div className="mt-6 flex flex-col gap-3">
+            <label htmlFor="username" className="sr-only">
+              Username
+            </label>
+
+            <input
+              id="username"
+              type="email"
+              autoComplete="username"
+              placeholder="Please enter email"
+              value={email}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
+              onKeyDown={handleKeyDown}
+              className="
+                w-full
+                rounded-xl
+                bg-[#F0E4F1]
+                px-4
+                py-3
+                text-center
+                italic
+                outline-none
+                focus:ring-2
+                focus:ring-[#AAB7DA]
+                sm:px-6
+              "
+            />
+
+            <label htmlFor="password" className="sr-only">
+              Password
+            </label>
+
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="Please enter password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              onKeyDown={handleKeyDown}
+              className="
+                w-full
+                rounded-xl
+                bg-[#F0E4F1]
+                px-4
+                py-3
+                text-center
+                italic
+                outline-none
+                focus:ring-2
+                focus:ring-[#AAB7DA]
+                sm:px-6
+              "
+            />
+
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={loading}
+              className="
+                w-full
+                rounded-xl
+                bg-[#AAB7DA]
+                py-3
+                text-lg
+                transition
+                hover:bg-[#97A7D2]
+                disabled:cursor-not-allowed
+                disabled:opacity-70
+                sm:text-xl
+              "
+            >
+              {loading ? "LOGGING IN..." : "LOG IN"}
+            </button>
+
+            {error && (
+              <p className="text-center text-sm text-red-600">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="button"
+              className="
+                self-center
+                text-sm
+                italic
+                text-blue-600
+                hover:underline
+                sm:text-base
+              "
+            >
+              Forgot password?
+            </button>
+          </div>
 
       <main className="flex flex-1 items-center justify-center px-4 py-7 sm:px-6 lg:py-10">
         <div className="w-full max-w-[1020px]">
@@ -775,62 +914,6 @@ function Login() {
           </div>
         </div>
       </main>
-    </div>
-  );
-}
-
-function CodeField({
-  value,
-  setValue,
-  showCode,
-  setShowCode,
-  label,
-}: {
-  value: string;
-  setValue: (value: string) => void;
-  showCode: boolean;
-  setShowCode: (
-    value: boolean,
-  ) => void;
-  label: string;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <label className="text-[13px] font-semibold text-slate-700">
-          {label}
-        </label>
-        <span className="text-[11px] text-slate-400">
-          8 digits
-        </span>
-      </div>
-      <div className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 shadow-sm focus-within:border-[#B690BE] focus-within:ring-4 focus-within:ring-[#F1E7F3]">
-        <KeyRound size={17} className="text-[#9A73A3]" />
-        <input
-          type={showCode ? "text" : "password"}
-          value={value}
-          onChange={(event) =>
-            setValue(
-              event.target.value
-                .replace(/\D/g, "")
-                .slice(0, 8),
-            )
-          }
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={8}
-          placeholder="Enter code"
-          className="min-w-0 flex-1 bg-transparent text-[13px] tracking-[0.16em] text-slate-900 outline-none placeholder:tracking-normal placeholder:text-slate-400"
-        />
-        <button
-          type="button"
-          onClick={() => setShowCode(!showCode)}
-          className="rounded-lg p-1 text-slate-400 hover:bg-[#F7F1F8] hover:text-[#82548C]"
-          aria-label={showCode ? "Hide code" : "Show code"}
-        >
-          {showCode ? <EyeOff size={17} /> : <Eye size={17} />}
-        </button>
-      </div>
     </div>
   );
 }

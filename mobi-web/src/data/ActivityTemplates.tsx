@@ -18,7 +18,6 @@ export const ACTIVITY_TEMPLATES = {
 
   "Story": [
     "Teach",
-    "Conversation",
     "Ask",
     "Feedback",
   ],

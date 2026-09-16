@@ -32,6 +32,7 @@ function StepMenu({
         <div className="absolute right-0 top-10 z-50 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
 
           <button
+            type="button"
             onClick={() => {
               onMoveUp?.();
               setOpen(false);
@@ -43,6 +44,7 @@ function StepMenu({
           </button>
 
           <button
+            type="button"
             onClick={() => {
               onMoveDown?.();
               setOpen(false);
@@ -56,6 +58,7 @@ function StepMenu({
           <div className="border-t border-gray-200" />
 
           <button
+            type="button"
             onClick={() => {
               onDelete?.();
               setOpen(false);

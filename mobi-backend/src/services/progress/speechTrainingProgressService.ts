@@ -199,6 +199,7 @@ export async function getSpeechTrainingProgress(
       started_at,
       completed_at,
       average_response_time_ms,
+      activity_mastered,
 
       activity:activities!inner(
         id,
@@ -377,25 +378,28 @@ const speechApproximations =
       true,
   ).length;
 
-  const exactMatches =
+    const exactMatches =
     attempts.filter(
       (attempt) =>
         attempt.matching_method ===
-        "exact_match",
+          "exact_match" &&
+        attempt.accepted === true,
     ).length;
 
   const acceptedVariations =
     attempts.filter(
       (attempt) =>
         attempt.matching_method ===
-        "accepted_variation",
+          "accepted_variation" &&
+        attempt.accepted === true,
     ).length;
 
   const phoneticMatches =
     attempts.filter(
       (attempt) =>
         attempt.matching_method ===
-        "phonetic_match",
+          "phonetic_match" &&
+        attempt.accepted === true,
     ).length;
 
   const noResponseAttempts =
@@ -411,6 +415,19 @@ const speechApproximations =
         attempt.one_more_try_used ===
         true,
     ).length;
+
+  const masteredActivityIds = new Set(
+    sessions
+      .filter(
+        (session) => session.activity_mastered === true,
+      )
+      .map((session) => session.activity_id)
+      .filter(
+        (activityId): activityId is string =>
+          typeof activityId === "string" &&
+          activityId.length > 0,
+      ),
+  );
 
   const responseTimes =
     attempts
@@ -488,11 +505,7 @@ const speechApproximations =
       oneMoreTryUsedCount,
 
       activitiesMastered:
-        Number(
-          profile
-            ?.activities_mastered ??
-          0,
-        ),
+        masteredActivityIds.size,
     },
   };
 }

@@ -40,7 +40,7 @@ import { createClient } from "@supabase/supabase-js";
 import ws from "ws";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 /* =========================================================
    ENVIRONMENT VARIABLES
@@ -88,48 +88,3 @@ if (!supabasePublishableKey) {
    - auth.admin.deleteUser()
 
    Uses SERVICE ROLE KEY.
-========================================================= */
-
-export const supabase =
-  createClient(
-    supabaseUrl,
-    supabaseServiceKey,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-
-      realtime: {
-        transport: ws as any,
-      },
-    },
-  );
-
-/* =========================================================
-   STAFF AUTH CLIENT
-
-   Use this only for:
-   - signInWithOtp()
-   - verifyOtp()
-
-   Uses PUBLISHABLE KEY.
-========================================================= */
-
-export const supabaseAuth =
-  createClient(
-    supabaseUrl,
-    supabasePublishableKey,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-
-      realtime: {
-        transport: ws as any,
-      },
-    },
-  );

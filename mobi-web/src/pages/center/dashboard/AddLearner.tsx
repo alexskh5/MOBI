@@ -133,7 +133,7 @@ interface AttentionArea {
   undefined field errors.
 */
 const DRAFT_STORAGE_KEY =
-  "mobi-learner-intake-draft-v4";
+  "mobi-learner-intake-draft-v5";
 
 const inputClassName =
   "block w-full min-w-0 max-w-full rounded-xl border border-[#DDCDE3] bg-white px-3 py-3 text-sm text-[#302936] outline-none transition placeholder:text-[#9B929F] focus:border-[#76508C] focus:ring-4 focus:ring-[#76508C]/10 sm:rounded-2xl sm:px-4";
@@ -199,7 +199,13 @@ const profileSections: ProfileSection[] = [
     id: "learning-accessibility",
     title: "Learning & Accessibility",
     description:
-      "The learner's tablet experience, required assistance, and sensory considerations.",
+      "The learner's tablet experience and required assistance.",
+  },
+  {
+    id: "sensory",
+    title: "Sensory Profile",
+    description:
+      "Sensory systems and sensitivities that the therapist should consider.",
   },
   {
     id: "interests",
@@ -438,20 +444,12 @@ const profileQuestions: ProfileQuestion[] = [
     required: true,
     options: [
       {
-        label: "Always",
-        value: "always",
+        label: "Inconsistent",
+        value: "inconsistent",
       },
       {
-        label: "Often",
-        value: "often",
-      },
-      {
-        label: "Sometimes",
-        value: "sometimes",
-      },
-      {
-        label: "Rarely",
-        value: "rarely",
+        label: "Consistent",
+        value: "consistent",
       },
     ],
   },
@@ -466,20 +464,12 @@ const profileQuestions: ProfileQuestion[] = [
     required: true,
     options: [
       {
-        label: "Independently",
-        value: "independently",
+        label: "Independent",
+        value: "independent",
       },
       {
-        label: "With prompting",
-        value: "with_prompting",
-      },
-      {
-        label: "Occasionally",
-        value: "occasionally",
-      },
-      {
-        label: "Not yet",
-        value: "not_yet",
+        label: "With Reminders",
+        value: "with_reminders",
       },
     ],
   },
@@ -573,36 +563,8 @@ const profileQuestions: ProfileQuestion[] = [
   },
 
   {
-    id: "responds_to_interaction",
-    number: 10,
-    sectionId: "social-communication",
-    prompt:
-      "How often does the learner respond when others initiate interaction?",
-    type: "single",
-    required: true,
-    options: [
-      {
-        label: "Consistently",
-        value: "consistently",
-      },
-      {
-        label: "Sometimes",
-        value: "sometimes",
-      },
-      {
-        label: "Rarely",
-        value: "rarely",
-      },
-      {
-        label: "Not yet",
-        value: "not_yet",
-      },
-    ],
-  },
-
-  {
     id: "turn_taking",
-    number: 11,
+    number: 10,
     sectionId: "social-communication",
     prompt:
       "Which best describes the learner's turn-taking skills?",
@@ -610,27 +572,19 @@ const profileQuestions: ProfileQuestion[] = [
     required: true,
     options: [
       {
-        label: "Independently",
-        value: "independently",
+        label: "Independent",
+        value: "independent",
       },
       {
-        label: "With reminders",
+        label: "With Reminders",
         value: "with_reminders",
-      },
-      {
-        label: "Occasionally",
-        value: "occasionally",
-      },
-      {
-        label: "Not yet",
-        value: "not_yet",
       },
     ],
   },
 
   {
     id: "structured_engagement",
-    number: 12,
+    number: 11,
     sectionId: "social-communication",
     prompt:
       "How long does the learner usually remain engaged in a structured activity?",
@@ -662,7 +616,7 @@ const profileQuestions: ProfileQuestion[] = [
 
   {
     id: "tablet_assistance",
-    number: 13,
+    number: 12,
     sectionId: "learning-accessibility",
     prompt:
       "How much assistance does the learner need during tablet activities?",
@@ -670,27 +624,19 @@ const profileQuestions: ProfileQuestion[] = [
     required: true,
     options: [
       {
-        label: "Independent",
-        value: "independent",
-      },
-      {
         label: "Minimal assistance",
         value: "minimal_assistance",
       },
       {
-        label: "Moderate assistance",
-        value: "moderate_assistance",
-      },
-      {
-        label: "Full assistance",
-        value: "full_assistance",
+        label: "Maximal Assistance",
+        value: "maximal_assistance",
       },
     ],
   },
 
   {
     id: "tablet_familiarity",
-    number: 14,
+    number: 13,
     sectionId: "learning-accessibility",
     prompt:
       "Is the learner familiar with using a tablet?",
@@ -714,27 +660,48 @@ const profileQuestions: ProfileQuestion[] = [
 
   {
     id: "sensory_sensitivities",
-    number: 15,
-    sectionId: "learning-accessibility",
+    number: 14,
+    sectionId: "sensory",
     prompt:
-      "Does the learner have sensory sensitivities that should be considered?",
-    helper: "Select all that apply.",
+      "Sensory sensitivities that should be considered",
+    helper:
+      "For therapist input only. Select known sensitivities and add details under Other when needed.",
     type: "multiple",
     required: true,
     allowOther: true,
     exclusiveOption: "none",
     options: [
       {
-        label: "Loud sounds",
-        value: "loud_sounds",
+        label: "Auditory",
+        value: "auditory",
       },
       {
-        label: "Bright lights",
-        value: "bright_lights",
+        label: "Visual",
+        value: "visual",
       },
       {
-        label: "Fast-moving visuals",
-        value: "fast_moving_visuals",
+        label: "Tactile",
+        value: "tactile",
+      },
+      {
+        label: "Gustatory",
+        value: "gustatory",
+      },
+      {
+        label: "Olfactory",
+        value: "olfactory",
+      },
+      {
+        label: "Vestibular",
+        value: "vestibular",
+      },
+      {
+        label: "Proprioceptive",
+        value: "proprioceptive",
+      },
+      {
+        label: "Interoceptive",
+        value: "interoceptive",
       },
       {
         label: "None",
@@ -749,7 +716,7 @@ const profileQuestions: ProfileQuestion[] = [
 
   {
     id: "motivating_topics",
-    number: 16,
+    number: 15,
     sectionId: "interests",
     prompt:
       "Which topics are most motivating or interesting to the learner?",
@@ -801,13 +768,82 @@ const profileQuestions: ProfileQuestion[] = [
     ],
   },
 
+  {
+    id: "daily_living_participation",
+    number: 16,
+    sectionId: "interests",
+    prompt:
+      "Essential daily activities and participation areas to consider",
+    helper: "Select all areas that are relevant to the learner.",
+    type: "multiple",
+    required: true,
+    options: [
+      {
+        label:
+          "Activities of daily living (ADLS): basic self-care tasks like bathing, dressing, and eating.",
+        value: "adls",
+      },
+      {
+        label:
+          "Instrumental activities of daily living (IADLS): complex daily tasks like cooking, shopping, and managing money.",
+        value: "iadls",
+      },
+      {
+        label:
+          "Health management: maintaining health and wellness routines.",
+        value: "health_management",
+      },
+      {
+        label:
+          "Rest and sleep: engaging in restorative sleep and relaxation.",
+        value: "rest_sleep",
+      },
+      {
+        label:
+          "Education: participating in formal or informal learning.",
+        value: "education",
+      },
+      {
+        label:
+          "Work: performing employment or volunteer activities.",
+        value: "work",
+      },
+      {
+        label:
+          "Play: engaging in spontaneous or organized play activities.",
+        value: "play",
+      },
+      {
+        label:
+          "Leisure: pursuing non-obligatory, enjoyable free-time activities.",
+        value: "leisure",
+      },
+      {
+        label:
+          "Social participation: interacting with family, friends, and community members.",
+        value: "social_participation",
+      },
+    ],
+  },
+
   /* -------------------------------------------------------
      SECTION 6 — THERAPIST NOTES
   ------------------------------------------------------- */
 
   {
-    id: "therapy_goals_priorities",
+    id: "primary_concerns",
     number: 17,
+    sectionId: "therapist-notes",
+    prompt:
+      "Primary concerns that led the family to seek professional help",
+    helper:
+      "Include concerns relevant to MOBI planning, such as limited words, safety concerns, aggression, difficulty following instructions, not responding, or regulation needs.",
+    type: "long_text",
+  },
+
+  {
+    id: "therapy_goals_priorities",
+    number: 18,
     sectionId: "therapist-notes",
     prompt: "Therapy goals or priorities",
     type: "long_text",
@@ -815,7 +851,7 @@ const profileQuestions: ProfileQuestion[] = [
 
   {
     id: "additional_notes",
-    number: 18,
+    number: 19,
     sectionId: "therapist-notes",
     prompt: "Additional notes",
     type: "long_text",
@@ -1734,9 +1770,7 @@ const AddLearner = () => {
 
       if (
         answers.responds_to_name ===
-          "sometimes" ||
-        answers.responds_to_name ===
-          "rarely"
+          "inconsistent"
       ) {
         areas.push({
           code: "RESPONSE_TO_NAME",
@@ -1748,9 +1782,7 @@ const AddLearner = () => {
 
       if (
         answers.follows_one_step ===
-          "occasionally" ||
-        answers.follows_one_step ===
-          "not_yet"
+          "with_reminders"
       ) {
         areas.push({
           code: "ONE_STEP_DIRECTIONS",
@@ -1791,24 +1823,8 @@ const AddLearner = () => {
       }
 
       if (
-        answers.responds_to_interaction ===
-          "rarely" ||
-        answers.responds_to_interaction ===
-          "not_yet"
-      ) {
-        areas.push({
-          code: "INTERACTION_RESPONSE",
-          title: "Responding to interaction",
-          description:
-            "The learner may need support responding when others initiate interaction.",
-        });
-      }
-
-      if (
         answers.turn_taking ===
-          "occasionally" ||
-        answers.turn_taking ===
-          "not_yet"
+          "with_reminders"
       ) {
         areas.push({
           code: "TURN_TAKING",
@@ -1832,9 +1848,7 @@ const AddLearner = () => {
 
       if (
         answers.tablet_assistance ===
-          "moderate_assistance" ||
-        answers.tablet_assistance ===
-          "full_assistance"
+          "maximal_assistance"
       ) {
         areas.push({
           code: "TABLET_ASSISTANCE",

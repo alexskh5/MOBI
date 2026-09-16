@@ -7,6 +7,7 @@ import {
   getSpeechTraining,
   getSocialReadiness,
   getPerActivity,
+  getProgressReport,
 } from "../controllers/progressController";
 
 const router =
@@ -57,6 +58,11 @@ router.get(
 router.get(
   "/per-activity",
   getPerActivity,
+);
+
+router.get(
+  "/report",
+  getProgressReport,
 );
 
 export default router;

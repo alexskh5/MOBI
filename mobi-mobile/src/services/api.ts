@@ -1,50 +1,153 @@
-// // mobi-mobile/src/services/api.ts
-// import axios from "axios";
-
-// // Replace with your computer's IP address
-// // Run 'ipconfig getifaddr en0' on Mac to find IP
-// const LOCAL_IP = "192.168.1.18"; // Replace with actual IP
-
-// export const api = axios.create({
-//   baseURL: `http://${LOCAL_IP}:5001/api`,
-//   timeout: 10000,
-// });
-
-// // Add request interceptor for debugging
-// api.interceptors.request.use(
-//   (config) => {
-//     console.log(`${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-//     return config;
-//   },
-//   (error) => {
-//     console.log("Request error:", error);
-//     return Promise.reject(error);
-//   }
-// );
-
-// api.interceptors.response.use(
-//   (response) => {
-//     console.log(`Response: ${response.status}`);
-//     return response;
-//   },
-//   (error) => {
-//     console.log("Error:", error.message);
-//     return Promise.reject(error);
-//   }
-// );
-
-// // if error run command ipconfig getifaddr en0 on device terminal to get ip address then replace
-
-
-
 // mobi-mobile/src/services/api.ts
 
-import * as FileSystem from "expo-file-system/legacy";
+import {
+  File,
+  Paths,
+} from "expo-file-system";
 
-const API_BASE_URL = "http://192.168.1.20:5050";
+const API_BASE_URL = "http://192.168.254.129:5052";
+const STT_TIMEOUT_MS = 9000;
+const TTS_TIMEOUT_MS = 5500;
+
+function createTimeoutSignal(timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeoutId),
+  };
+}
+
+function getNetworkErrorMessage(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error);
+
+  if (
+    message.toLowerCase().includes("network request failed")
+  ) {
+    return (
+      `Cannot reach MOBI backend at ${API_BASE_URL}. ` +
+      "Make sure the backend is running, your phone and Mac are on the same Wi-Fi, and Mac firewall is not blocking the backend port."
+    );
+  }
+
+  return message;
+}
+// >>>>>>> Stashed changes
+
+export type AuthRole =
+  | "super_admin"
+  | "center_admin"
+  | "therapist"
+  | "doctor"
+  | "parent";
+
+export type AuthUser = {
+  id: string;
+  actorId: string;
+  role: AuthRole;
+  email: string;
+  firstName: string;
+  lastName: string;
+  centerId: string | null;
+  centerName: string | null;
+  accessToken: string;
+  defaultWebRoute: string;
+  defaultMobileRoute: "ChildDashboard" | "AdultDashboard";
+};
+
+let currentAuthUser: AuthUser | null = null;
+
+export function getCurrentAuthUser() {
+  return currentAuthUser;
+}
+
+export function setCurrentAuthUser(user: AuthUser | null) {
+  currentAuthUser = user;
+}
+
+function getAuthHeaders() {
+  const headers: Record<string, string> = {};
+
+  if (currentAuthUser?.accessToken) {
+    headers.Authorization =
+      `Bearer ${currentAuthUser.accessToken}`;
+  }
+
+  if (currentAuthUser?.centerId) {
+    headers["x-center-id"] =
+      currentAuthUser.centerId;
+  }
+
+  if (currentAuthUser?.actorId) {
+    headers["x-actor-id"] =
+      currentAuthUser.actorId;
+  }
+
+  if (currentAuthUser?.role) {
+    headers["x-actor-role"] =
+      currentAuthUser.role;
+  }
+
+  return headers;
+}
+
+export async function loginUser({
+  email,
+  password,
+}: {
+  email: string;
+  password: string;
+}) {
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/api/auth/login`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          surface: "mobile",
+        }),
+      },
+    );
+  } catch (error) {
+    throw new Error(getNetworkErrorMessage(error));
+  }
+
+  const result = await response
+    .json()
+    .catch(() => null);
+
+  if (!response.ok || !result?.user) {
+    throw new Error(
+      result?.message ||
+        "Unable to log in.",
+    );
+  }
+
+  setCurrentAuthUser(result.user);
+
+  return result.user as AuthUser;
+}
 
 export async function getActivities() {
-  const response = await fetch(`${API_BASE_URL}/activities`);
+  const response = await fetch(
+    `${API_BASE_URL}/activities`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
 
   if (!response.ok) {
     throw new Error("Failed to fetch activities");
@@ -53,8 +156,72 @@ export async function getActivities() {
   return response.json();
 }
 
+export async function getLearnerProfileSettings(
+  learnerId: string,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/learners/${learnerId}/profile-settings`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !result?.settings) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to load learner settings.",
+    );
+  }
+
+  return result.settings;
+}
+
+export async function updateLearnerProfileSettings({
+  learnerId,
+  childSafetySettings,
+}: {
+  learnerId: string;
+  childSafetySettings: {
+    dailyScreenTimeLimitSeconds: number | null;
+  };
+}) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/learners/${learnerId}/profile-settings`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        childSafetySettings,
+      }),
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !result?.settings) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to save learner settings.",
+    );
+  }
+
+  return result.settings;
+}
+
 export async function getActivityById(id: string) {
-  const response = await fetch(`${API_BASE_URL}/activities/${id}`);
+  const response = await fetch(
+    `${API_BASE_URL}/activities/${id}`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
 
   if (!response.ok) {
     throw new Error("Failed to fetch activity");
@@ -83,10 +250,31 @@ export async function transcribeAndEvaluateAudio({
   formData.append("expected_answers", JSON.stringify(expectedAnswers));
   formData.append("accepted_variations", JSON.stringify(acceptedVariations));
 
-  const response = await fetch(`${API_BASE_URL}/speech/transcribe-and-evaluate`, {
-    method: "POST",
-    body: formData,
-  });
+  const timeout =
+    createTimeoutSignal(STT_TIMEOUT_MS);
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/speech/transcribe-and-evaluate`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: formData,
+        signal: timeout.signal,
+      },
+    );
+  } catch (error) {
+    throw new Error(
+      error instanceof Error &&
+      error.name === "AbortError"
+        ? "Speech recognition took too long."
+        : getNetworkErrorMessage(error),
+    );
+  } finally {
+    timeout.clear();
+  }
 
   if (!response.ok) {
     throw new Error("Failed to transcribe and evaluate audio");
@@ -106,19 +294,64 @@ export async function generateTTSAudio({
   style?: string;
   emotion?: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/speech/tts`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text,
+  const normalizedText =
+    text.trim();
+
+  const cacheSource =
+    JSON.stringify({
+      text: normalizedText,
       voice,
       style,
       emotion,
-      return_base64: true,
-    }),
-  });
+    });
+
+  let cacheHash = 0;
+
+  for (let index = 0; index < cacheSource.length; index += 1) {
+    cacheHash =
+      (cacheHash * 31 + cacheSource.charCodeAt(index)) >>> 0;
+  }
+
+  const cachedFile = new File(
+    Paths.cache,
+    `mobi-tts-${cacheHash.toString(16)}.wav`,
+  );
+
+  if (cachedFile.exists) {
+    return cachedFile.uri;
+  }
+
+  const timeout =
+    createTimeoutSignal(TTS_TIMEOUT_MS);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/speech/tts`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: normalizedText,
+        voice,
+        style,
+        emotion,
+        return_base64: true,
+      }),
+      signal: timeout.signal,
+    });
+  } catch (error) {
+    throw new Error(
+      error instanceof Error &&
+      error.name === "AbortError"
+        ? "Speech audio took too long."
+        : getNetworkErrorMessage(error),
+    );
+  } finally {
+    timeout.clear();
+  }
 
   if (!response.ok) {
     throw new Error("Failed to generate speech.");
@@ -126,19 +359,22 @@ export async function generateTTSAudio({
 
   const data = await response.json();
 
-  const fileUri =
-    FileSystem.cacheDirectory +
-    `mobi-tts-${Date.now()}.${data.file_extension || "wav"}`;
+  const file =
+    data.file_extension === "wav"
+      ? cachedFile
+      : new File(
+          Paths.cache,
+          `mobi-tts-${cacheHash.toString(16)}.${data.file_extension || "wav"}`,
+        );
 
-  await FileSystem.writeAsStringAsync(
-    fileUri,
+  file.write(
     data.audio_base64,
     {
-      encoding: FileSystem.EncodingType.Base64,
-    }
+      encoding: "base64",
+    },
   );
 
-  return fileUri;
+  return file.uri;
 }
 
 
@@ -221,6 +457,9 @@ export async function getNextRecommendedActivity(
       `${API_BASE_URL}/api/activity-sessions/next?learnerId=${encodeURIComponent(
         learnerId,
       )}`,
+      {
+        headers: getAuthHeaders(),
+      },
     );
 
   if (!response.ok) {
@@ -277,6 +516,7 @@ export async function startActivitySession({
           "POST",
 
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },
@@ -324,8 +564,12 @@ export async function respondToActivitySession({
 
   attemptOrder,
   stepAttemptNumber,
+  activityStepId,
 
+  responseType = "speech",
   transcript,
+  selectedChoiceId = null,
+  actionCompleted = null,
 
   expectedAnswers,
   acceptedVariations,
@@ -357,8 +601,23 @@ export async function respondToActivitySession({
   stepAttemptNumber:
     number;
 
+  activityStepId:
+    string;
+
+  responseType?:
+    | "speech"
+    | "choice"
+    | "action"
+    | "conversation";
+
   transcript:
     string;
+
+  selectedChoiceId?:
+    string | number | null;
+
+  actionCompleted?:
+    boolean | null;
 
   expectedAnswers:
     string[];
@@ -415,6 +674,7 @@ export async function respondToActivitySession({
           "POST",
 
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },
@@ -427,7 +687,15 @@ export async function respondToActivitySession({
 
             stepAttemptNumber,
 
+            activityStepId,
+
+            responseType,
+
             transcript,
+
+            selectedChoiceId,
+
+            actionCompleted,
 
             expectedAnswers,
 
@@ -466,6 +734,55 @@ export async function respondToActivitySession({
       result?.message ||
         result?.error ||
         "Failed to process learner response.",
+    );
+  }
+
+  return result;
+}
+
+export async function skipActivitySessionStep({
+  sessionId,
+  learnerId,
+  activityStepId,
+  attemptOrder,
+  stepAttemptNumber,
+  skipReason = "Skipped during mobile session testing.",
+}: {
+  sessionId: string;
+  learnerId: string;
+  activityStepId: string;
+  attemptOrder: number;
+  stepAttemptNumber: number;
+  skipReason?: string;
+}) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/api/activity-sessions/${sessionId}/steps/${activityStepId}/skip`,
+      {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          learnerId,
+          attemptOrder,
+          stepAttemptNumber,
+          skipReason,
+        }),
+      },
+    );
+
+  const result =
+    await response
+      .json()
+      .catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to skip activity step.",
     );
   }
 
@@ -553,6 +870,7 @@ export async function finishActivitySession({
           "POST",
 
         headers: {
+          ...getAuthHeaders(),
           "Content-Type":
             "application/json",
         },

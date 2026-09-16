@@ -1,116 +1,59 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import CenterLayout from "../../../layouts/CenterLayout";
+import { getActivities } from "../../../services/activityApi";
 
 interface ArchivedActivity {
-  id: number;
+  id: string;
   title: string;
-  description: string;
-  image: string;
-  type: string;
-  archivedAt: string;
-  archivedBy: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  activity_type: string;
+  uploaded_by: string | null;
+  archived_at: string | null;
 }
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500";
 
 const ArchivedMaterials = () => {
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
-
-  // =======================================================
-  // TEMPORARY ARCHIVED DATA
-  // Replace this later once backend returns archived activities.
-  // =======================================================
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [archivedActivities, setArchivedActivities] = useState<
     ArchivedActivity[]
-  >([
-    {
-      id: 1,
-      title: "Animal Words Practice",
-      description:
-        "Practice saying simple animal words with visual prompts and guided repetition.",
-      image:
-        "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500",
-      type: "Teach & Practice",
-      archivedAt: "2 hours ago",
-      archivedBy: "Center Admin",
-    },
-    {
-      id: 2,
-      title: "Greeting Friends",
-      description:
-        "Help learners practice saying hello, waving, and responding during simple social interactions.",
-      image:
-        "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=500",
-      type: "Conversation",
-      archivedAt: "Yesterday",
-      archivedBy: "Therapist",
-    },
-    {
-      id: 3,
-      title: "Color Matching Activity",
-      description:
-        "Identify and match common colors using child-friendly picture choices.",
-      image:
-        "https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=500",
-      type: "Check & Answer",
-      archivedAt: "3 days ago",
-      archivedBy: "Center Admin",
-    },
-  ]);
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const handleRestore = (activityId: number) => {
-    const confirmRestore = window.confirm(
-      "Restore this activity back to Materials?"
-    );
+  useEffect(() => {
+    async function loadArchivedActivities() {
+      try {
+        setLoading(true);
+        const data = await getActivities();
 
-    if (!confirmRestore) return;
+        setArchivedActivities(
+          data.filter(
+            (activity: ArchivedActivity) =>
+              activity.archived_at &&
+              activity.activity_type !== "Regulatory Activity",
+          ),
+        );
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load archived activities.");
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    // =======================================================
-    // TODO (Backend):
-    // Restore archived activity.
-    //
-    // Example later:
-    // await restoreActivity(activityId);
-    //
-    // Backend should update activity status:
-    // archived -> published
-    // =======================================================
-
-    setArchivedActivities((prev) =>
-      prev.filter((activity) => activity.id !== activityId)
-    );
-
-    setOpenMenu(null);
-  };
-
-  const handlePermanentDelete = (activityId: number) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to permanently delete this archived activity? This action cannot be undone."
-    );
-
-    if (!confirmDelete) return;
-
-    // =======================================================
-    // TODO (Backend):
-    // Permanently delete archived activity.
-    //
-    // Example later:
-    // await deleteActivityPermanently(activityId);
-    // =======================================================
-
-    setArchivedActivities((prev) =>
-      prev.filter((activity) => activity.id !== activityId)
-    );
-
-    setOpenMenu(null);
-  };
+    loadArchivedActivities();
+  }, []);
 
   return (
     <CenterLayout>
       {(sidebarOpen, setSidebarOpen) => (
         <div className="inter bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 flex flex-col">
-          {/* Header */}
           <div className="flex justify-between items-center mb-8">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
@@ -146,23 +89,32 @@ const ArchivedMaterials = () => {
             </button>
           </div>
 
-          {/* Archived Cards */}
-          {archivedActivities.length === 0 ? (
+          {loading && (
+            <p className="text-center text-lg font-semibold">
+              Loading archived activities...
+            </p>
+          )}
+
+          {error && (
+            <p className="text-center text-red-600 font-semibold">
+              {error}
+            </p>
+          )}
+
+          {!loading && !error && archivedActivities.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-lg font-semibold text-gray-600">
                 No archived activities yet.
               </p>
             </div>
-          ) : (
+          ) : null}
+
+          {!loading && !error && archivedActivities.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {archivedActivities.map((activity) => (
                 <div
                   key={activity.id}
-                  onClick={() => {
-                    // Optional:
-                    // Open preview when clicking the card itself.
-                    // navigate(`/center/materials/${activity.id}`);
-                  }}
+                  onClick={() => navigate(`/center/materials/${activity.id}`)}
                   className="
                     bg-white
                     rounded-3xl
@@ -178,7 +130,7 @@ const ArchivedMaterials = () => {
                   "
                 >
                   <img
-                    src={activity.image}
+                    src={activity.thumbnail_url || fallbackImage}
                     alt={activity.title}
                     className="
                       w-full
@@ -197,12 +149,12 @@ const ArchivedMaterials = () => {
                     </h3>
 
                     <p className="text-sm text-gray-600 line-clamp-2 min-h-10 mt-2">
-                      {activity.description}
+                      {activity.description || "No description provided."}
                     </p>
 
                     <div className="mt-auto">
                       <p className="text-xs text-gray-500 mb-2">
-                        Type: {activity.type}
+                        Type: {activity.activity_type}
                       </p>
 
                       <p className="text-xs font-semibold">
@@ -210,22 +162,24 @@ const ArchivedMaterials = () => {
                       </p>
 
                       <p className="text-xs text-gray-500 mt-2">
-                        Archived: {activity.archivedAt}
+                        Archived:{" "}
+                        {activity.archived_at
+                          ? new Date(activity.archived_at).toLocaleString()
+                          : "Recently"}
                       </p>
 
                       <p className="text-xs text-gray-500 mt-1">
-                        Archived by: {activity.archivedBy}
+                        Uploaded by: {activity.uploaded_by || "Center Admin"}
                       </p>
                     </div>
                   </div>
 
-                  {/* 3 dots menu */}
                   <div className="absolute bottom-3 right-4">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenMenu(
-                          openMenu === activity.id ? null : activity.id
+                          openMenu === activity.id ? null : activity.id,
                         );
                       }}
                       className="text-2xl text-gray-500 hover:text-gray-700"
@@ -238,15 +192,6 @@ const ArchivedMaterials = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-
-                            // =======================================================
-                            // TODO:
-                            // Open archived activity preview.
-                            //
-                            // If same preview page can support archived activities:
-                            // navigate(`/center/materials/${activity.id}`);
-                            // =======================================================
-
                             navigate(`/center/materials/${activity.id}`);
                             setOpenMenu(null);
                           }}
@@ -255,25 +200,9 @@ const ArchivedMaterials = () => {
                           Preview
                         </button>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRestore(activity.id);
-                          }}
-                          className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                        >
-                          Restore
-                        </button>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePermanentDelete(activity.id);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
-                        >
-                          Delete Permanently
-                        </button>
+                        <p className="px-4 py-2 text-xs text-gray-500">
+                          Archived published activities are kept for records.
+                        </p>
                       </div>
                     )}
                   </div>

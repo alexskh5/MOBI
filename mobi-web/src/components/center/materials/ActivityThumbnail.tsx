@@ -3,11 +3,15 @@ interface ActivityThumbnailProps {
   setThumbnail: React.Dispatch<
     React.SetStateAction<string | null>
   >;
+  setThumbnailFile: React.Dispatch<
+    React.SetStateAction<File | null>
+  >;
 }
 
 function ActivityThumbnail({
   thumbnail,
   setThumbnail,
+  setThumbnailFile,
 }: ActivityThumbnailProps) {
 
   const handleImageUpload = (
@@ -20,10 +24,12 @@ function ActivityThumbnail({
     const imageUrl =
       URL.createObjectURL(file);
 
+    setThumbnailFile(file);
     setThumbnail(imageUrl);
   };
 
   const handleRemoveImage = () => {
+    setThumbnailFile(null);
     setThumbnail(null);
   };
 
