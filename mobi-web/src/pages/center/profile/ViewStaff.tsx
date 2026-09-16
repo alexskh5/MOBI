@@ -1,418 +1,917 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Mail,
+  MoreHorizontal,
+  Search,
+  Send,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Search, X } from "lucide-react";
+
 import CenterLayout from "../../../layouts/CenterLayout";
+import {
+  deleteTherapist,
+  getTherapists,
+  sendTherapistAccessCode,
+} from "../../../services/therapist/therapistApi";
 
+type TherapistAccountStatus =
+  | "not_invited"
+  | "invited"
+  | "active"
+  | "suspended";
 
-interface StaffData {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  age: number;
-  gender: string;
-  role: string;
-}
+type TherapistRecord = {
+  id: string;
+  center_id: string;
+  auth_user_id?: string | null;
+  email: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  specialization?: string | null;
+  phone_number?: string | null;
+  profile_picture_url?: string | null;
+  bio?: string | null;
+  account_status: TherapistAccountStatus;
+  access_code_sent_at?: string | null;
+  last_login_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+type SortOption =
+  | "newest"
+  | "lastname-asc"
+  | "lastname-desc"
+  | "specialization-asc"
+  | "specialization-desc";
+
+const STAFF_PER_PAGE = 10;
 
 const Staff = () => {
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const staffsPerPage = 10;
-
   const navigate = useNavigate();
 
-  const [staffs, setStaffs] = useState<StaffData[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
-
-  const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState<StaffData | null>(null);
-
+  const [staffs, setStaffs] = useState<TherapistRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [selectedStaff, setSelectedStaff] =
+    useState<TherapistRecord | null>(null);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [deletingStaffId, setDeletingStaffId] =
+    useState<string | null>(null);
+  const [sendingCodeStaffId, setSendingCodeStaffId] =
+    useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
-//   const [sortOption, setSortOption] = useState("default");    UNCOMMENT RANI NYA DELETE NING IYA UBOS NA LINE NIGV BACKEND NA KAY ERROR MAN RN
-  const [, setSortOption] = useState("default"); 
+  useEffect(() => {
+    let mounted = true;
 
-    // placeholder rani ni pero matic na count ang list puhon
-    useEffect(() => {
-    const fetchStaffs = async () => {
-        try {
-        const data: StaffData[] = [
-            {
-            _id: "1",
-            firstName: "Andres Lou",
-            lastName: "Mulach",
-            age: 28,
-            gender: "Male",
-            role: "Psychiatrist",
-            },
-            {
-            _id: "2",
-            firstName: "Maria",
-            lastName: "Santos",
-            age: 35,
-            gender: "Female",
-            role: "Occupational Therapist",
-            },
-            {
-            _id: "3",
-            firstName: "John",
-            lastName: "Reyes",
-            age: 40,
-            gender: "Male",
-            role: "Speech Therapist",
-            },
-            {
-            _id: "4",
-            firstName: "Sophia",
-            lastName: "Garcia",
-            age: 32,
-            gender: "Female",
-            role: "Behavioral Therapist",
-            },
-        ];
+    async function loadStaff() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
 
-        setStaffs(data);
-        setLoading(false);
-        } catch (error) {
-        console.error("Error fetching staffs:", error);
-        setLoading(false);
+        const result = await getTherapists();
+
+        if (mounted) {
+          setStaffs(result.therapists ?? []);
         }
+      } catch (error: any) {
+        if (mounted) {
+          setErrorMessage(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Unable to load staff."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadStaff();
+
+    return () => {
+      mounted = false;
     };
+  }, []);
 
-    fetchStaffs();
-    }, []);
+  const filteredStaff = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
 
-    const totalPages = Math.ceil(
-    staffs.length / staffsPerPage
-    );
+    const filtered = staffs.filter((staff) => {
+      if (!query) return true;
 
-    const startIndex =
-    (currentPage - 1) * staffsPerPage;
+      return [
+        staff.first_name,
+        staff.middle_name,
+        staff.last_name,
+        staff.email,
+        staff.specialization,
+        staff.phone_number,
+        staff.account_status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
 
-    const currentStaffs = staffs.slice(
-    startIndex,
-    startIndex + staffsPerPage
-    );
+    return [...filtered].sort((a, b) => {
+      if (sortOption === "lastname-asc") {
+        return a.last_name.localeCompare(b.last_name);
+      }
+
+      if (sortOption === "lastname-desc") {
+        return b.last_name.localeCompare(a.last_name);
+      }
+
+      if (sortOption === "specialization-asc") {
+        return (a.specialization ?? "").localeCompare(b.specialization ?? "");
+      }
+
+      if (sortOption === "specialization-desc") {
+        return (b.specialization ?? "").localeCompare(a.specialization ?? "");
+      }
+
+      return (
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+      );
+    });
+  }, [staffs, searchQuery, sortOption]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredStaff.length / STAFF_PER_PAGE)
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const currentStaff = filteredStaff.slice(
+    (currentPage - 1) * STAFF_PER_PAGE,
+    currentPage * STAFF_PER_PAGE
+  );
+
+  const handleSendCode = async (
+    staff: TherapistRecord,
+  ) => {
+    try {
+      setSendingCodeStaffId(staff.id);
+      setErrorMessage("");
+      setSuccessMessage("");
+      setOpenMenu(null);
+
+      const result =
+        await sendTherapistAccessCode(
+          staff.id,
+        );
+
+      setStaffs((current) =>
+        current.map((item) =>
+          item.id === staff.id
+            ? result.therapist
+            : item,
+        ),
+      );
+
+      setSuccessMessage(
+        result.message ||
+          "Therapist access code sent successfully.",
+      );
+    } catch (error: any) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          "Unable to send therapist access code.",
+      );
+    } finally {
+      setSendingCodeStaffId(null);
+    }
+  };
+
+  const handleDeleteStaff = async () => {
+    if (!selectedStaff) {
+      return;
+    }
+
+    try {
+      setDeletingStaffId(selectedStaff.id);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const result =
+        await deleteTherapist(
+          selectedStaff.id,
+        );
+
+      setStaffs((current) =>
+        current.filter(
+          (staff) =>
+            staff.id !==
+            selectedStaff.id,
+        ),
+      );
+
+      setSuccessMessage(
+        result.message ||
+          "Staff member removed successfully.",
+      );
+
+      setSelectedStaff(null);
+      setShowRemoveModal(false);
+    } catch (error: any) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          "Unable to remove staff.",
+      );
+    } finally {
+      setDeletingStaffId(null);
+    }
+  };
 
   return (
     <CenterLayout>
-        {(sidebarOpen, setSidebarOpen) => (
-            <div className="bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 inter flex flex-col">
-            {/* TOP BAR */}
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-4">
+      {(sidebarOpen, setSidebarOpen) => (
+        <div className="min-h-full rounded-none bg-[#F8F5F9] p-4 font-sans sm:rounded-[26px] sm:p-6 lg:p-8">
+          {/* PAGE HEADER */}
+          <header className="mb-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="flex items-start gap-3">
                 {!sidebarOpen && (
-                <button
-                    className="text-3xl mr-4"
+                  <button
+                    type="button"
                     onClick={() => setSidebarOpen(true)}
-                >
+                    className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    aria-label="Open sidebar"
+                  >
                     ☰
-                </button>
+                  </button>
                 )}
 
-                <h1 className="text-2xl font-medium">
-                    Staff{" "}
-                    <span className="bg-white px-2 rounded-full text-md">
-                    {staffs.length}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#82548C]">
+                    Center Management
+                  </p>
+
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                      Staff
+                    </h1>
+
+                    <span className="rounded-full bg-[#F1E7F3] px-2.5 py-1 text-xs font-semibold text-[#82548C]">
+                      {staffs.length}
                     </span>
-                </h1>
+                  </div>
+
+                  <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
+                    Manage therapists and clinical staff connected to your MOBI center.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="relative min-w-0 sm:w-[280px]">
+                  <Search
+                    size={17}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder="Search staff..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#9B6BA4] focus:ring-4 focus:ring-[#9B6BA4]/10"
+                  />
                 </div>
 
-                <div className="flex items-center gap-3">
-                    {/* Search Bar */}
-                    <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96">
-                        <Search
-                        size={20}
-                        className="text-gray-500 mr-3"
-                        />
-
-                        <input
-                        type="text"
-                        placeholder="Search"
-                        className="bg-transparent outline-none w-full"
-                        />
-                    </div>
-
-                    {/* Close Page Button */}
-                    <button
-                        onClick={() => navigate("/center/profile")}
-                        className="w-11 h-11 flex items-center justify-center bg-[#F5EEF6] rounded-xl shadow-md hover:bg-[#EBD7EC] transition"
-                    >
-                        <X
-                        size={20}
-                        className="text-[#7A5D7F]"
-                        />
-                    </button>
-                </div>
-
-            </div>
-
-            <div className="border-b border-black mb-6"></div>
-            
-          {/* HEADER ACTIONS */}
-          <div className="flex justify-between items-center mb-6">
-            <p className="text-lg font-medium">Click Staff to view profile</p>
-
-            <div className="flex items-center gap-6">
-                <div className="relative">
                 <button
-                    className="text-md"
-                    onClick={() => setShowSortMenu(!showSortMenu)}
+                  type="button"
+                  onClick={() => navigate("/center/profile/AddStaff")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#82548C] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#704578]"
                 >
-                    Sort List ▾
+                  <UserPlus size={17} />
+                  Add Staff
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/center/profile")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-11 sm:px-0"
+                  aria-label="Back to center profile"
+                >
+                  <ArrowLeft size={17} />
+                  <span className="sm:hidden">Back</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {errorMessage && (
+            <div className="mb-5 flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              <span>{errorMessage}</span>
+              <button
+                type="button"
+                onClick={() => setErrorMessage("")}
+                className="shrink-0 opacity-70 hover:opacity-100"
+                aria-label="Close error"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-5 flex items-start justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              <span>{successMessage}</span>
+              <button
+                type="button"
+                onClick={() => setSuccessMessage("")}
+                className="shrink-0 opacity-70 hover:opacity-100"
+                aria-label="Close success message"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+
+          {/* MAIN CARD */}
+          <section className="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F5ECF6] text-[#82548C]">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Therapist & Staff Directory
+                  </h2>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                    These records come from your real therapists table.
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowSortMenu((current) => !current)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Sort
+                  <ChevronDown size={15} />
                 </button>
 
                 {showSortMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
-                    <button
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                        onClick={() => {
+                  <div className="absolute right-0 top-12 z-40 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl">
+                    <SortOptionButton
+                      label="Newest added"
+                      onClick={() => {
+                        setSortOption("newest");
+                        setShowSortMenu(false);
+                      }}
+                    />
+                    <SortOptionButton
+                      label="Last name A–Z"
+                      onClick={() => {
                         setSortOption("lastname-asc");
                         setShowSortMenu(false);
-
-                        // TODO: Backend sort by last name A-Z
-                        }}
-                    >
-                        Last Name A-Z
-                    </button>
-
-                    <button
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                        onClick={() => {
+                      }}
+                    />
+                    <SortOptionButton
+                      label="Last name Z–A"
+                      onClick={() => {
                         setSortOption("lastname-desc");
                         setShowSortMenu(false);
-
-                        // TODO: Backend sort by last name Z-A
-                        }}
-                    >
-                        Last Name Z-A
-                    </button>
-
-                    <button
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                        onClick={() => {
-                        setSortOption("age-asc");
+                      }}
+                    />
+                    <SortOptionButton
+                      label="Role / specialization A–Z"
+                      onClick={() => {
+                        setSortOption("specialization-asc");
                         setShowSortMenu(false);
-
-                        // TODO: Backend sort by youngest first
-                        }}
-                    >
-                        Age ↑
-                    </button>
-
-                    <button
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                        onClick={() => {
-                        setSortOption("age-desc");
+                      }}
+                    />
+                    <SortOptionButton
+                      label="Role / specialization Z–A"
+                      onClick={() => {
+                        setSortOption("specialization-desc");
                         setShowSortMenu(false);
-
-                        // TODO: Backend sort by oldest first
-                        }}
-                    >
-                        Age ↓
-                    </button>
-
-                    <button
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                    onClick={() => {
-                        setSortOption("role-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort specialty A-Z
-                    }}
-                    >
-                    Role A-Z
-                    </button>
-
-                    <button
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                    onClick={() => {
-                        setSortOption("role-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort specialty Z-A
-                    }}
-                    >
-                    Role Z-A
-                    </button>
-                    </div>
+                      }}
+                    />
+                  </div>
                 )}
+              </div>
+            </div>
+
+            {loading ? (
+              <LoadingState text="Loading staff..." />
+            ) : currentStaff.length === 0 ? (
+              <EmptyState
+                title="No staff found"
+                description={
+                  searchQuery
+                    ? "Try a different search."
+                    : "Add a therapist or staff member to create the first record."
+                }
+              />
+            ) : (
+              <>
+                {/* DESKTOP TABLE */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[1040px] text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                        <th className="px-6 py-3.5">Staff member</th>
+                        <th className="px-4 py-3.5">Email</th>
+                        <th className="px-4 py-3.5">Role / specialization</th>
+                        <th className="px-4 py-3.5">Access</th>
+                        <th className="px-4 py-3.5">Invitation</th>
+                        <th className="w-16 px-3 py-3.5" />
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {currentStaff.map((staff) => (
+                        <tr
+                          key={staff.id}
+                          className="border-b border-slate-100 transition last:border-b-0 hover:bg-[#FCF9FC]"
+                        >
+                          <td className="px-6 py-4">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(
+                                  `/center/profile/${staff.id}/EditStaff`
+                                )
+                              }
+                              className="text-left"
+                            >
+                              <p className="font-semibold text-slate-900">
+                                {staff.first_name}{" "}
+                                {staff.middle_name
+                                  ? `${staff.middle_name} `
+                                  : ""}
+                                {staff.last_name}
+                              </p>
+                              <p className="mt-1 max-w-[220px] truncate text-xs text-slate-400">
+                                ID: {staff.id}
+                              </p>
+                            </button>
+                          </td>
+
+                          <td className="px-4 py-4 text-sm text-slate-600">
+                            <div className="flex items-center gap-2">
+                              <Mail size={14} className="text-slate-400" />
+                              {staff.email}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 text-sm text-slate-600">
+                            {staff.specialization || "—"}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <StatusBadge status={staff.account_status} />
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <InvitationControl
+                              staff={staff}
+                              isSending={sendingCodeStaffId === staff.id}
+                              onSend={() => void handleSendCode(staff)}
+                            />
+                          </td>
+
+                          <td className="relative px-3 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenMenu(
+                                  openMenu === staff.id ? null : staff.id
+                                )
+                              }
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+                              aria-label="Staff actions"
+                            >
+                              <MoreHorizontal size={18} />
+                            </button>
+
+                            {openMenu === staff.id && (
+                              <div className="absolute right-8 top-12 z-50 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 text-left shadow-xl">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      `/center/profile/${staff.id}/EditStaff`
+                                    )
+                                  }
+                                  className="block w-full px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+                                >
+                                  View / Edit Staff
+                                </button>
+
+                                {staff.account_status !== "active" &&
+                                  staff.account_status !== "suspended" && (
+                                    <button
+                                      type="button"
+                                      disabled={sendingCodeStaffId === staff.id}
+                                      onClick={() => void handleSendCode(staff)}
+                                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-[#7456A3] hover:bg-[#F8F3FA] disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      <Send size={14} />
+                                      {staff.account_status === "not_invited"
+                                        ? "Send Invitation"
+                                        : "Resend Access Code"}
+                                    </button>
+                                  )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedStaff(staff);
+                                    setShowRemoveModal(true);
+                                    setOpenMenu(null);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 size={14} />
+                                  Remove Staff
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
 
-              <button
-                onClick={() => navigate("/center/profile/AddStaff")}
-                className="bg-[#f4edf5] px-8 py-2 rounded-xl shadow"
-              >
-                + Add Staff
-              </button>
-            </div>
-          </div>
+                {/* MOBILE / TABLET CARDS */}
+                <div className="divide-y divide-slate-100 md:hidden">
+                  {currentStaff.map((staff) => (
+                    <article key={staff.id} className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate font-bold text-slate-900">
+                            {staff.first_name}{" "}
+                            {staff.middle_name
+                              ? `${staff.middle_name} `
+                              : ""}
+                            {staff.last_name}
+                          </h3>
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {staff.specialization || "No specialization"}
+                          </p>
+                        </div>
 
-          <div className="flex-1 flex flex-col">
-            {/* TABLE */}
-            <div className="bg-[#E4C9E5] rounded-xl p-6 border border-[#DFA5C9] shadow-md flex-1">
-            {loading ? (
-                <p>Loading Staffs...</p>
-            ) : (
-                <table className="w-full table-fixed text-md">
-                <thead>
-                    <tr className="text-left border-b border-[#DFA5C9] [&>th]:pb-4">
-                    <th className="w-40">ID</th>
-                    <th>FIRST NAME</th>
-                    <th>LAST NAME</th>
-                    <th className="w-32">AGE</th>
-                    <th className="w-40">GENDER</th>
-                    <th className="w-70">ROLE/POSITION</th>
-                    <th className="w-12"></th>
-                    </tr>
-                </thead>
+                        <StatusBadge status={staff.account_status} />
+                      </div>
 
-                <tbody>
-                    {currentStaffs.map((Staff) => (
-                    <tr
-                        key={Staff._id}
-                        className="border-b border-[#DFA5C9] hover:bg-[#EBCFE9] cursor-pointer [&>td]:py-2"
-                        onClick={() =>
-                        navigate(`/center/dashboard/${Staff._id}`)
-                        }
-                    >
-                        <td>{Staff._id}</td>
-                        <td>{Staff.firstName}</td>
-                        <td>{Staff.lastName}</td>
-                        <td>{Staff.age}</td>
-                        <td>{Staff.gender}</td>
-                        <td>{Staff.role}</td>
-                        <td className="relative text-center">
+                      <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                        <p className="flex items-center gap-2 break-all text-sm text-slate-600">
+                          <Mail size={14} className="shrink-0 text-slate-400" />
+                          {staff.email}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                          Invitation
+                        </p>
+                        <InvitationControl
+                          staff={staff}
+                          isSending={sendingCodeStaffId === staff.id}
+                          onSend={() => void handleSendCode(staff)}
+                        />
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
                         <button
-                            className="text-xl font-bold"
-                            onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenu(
-                                openMenu === Staff._id ? null : Staff._id
-                            );
-                            }}
+                          type="button"
+                          onClick={() =>
+                            navigate(`/center/profile/${staff.id}/EditStaff`)
+                          }
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
                         >
-                            ⋯
+                          View / Edit
                         </button>
 
-                        {openMenu === Staff._id && (
-                            <div className="absolute right-0 top-8 w-40 bg-white rounded-xl shadow-lg py-2 z-50">
-                            <button
-                                className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/center/profile/${Staff._id}/EditStaff`);
-                                }}
-                            >
-                                Edit Staff
-                            </button>
-
-                            <button
-                            className="block w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedStaff(Staff);
-                                setShowRemoveModal(true);
-                                setOpenMenu(null);
-                            }}
-                            >
-                            Remove Staff
-                            </button>
-                            </div>
-                        )}
-                        </td>
-                    </tr>
-                    ))}
-                </tbody>
-                </table>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStaff(staff);
+                            setShowRemoveModal(true);
+                          }}
+                          className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
             )}
-            </div>
-            </div>
-            
+          </section>
 
-            {/* PAGINATION */}
-            <div className="flex justify-between items-center mt-4">
-            <div className="flex gap-2">
-                <button
-                onClick={() =>
-                    setCurrentPage((prev) =>
-                    Math.max(prev - 1, 1)
-                    )
-                }
-                disabled={currentPage === 1}
-                className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
-                >
-                &lt;
-                </button>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrevious={() =>
+              setCurrentPage((current) => Math.max(1, current - 1))
+            }
+            onNext={() =>
+              setCurrentPage((current) => Math.min(totalPages, current + 1))
+            }
+          />
 
-                <button
-                onClick={() =>
-                    setCurrentPage((prev) =>
-                    Math.min(prev + 1, totalPages)
-                    )
-                }
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
-                >
-                &gt;
-                </button>
-            </div>
+          {showRemoveModal && selectedStaff && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
+              <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div className="p-6">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                    <Trash2 size={19} />
+                  </div>
 
-            <p className="text-sm font-medium">
-                {currentPage} of {totalPages}
-            </p>
-            </div>
-          
-            {showRemoveModal && (
-            <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-                <div className="bg-[#F4EAF5] rounded-3xl p-8 w-96 shadow-xl">
-                
-                <h2 className="text-2xl font-semibold mb-3 text-center">
-                    Remove Staff
-                </h2>
+                  <h2 className="mt-4 text-xl font-bold text-slate-900">
+                    Remove staff member?
+                  </h2>
 
-                <p className="text-center text-gray-700 mb-8">
-                    Are you sure you want to remove
-                    <br />
-                    <span className="font-semibold">
-                    {selectedStaff?.firstName} {selectedStaff?.lastName}
-                    </span>
-                    ?
-                </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    This will remove{" "}
+                    <strong className="text-slate-700">
+                      {selectedStaff.first_name}{" "}
+                      {selectedStaff.middle_name
+                        ? `${selectedStaff.middle_name} `
+                        : ""}
+                      {selectedStaff.last_name}
+                    </strong>{" "}
+                    from the Center. Their current learner assignments will also
+                    be removed from the therapist assignment table.
+                  </p>
+                </div>
 
-                <div className="flex justify-center gap-4">
-                    <button
-                    onClick={() => setShowRemoveModal(false)}
-                    className="px-6 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100"
-                    >
-                    Cancel
-                    </button>
-
-                    <button
+                <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={deletingStaffId === selectedStaff.id}
                     onClick={() => {
-                        setShowRemoveModal(false);
-
-                        // TODO: Backend remove function here
-
-                        console.log(
-                        "Removed:",
-                        selectedStaff?._id
-                        );
+                      setShowRemoveModal(false);
+                      setSelectedStaff(null);
                     }}
-                    className="px-6 py-2 rounded-xl bg-[#DFA5C9] text-white hover:bg-[#d48cb8]"
-                    >
-                    Remove
-                    </button>
-                </div>
-                </div>
-            </div>
-            )}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
 
+                  <button
+                    type="button"
+                    disabled={deletingStaffId === selectedStaff.id}
+                    onClick={() => void handleDeleteStaff()}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 size={15} />
+                    {deletingStaffId === selectedStaff.id
+                      ? "Removing..."
+                      : "Remove Staff"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </CenterLayout>
   );
 };
+
+
+function formatAccessCodeSentAt(
+  value?: string | null,
+) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-PH",
+    {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    },
+  ).format(date);
+}
+
+function InvitationControl({
+  staff,
+  isSending,
+  onSend,
+}: {
+  staff: TherapistRecord;
+  isSending: boolean;
+  onSend: () => void;
+}) {
+  if (staff.account_status === "active") {
+    return (
+      <div>
+        <p className="text-xs font-semibold text-emerald-700">
+          Account activated
+        </p>
+        <p className="mt-1 text-[11px] text-slate-400">
+          Therapist can sign in to MOBI.
+        </p>
+      </div>
+    );
+  }
+
+  if (staff.account_status === "suspended") {
+    return (
+      <div>
+        <p className="text-xs font-semibold text-rose-600">
+          Account suspended
+        </p>
+        <p className="mt-1 text-[11px] text-slate-400">
+          Access codes cannot be sent.
+        </p>
+      </div>
+    );
+  }
+
+  const sentAt =
+    formatAccessCodeSentAt(
+      staff.access_code_sent_at,
+    );
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={isSending}
+        onClick={onSend}
+        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#DECBE3] bg-white px-3 text-xs font-semibold text-[#7456A3] transition hover:bg-[#F8F3FA] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Send size={14} />
+        {isSending
+          ? "Sending..."
+          : staff.account_status === "not_invited"
+            ? "Send Invitation"
+            : "Resend Access Code"}
+      </button>
+
+      <p className="mt-1.5 text-[11px] text-slate-400">
+        {staff.account_status === "not_invited"
+          ? "No access code sent yet."
+          : sentAt
+            ? `Last code sent ${sentAt}.`
+            : "Invitation has been sent."}
+      </p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: TherapistAccountStatus }) {
+  const config = {
+    not_invited: {
+      label: "Not Invited",
+      classes: "bg-slate-100 text-slate-600",
+    },
+    invited: {
+      label: "Invited",
+      classes: "bg-[#F1EAF5] text-[#7456A3]",
+    },
+    active: {
+      label: "Active",
+      classes: "bg-emerald-50 text-emerald-700",
+    },
+    suspended: {
+      label: "Suspended",
+      classes: "bg-rose-50 text-rose-600",
+    },
+  }[status];
+
+  return (
+    <span
+      className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${config.classes}`}
+    >
+      {config.label}
+    </span>
+  );
+}
+
+function SortOptionButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full px-4 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50"
+    >
+      {label}
+    </button>
+  );
+}
+
+function LoadingState({ text }: { text: string }) {
+  return (
+    <div className="p-10 text-center text-sm text-slate-500">{text}</div>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="p-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#F5ECF6] text-[#82548C]">
+        <UserCheck size={27} />
+      </div>
+
+      <h3 className="mt-3 font-bold text-slate-800">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onPrevious,
+  onNext,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-xs text-slate-500">
+        Page {currentPage} of {totalPages}
+      </span>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={onPrevious}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Previous
+        </button>
+
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={onNext}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default Staff;

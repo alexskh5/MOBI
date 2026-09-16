@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import {
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
 import {
     CalendarDays,
     Check,
@@ -10,25 +14,41 @@ import {
     Users,
     X,
 } from "lucide-react";
+import {
+    useNavigate,
+} from "react-router-dom";
 
 import TherapistLayout from "../../../layouts/TherapistLayout";
 
+import {
+    getTherapistById,
+    getTherapistLearners,
+    type TherapistLearnerRecord,
+} from "../../../services/therapist/therapistApi";
+
+import {
+    createTherapistCollaborationNote,
+    getLearnerCollaborationNotes,
+    getLearnerDoctor,
+    getLearnerTherapists,
+} from "../../../services/collaboration/collaborationApi";
+
 type Learner = {
-    id: number;
+    id: string;
     name: string;
-    age: number;
-    assignedDoctorId?: number;
-    assignedTherapistIds: number[];
+    age: number | null;
+    assignedDoctorId?: string;
+    assignedTherapistIds: string[];
 };
 
 type Doctor = {
-    id: number;
+    id: string;
     name: string;
     specialization: string;
 };
 
 type Therapist = {
-    id: number;
+    id: string;
     name: string;
     specialization: string;
 };
@@ -38,13 +58,16 @@ type NoteCategory =
     | "MOBI Session"
     | "Therapy Session";
 
-type SenderRole = "Center" | "Doctor" | "Therapist";
+type SenderRole =
+    | "Center"
+    | "Doctor"
+    | "Therapist";
 
 type CollaborationRecord = {
-    id: number;
-    learnerId: number;
-    doctorId?: number;
-    therapistId?: number;
+    id: string;
+    learnerId: string;
+    doctorId?: string | null;
+    therapistId?: string | null;
     category: NoteCategory;
     title: string;
     createdAt: string;
@@ -53,157 +76,10 @@ type CollaborationRecord = {
     content: string;
 };
 
-type NoteFilter = "today" | "week" | "month";
-
-const currentTherapist: Therapist = {
-    id: 1,
-    name: "Anna Reyes, SLP",
-    specialization: "Speech-Language Therapist",
-};
-
-const doctors: Doctor[] = [
-    {
-        id: 1,
-        name: "Dr. Jane R. Doe",
-        specialization: "Developmental Pediatrician",
-    },
-    {
-        id: 2,
-        name: "Dr. Marco D. Reyes",
-        specialization: "Child Psychologist",
-    },
-    {
-        id: 3,
-        name: "Dr. Andrea L. Cruz",
-        specialization: "Behavioral Specialist",
-    },
-];
-
-const therapists: Therapist[] = [
-    currentTherapist,
-    {
-        id: 2,
-        name: "Villa R. Reese, ST",
-        specialization: "Speech Therapist",
-    },
-    {
-        id: 3,
-        name: "Maria D. Santos, BT",
-        specialization: "Behavioral Therapist",
-    },
-];
-
-const initialLearners: Learner[] = [
-    {
-        id: 1,
-        name: "Lea Sarsoza",
-        age: 6,
-        assignedDoctorId: 1,
-        assignedTherapistIds: [1, 2],
-    },
-    {
-        id: 2,
-        name: "Harry Potter",
-        age: 7,
-        assignedTherapistIds: [3],
-    },
-    {
-        id: 3,
-        name: "Albus Severus",
-        age: 5,
-        assignedDoctorId: 2,
-        assignedTherapistIds: [1],
-    },
-    {
-        id: 4,
-        name: "George Weasley",
-        age: 8,
-        assignedTherapistIds: [],
-    },
-];
-
-const createDateDaysAgo = (daysAgo: number) => {
-    const date = new Date();
-
-    date.setDate(date.getDate() - daysAgo);
-    date.setHours(10, 0, 0, 0);
-
-    return date.toISOString();
-};
-
-const initialRecords: CollaborationRecord[] = [
-    {
-        id: 1,
-        learnerId: 1,
-        doctorId: 1,
-        category: "Clinical",
-        title: "Clinical Progress Note",
-        createdAt: createDateDaysAgo(10),
-        sender: "Dr. Jane R. Doe",
-        senderRole: "Doctor",
-        content:
-            "Lea practiced following simple directions and used short verbal requests during play activities. She showed improved attention during sensory breaks and participated well in peer interaction exercises.",
-    },
-    {
-        id: 2,
-        learnerId: 1,
-        category: "MOBI Session",
-        title: "MOBI Session Note",
-        createdAt: createDateDaysAgo(6),
-        sender: "Center Admin",
-        senderRole: "Center",
-        content:
-            "Lea completed AI-guided speech activities focused on emotion recognition and turn-taking skills. She responded positively to adaptive prompts and demonstrated progress in initiating simple social greetings.",
-    },
-    {
-        id: 3,
-        learnerId: 1,
-        therapistId: 1,
-        category: "Therapy Session",
-        title: "Occupational Therapy Note",
-        createdAt: createDateDaysAgo(3),
-        sender: "Anna Reyes, SLP",
-        senderRole: "Therapist",
-        content:
-            "Lea participated in turn-taking and sensory regulation activities. She completed the first two activities independently and needed verbal support during the final activity.",
-    },
-    {
-        id: 4,
-        learnerId: 1,
-        doctorId: 1,
-        category: "Clinical",
-        title: "Clinical Follow-up",
-        createdAt: createDateDaysAgo(0),
-        sender: "Dr. Jane R. Doe",
-        senderRole: "Doctor",
-        content:
-            "Continue using short prompts and allow a brief sensory break when Lea becomes distracted. Gradually increase activity difficulty when she consistently completes the current level.",
-    },
-    {
-        id: 5,
-        learnerId: 3,
-        doctorId: 2,
-        category: "Clinical",
-        title: "Clinical Progress Note",
-        createdAt: createDateDaysAgo(5),
-        sender: "Dr. Marco D. Reyes",
-        senderRole: "Doctor",
-        content:
-            "Albus may benefit from slower activity pacing and fewer repeated attempts per session to avoid frustration.",
-    },
-    {
-        id: 6,
-        learnerId: 3,
-        therapistId: 1,
-        category: "Therapy Session",
-        title: "Occupational Therapy Note",
-        createdAt: createDateDaysAgo(1),
-        sender: "Anna Reyes, SLP",
-        senderRole: "Therapist",
-        content:
-            "Albus completed a short matching activity and followed two-step instructions with guided support. He benefited from a short movement break before continuing.",
-    },
-];
+type NoteFilter =
+    | "today"
+    | "week"
+    | "month";
 
 const NOTE_FILTER_OPTIONS: Array<{
     value: NoteFilter;
@@ -223,224 +99,1123 @@ const NOTE_FILTER_OPTIONS: Array<{
     },
 ];
 
-const getInitials = (name: string) => {
+const getInitials = (
+    name: string,
+) => {
     return name
         .replace(/[.,]/g, "")
         .trim()
         .split(/\s+/)
         .filter(Boolean)
         .slice(0, 2)
-        .map((word) => word.charAt(0).toUpperCase())
+        .map((word) =>
+            word
+                .charAt(0)
+                .toUpperCase()
+        )
         .join("");
 };
 
-const formatRecordDate = (createdAt: string) => {
-    return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    }).format(new Date(createdAt));
+const calculateAge = (
+    birthDate:
+        | string
+        | null,
+) => {
+    if (!birthDate) {
+        return null;
+    }
+
+    const birth =
+        new Date(
+            `${birthDate}T00:00:00`
+        );
+
+    if (
+        Number.isNaN(
+            birth.getTime()
+        )
+    ) {
+        return null;
+    }
+
+    const today =
+        new Date();
+
+    let age =
+        today.getFullYear() -
+        birth.getFullYear();
+
+    const monthDifference =
+        today.getMonth() -
+        birth.getMonth();
+
+    if (
+        monthDifference < 0 ||
+        (
+            monthDifference ===
+                0 &&
+            today.getDate() <
+                birth.getDate()
+        )
+    ) {
+        age -= 1;
+    }
+
+    return Math.max(
+        age,
+        0,
+    );
+};
+
+const formatRecordDate = (
+    createdAt: string,
+) => {
+    return new Intl.DateTimeFormat(
+        "en-US",
+        {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+        },
+    ).format(
+        new Date(createdAt),
+    );
 };
 
 const isWithinFilter = (
     createdAt: string,
-    selectedFilter: NoteFilter
+    selectedFilter: NoteFilter,
 ) => {
-    const recordDate = new Date(createdAt);
-    const now = new Date();
-    const startDate = new Date(now);
+    const recordDate =
+        new Date(createdAt);
 
-    if (selectedFilter === "today") {
-        startDate.setHours(0, 0, 0, 0);
+    const now =
+        new Date();
 
-        return recordDate >= startDate && recordDate <= now;
-    }
+    const startDate =
+        new Date(now);
 
-    if (selectedFilter === "week") {
-        const currentDay = now.getDay();
-        const daysSinceMonday =
-            currentDay === 0 ? 6 : currentDay - 1;
-
-        startDate.setDate(
-            now.getDate() - daysSinceMonday
+    if (
+        selectedFilter ===
+        "today"
+    ) {
+        startDate.setHours(
+            0,
+            0,
+            0,
+            0,
         );
 
-        startDate.setHours(0, 0, 0, 0);
+        return (
+            recordDate >=
+                startDate &&
+            recordDate <= now
+        );
+    }
 
-        return recordDate >= startDate && recordDate <= now;
+    if (
+        selectedFilter ===
+        "week"
+    ) {
+        const currentDay =
+            now.getDay();
+
+        const daysSinceMonday =
+            currentDay === 0
+                ? 6
+                : currentDay -
+                  1;
+
+        startDate.setDate(
+            now.getDate() -
+                daysSinceMonday,
+        );
+
+        startDate.setHours(
+            0,
+            0,
+            0,
+            0,
+        );
+
+        return (
+            recordDate >=
+                startDate &&
+            recordDate <= now
+        );
     }
 
     startDate.setDate(1);
-    startDate.setHours(0, 0, 0, 0);
-
-    return recordDate >= startDate && recordDate <= now;
-};
-
-const TherapistCollaboration = () => {
-    const [learners] = useState<Learner[]>(
-        initialLearners
+    startDate.setHours(
+        0,
+        0,
+        0,
+        0,
     );
 
-    const [records, setRecords] =
-        useState<CollaborationRecord[]>(
-            initialRecords
-        );
+    return (
+        recordDate >=
+            startDate &&
+        recordDate <= now
+    );
+};
 
-    const [searchTerm, setSearchTerm] =
-        useState("");
-
-    const [selectedLearnerId, setSelectedLearnerId] =
-        useState<number | null>(null);
-
-    const [selectedFilter, setSelectedFilter] =
-        useState<NoteFilter>("month");
-
-    const [showFilterMenu, setShowFilterMenu] =
-        useState(false);
-
-    const [showNoteModal, setShowNoteModal] =
-        useState(false);
-
-    const [noteTitle, setNoteTitle] =
-        useState("Therapy Session Note");
-
-    const [noteContent, setNoteContent] =
-        useState("");
-
-    /*
-     * Only learners assigned to the currently signed-in
-     * therapist are displayed.
-     *
-     * Later, replace currentTherapist.id with the therapist ID
-     * returned by authentication/backend.
-     */
-    const assignedLearners = useMemo(() => {
-        return learners.filter((learner) =>
-            learner.assignedTherapistIds.includes(
-                currentTherapist.id
-            )
-        );
-    }, [learners]);
-
-    const filteredLearners = useMemo(() => {
-        const normalizedSearch = searchTerm
-            .trim()
+const normalizeSenderRole = (
+    role?: string | null,
+): SenderRole => {
+    const normalized =
+        role
+            ?.trim()
             .toLowerCase();
 
-        return assignedLearners
-            .filter((learner) =>
-                learner.name
-                    .toLowerCase()
-                    .includes(normalizedSearch)
-            )
-            .sort((firstLearner, secondLearner) =>
-                firstLearner.name.localeCompare(
-                    secondLearner.name
+    if (
+        normalized ===
+        "doctor"
+    ) {
+        return "Doctor";
+    }
+
+    if (
+        normalized ===
+        "therapist"
+    ) {
+        return "Therapist";
+    }
+
+    return "Center";
+};
+
+const normalizeCategory = (
+    category?: string | null,
+    senderRole?: string | null,
+): NoteCategory => {
+    const normalized =
+        category
+            ?.trim()
+            .toLowerCase();
+
+    if (
+        normalized ===
+        "clinical"
+    ) {
+        return "Clinical";
+    }
+
+    if (
+        normalized ===
+        "therapy session"
+    ) {
+        return "Therapy Session";
+    }
+
+    if (
+        senderRole
+            ?.trim()
+            .toLowerCase() ===
+        "therapist"
+    ) {
+        return "Therapy Session";
+    }
+
+    return "MOBI Session";
+};
+
+const mapApiNote = (
+    note: any,
+): CollaborationRecord => {
+    return {
+        id:
+            String(
+                note.id,
+            ),
+
+        learnerId:
+            String(
+                note.learnerId ??
+                    note.learner_id,
+            ),
+
+        doctorId:
+            note.doctorId ??
+            note.sender_doctor_id ??
+            null,
+
+        therapistId:
+            note.therapistId ??
+            note.sender_therapist_id ??
+            null,
+
+        category:
+            normalizeCategory(
+                note.category,
+                note.senderRole ??
+                    note.sender_role,
+            ),
+
+        title:
+            note.title ||
+            "Collaboration Note",
+
+        createdAt:
+            note.createdAt ??
+            note.created_at,
+
+        sender:
+            note.sender ??
+            note.sender_name ??
+            "MOBI Care Team",
+
+        senderRole:
+            normalizeSenderRole(
+                note.senderRole ??
+                    note.sender_role,
+            ),
+
+        content:
+            note.content ||
+            "",
+    };
+};
+
+const getPersonName = (
+    record: any,
+    fallback: string,
+) => {
+    const name = [
+        record?.first_name ??
+            record?.firstName,
+        record?.middle_name ??
+            record?.middleName,
+        record?.last_name ??
+            record?.lastName,
+    ]
+        .filter(Boolean)
+        .join(" ");
+
+    return (
+        name ||
+        record?.name ||
+        fallback
+    );
+};
+
+const TherapistCollaboration =
+    () => {
+    const navigate =
+        useNavigate();
+
+    const [
+        learners,
+        setLearners,
+    ] =
+        useState<
+            Learner[]
+        >([]);
+
+    const [
+        doctors,
+        setDoctors,
+    ] =
+        useState<
+            Doctor[]
+        >([]);
+
+    const [
+        therapists,
+        setTherapists,
+    ] =
+        useState<
+            Therapist[]
+        >([]);
+
+    const [
+        currentTherapist,
+        setCurrentTherapist,
+    ] =
+        useState<
+            Therapist | null
+        >(null);
+
+    const [
+        records,
+        setRecords,
+    ] =
+        useState<
+            CollaborationRecord[]
+        >([]);
+
+    const [
+        searchTerm,
+        setSearchTerm,
+    ] =
+        useState("");
+
+    const [
+        selectedLearnerId,
+        setSelectedLearnerId,
+    ] =
+        useState<
+            string | null
+        >(null);
+
+    const [
+        selectedFilter,
+        setSelectedFilter,
+    ] =
+        useState<NoteFilter>(
+            "month",
+        );
+
+    const [
+        showFilterMenu,
+        setShowFilterMenu,
+    ] =
+        useState(false);
+
+    const [
+        showNoteModal,
+        setShowNoteModal,
+    ] =
+        useState(false);
+
+    const [
+        noteTitle,
+        setNoteTitle,
+    ] =
+        useState(
+            "Therapy Session Note",
+        );
+
+    const [
+        noteContent,
+        setNoteContent,
+    ] =
+        useState("");
+
+    const [
+        loading,
+        setLoading,
+    ] =
+        useState(true);
+
+    const [
+        isLoadingNotes,
+        setIsLoadingNotes,
+    ] =
+        useState(false);
+
+    const [
+        isSavingNote,
+        setIsSavingNote,
+    ] =
+        useState(false);
+
+    const [
+        errorMessage,
+        setErrorMessage,
+    ] =
+        useState("");
+
+    /* =====================================================
+       LOAD LOGGED-IN THERAPIST + REAL ASSIGNED LEARNERS
+    ===================================================== */
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function loadCollaboration() {
+            const role =
+                localStorage.getItem(
+                    "mobi_staff_role",
+                );
+
+            const therapistId =
+                localStorage.getItem(
+                    "mobi_staff_profile_id",
+                );
+
+            if (
+                role !==
+                    "therapist" ||
+                !therapistId
+            ) {
+                navigate(
+                    "/login",
+                    {
+                        replace:
+                            true,
+                    },
+                );
+
+                return;
+            }
+
+            try {
+                setLoading(
+                    true,
+                );
+
+                setErrorMessage(
+                    "",
+                );
+
+                const [
+                    therapistResult,
+                    learnerResult,
+                ] =
+                    await Promise.all([
+                        getTherapistById(
+                            therapistId,
+                        ),
+
+                        getTherapistLearners(
+                            therapistId,
+                        ),
+                    ]);
+
+                const therapistRecord =
+                    therapistResult
+                        ?.therapist;
+
+                if (
+                    !therapistRecord
+                ) {
+                    throw new Error(
+                        "Unable to identify the logged-in Therapist.",
+                    );
+                }
+
+                const loggedInTherapist:
+                    Therapist = {
+                    id:
+                        String(
+                            therapistRecord.id,
+                        ),
+
+                    name:
+                        getPersonName(
+                            therapistRecord,
+                            "Therapist",
+                        ),
+
+                    specialization:
+                        therapistRecord.specialization ||
+                        "Therapist",
+                };
+
+                const learnerRows:
+                    TherapistLearnerRecord[] =
+                    Array.isArray(
+                        learnerResult
+                            ?.learners,
+                    )
+                        ? learnerResult.learners
+                        : [];
+
+                const doctorMap =
+                    new Map<
+                        string,
+                        Doctor
+                    >();
+
+                const therapistMap =
+                    new Map<
+                        string,
+                        Therapist
+                    >();
+
+                therapistMap.set(
+                    loggedInTherapist.id,
+                    loggedInTherapist,
+                );
+
+                const mappedLearners =
+                    await Promise.all(
+                        learnerRows.map(
+                            async (
+                                learner,
+                            ) => {
+                                const [
+                                    doctorResult,
+                                    therapistResult,
+                                ] =
+                                    await Promise.allSettled([
+                                        getLearnerDoctor(
+                                            learner.id,
+                                        ),
+
+                                        getLearnerTherapists(
+                                            learner.id,
+                                        ),
+                                    ]);
+
+                                let assignedDoctorId:
+                                    | string
+                                    | undefined;
+
+                                if (
+                                    doctorResult.status ===
+                                    "fulfilled"
+                                ) {
+                                    const doctor =
+                                        doctorResult
+                                            .value
+                                            ?.doctorAssignment
+                                            ?.doctor;
+
+                                    if (
+                                        doctor
+                                    ) {
+                                        const mappedDoctor:
+                                            Doctor = {
+                                            id:
+                                                String(
+                                                    doctor.id,
+                                                ),
+
+                                            name:
+                                                getPersonName(
+                                                    doctor,
+                                                    "Doctor",
+                                                ),
+
+                                            specialization:
+                                                doctor.specialization ||
+                                                "Doctor",
+                                        };
+
+                                        assignedDoctorId =
+                                            mappedDoctor.id;
+
+                                        doctorMap.set(
+                                            mappedDoctor.id,
+                                            mappedDoctor,
+                                        );
+                                    }
+                                } else {
+                                    console.error(
+                                        `Unable to load doctor for learner ${learner.id}:`,
+                                        doctorResult.reason,
+                                    );
+                                }
+
+                                let assignedTherapistIds:
+                                    string[] = [];
+
+                                if (
+                                    therapistResult.status ===
+                                    "fulfilled"
+                                ) {
+                                    const rows =
+                                        therapistResult
+                                            .value
+                                            ?.therapists ??
+                                        [];
+
+                                    assignedTherapistIds =
+                                        rows.map(
+                                            (
+                                                therapist: any,
+                                            ) => {
+                                                const mappedTherapist:
+                                                    Therapist = {
+                                                    id:
+                                                        String(
+                                                            therapist.id,
+                                                        ),
+
+                                                    name:
+                                                        getPersonName(
+                                                            therapist,
+                                                            "Therapist",
+                                                        ),
+
+                                                    specialization:
+                                                        therapist.specialization ||
+                                                        "Therapist",
+                                                };
+
+                                                therapistMap.set(
+                                                    mappedTherapist.id,
+                                                    mappedTherapist,
+                                                );
+
+                                                return mappedTherapist.id;
+                                            },
+                                        );
+                                } else {
+                                    console.error(
+                                        `Unable to load Therapists for learner ${learner.id}:`,
+                                        therapistResult.reason,
+                                    );
+                                }
+
+                                /*
+                                  The endpoint already returns only learners assigned
+                                  to the logged-in Therapist. Keep their own ID in the
+                                  care-team list even if an older assignment response
+                                  omitted it.
+                                */
+                                if (
+                                    !assignedTherapistIds.includes(
+                                        therapistId,
+                                    )
+                                ) {
+                                    assignedTherapistIds.push(
+                                        therapistId,
+                                    );
+                                }
+
+                                return {
+                                    id:
+                                        learner.id,
+
+                                    name:
+                                        [
+                                            learner.firstName,
+                                            learner.middleName,
+                                            learner.lastName,
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" "),
+
+                                    age:
+                                        calculateAge(
+                                            learner.birthDate,
+                                        ),
+
+                                    assignedDoctorId,
+
+                                    assignedTherapistIds,
+                                } satisfies Learner;
+                            },
+                        ),
+                    );
+
+                if (!mounted) {
+                    return;
+                }
+
+                setCurrentTherapist(
+                    loggedInTherapist,
+                );
+
+                setDoctors(
+                    Array.from(
+                        doctorMap.values(),
+                    ),
+                );
+
+                setTherapists(
+                    Array.from(
+                        therapistMap.values(),
+                    ),
+                );
+
+                setLearners(
+                    mappedLearners,
+                );
+
+                setSelectedLearnerId(
+                    (
+                        current,
+                    ) =>
+                        current &&
+                        mappedLearners.some(
+                            (
+                                learner,
+                            ) =>
+                                learner.id ===
+                                current,
+                        )
+                            ? current
+                            : null,
+                );
+            } catch (
+                error: any
+            ) {
+                if (!mounted) {
+                    return;
+                }
+
+                console.error(
+                    "Unable to load Therapist collaboration:",
+                    error,
+                );
+
+                setErrorMessage(
+                    error?.response
+                        ?.data
+                        ?.message ||
+                        error?.message ||
+                        "Unable to load collaboration data.",
+                );
+
+                setLearners(
+                    [],
+                );
+
+                setDoctors(
+                    [],
+                );
+
+                setTherapists(
+                    [],
+                );
+
+                setCurrentTherapist(
+                    null,
+                );
+            } finally {
+                if (mounted) {
+                    setLoading(
+                        false,
+                    );
+                }
+            }
+        }
+
+        void loadCollaboration();
+
+        return () => {
+            mounted = false;
+        };
+    }, [navigate]);
+
+    /* =====================================================
+       LOAD REAL NOTES FOR SELECTED LEARNER
+    ===================================================== */
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function loadNotes() {
+            if (
+                !selectedLearnerId
+            ) {
+                setRecords(
+                    [],
+                );
+
+                return;
+            }
+
+            try {
+                setIsLoadingNotes(
+                    true,
+                );
+
+                setErrorMessage(
+                    "",
+                );
+
+                const result =
+                    await getLearnerCollaborationNotes(
+                        selectedLearnerId,
+                    );
+
+                if (!mounted) {
+                    return;
+                }
+
+                setRecords(
+                    (
+                        result?.notes ??
+                        []
+                    ).map(
+                        mapApiNote,
+                    ),
+                );
+            } catch (
+                error: any
+            ) {
+                if (!mounted) {
+                    return;
+                }
+
+                console.error(
+                    "Unable to load collaboration notes:",
+                    error,
+                );
+
+                setRecords(
+                    [],
+                );
+
+                setErrorMessage(
+                    error?.response
+                        ?.data
+                        ?.message ||
+                        error?.message ||
+                        "Unable to load collaboration notes.",
+                );
+            } finally {
+                if (mounted) {
+                    setIsLoadingNotes(
+                        false,
+                    );
+                }
+            }
+        }
+
+        void loadNotes();
+
+        return () => {
+            mounted = false;
+        };
+    }, [
+        selectedLearnerId,
+    ]);
+
+    /*
+      getTherapistLearners() already scopes the list to the
+      logged-in Therapist's current assignments.
+    */
+    const assignedLearners =
+        learners;
+
+    const filteredLearners =
+        useMemo(() => {
+            const normalizedSearch =
+                searchTerm
+                    .trim()
+                    .toLowerCase();
+
+            return assignedLearners
+                .filter(
+                    (
+                        learner,
+                    ) =>
+                        learner.name
+                            .toLowerCase()
+                            .includes(
+                                normalizedSearch,
+                            ),
                 )
-            );
-    }, [assignedLearners, searchTerm]);
+                .sort(
+                    (
+                        firstLearner,
+                        secondLearner,
+                    ) =>
+                        firstLearner.name.localeCompare(
+                            secondLearner.name,
+                        ),
+                );
+        }, [
+            assignedLearners,
+            searchTerm,
+        ]);
 
     const selectedLearner =
         assignedLearners.find(
-            (learner) =>
-                learner.id === selectedLearnerId
+            (
+                learner,
+            ) =>
+                learner.id ===
+                selectedLearnerId,
         );
 
-    const selectedLearnerRecords = useMemo(() => {
-        if (!selectedLearnerId) {
-            return [];
-        }
+    const selectedLearnerRecords =
+        useMemo(() => {
+            if (
+                !selectedLearnerId
+            ) {
+                return [];
+            }
 
-        return records
-            .filter(
-                (record) =>
-                    record.learnerId ===
-                    selectedLearnerId
-            )
-            .sort(
-                (firstRecord, secondRecord) =>
-                    new Date(
-                        firstRecord.createdAt
-                    ).getTime() -
-                    new Date(
-                        secondRecord.createdAt
-                    ).getTime()
-            );
-    }, [records, selectedLearnerId]);
-
-    const visibleRecords = useMemo(() => {
-        return selectedLearnerRecords.filter(
-            (record) =>
-                isWithinFilter(
-                    record.createdAt,
-                    selectedFilter
+            return records
+                .filter(
+                    (
+                        record,
+                    ) =>
+                        record.learnerId ===
+                        selectedLearnerId,
                 )
-        );
-    }, [
-        selectedLearnerRecords,
-        selectedFilter,
-    ]);
-
-    const handleSelectLearner = (
-        learnerId: number
-    ) => {
-        setSelectedLearnerId(
-            (currentLearnerId) =>
-                currentLearnerId === learnerId
-                    ? null
-                    : learnerId
-        );
-
-        setShowFilterMenu(false);
-    };
-
-    const openNoteModal = () => {
-        if (!selectedLearner) {
-            return;
-        }
-
-        setNoteTitle("Therapy Session Note");
-        setNoteContent("");
-        setShowFilterMenu(false);
-        setShowNoteModal(true);
-    };
-
-    const closeNoteModal = () => {
-        setShowNoteModal(false);
-        setNoteTitle("Therapy Session Note");
-        setNoteContent("");
-    };
-
-    const handleAddNote = () => {
-        if (
-            !selectedLearner ||
-            !noteContent.trim()
-        ) {
-            return;
-        }
-
-        const newRecord: CollaborationRecord = {
-            id: Date.now(),
-            learnerId: selectedLearner.id,
-            therapistId: currentTherapist.id,
-            category: "Therapy Session",
-            title:
-                noteTitle.trim() ||
-                "Therapy Session Note",
-            createdAt: new Date().toISOString(),
-            sender: currentTherapist.name,
-            senderRole: "Therapist",
-            content: noteContent.trim(),
-        };
-
-        setRecords((previousRecords) => [
-            ...previousRecords,
-            newRecord,
+                .sort(
+                    (
+                        firstRecord,
+                        secondRecord,
+                    ) =>
+                        new Date(
+                            firstRecord.createdAt,
+                        ).getTime() -
+                        new Date(
+                            secondRecord.createdAt,
+                        ).getTime(),
+                );
+        }, [
+            records,
+            selectedLearnerId,
         ]);
 
-        setSelectedFilter("today");
-        closeNoteModal();
-    };
+    const visibleRecords =
+        useMemo(() => {
+            return selectedLearnerRecords.filter(
+                (
+                    record,
+                ) =>
+                    isWithinFilter(
+                        record.createdAt,
+                        selectedFilter,
+                    ),
+            );
+        }, [
+            selectedLearnerRecords,
+            selectedFilter,
+        ]);
+
+    const handleSelectLearner =
+        (
+            learnerId: string,
+        ) => {
+            setSelectedLearnerId(
+                (
+                    currentLearnerId,
+                ) =>
+                    currentLearnerId ===
+                    learnerId
+                        ? null
+                        : learnerId,
+            );
+
+            setShowFilterMenu(
+                false,
+            );
+        };
+
+    const openNoteModal =
+        () => {
+            if (
+                !selectedLearner ||
+                !currentTherapist
+            ) {
+                return;
+            }
+
+            setNoteTitle(
+                "Therapy Session Note",
+            );
+
+            setNoteContent(
+                "",
+            );
+
+            setShowFilterMenu(
+                false,
+            );
+
+            setShowNoteModal(
+                true,
+            );
+        };
+
+    const closeNoteModal =
+        () => {
+            if (
+                isSavingNote
+            ) {
+                return;
+            }
+
+            setShowNoteModal(
+                false,
+            );
+
+            setNoteTitle(
+                "Therapy Session Note",
+            );
+
+            setNoteContent(
+                "",
+            );
+        };
+
+    const handleAddNote =
+        async () => {
+            if (
+                !selectedLearner ||
+                !currentTherapist ||
+                !noteContent.trim()
+            ) {
+                return;
+            }
+
+            try {
+                setIsSavingNote(
+                    true,
+                );
+
+                setErrorMessage(
+                    "",
+                );
+
+                const result =
+                    await createTherapistCollaborationNote(
+                        currentTherapist.id,
+                        selectedLearner.id,
+                        {
+                            title:
+                                noteTitle.trim() ||
+                                "Therapy Session Note",
+
+                            content:
+                                noteContent.trim(),
+
+                            category:
+                                "Therapy Session",
+                        },
+                    );
+
+                const savedNote =
+                    mapApiNote(
+                        result.note,
+                    );
+
+                setRecords(
+                    (
+                        previousRecords,
+                    ) => [
+                        ...previousRecords,
+                        savedNote,
+                    ],
+                );
+
+                setSelectedFilter(
+                    "today",
+                );
+
+                setShowNoteModal(
+                    false,
+                );
+
+                setNoteTitle(
+                    "Therapy Session Note",
+                );
+
+                setNoteContent(
+                    "",
+                );
+            } catch (
+                error: any
+            ) {
+                console.error(
+                    "Unable to add Therapist collaboration note:",
+                    error,
+                );
+
+                setErrorMessage(
+                    error?.response
+                        ?.data
+                        ?.message ||
+                        error?.message ||
+                        "Unable to add progress note.",
+                );
+            } finally {
+                setIsSavingNote(
+                    false,
+                );
+            }
+        };
 
     return (
         <TherapistLayout>
@@ -508,6 +1283,12 @@ const TherapistCollaboration = () => {
 
                     <div className="my-5 border-b border-gray-400/60" />
 
+                    {errorMessage && (
+                        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                            {errorMessage}
+                        </div>
+                    )}
+
                     {/* MAIN CONTENT */}
                     <div className="grid flex-1 grid-cols-1 gap-5 lg:min-h-0 lg:grid-cols-[250px_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)]">
                         {/* LEARNER LIST */}
@@ -523,7 +1304,13 @@ const TherapistCollaboration = () => {
                             </div>
 
                             <div className="min-h-0 flex-1 overflow-y-auto p-1.5 [scrollbar-width:thin]">
-                                {filteredLearners.length >
+                                {loading ? (
+                                    <div className="flex min-h-[180px] items-center justify-center px-5 text-center">
+                                        <p className="text-sm font-semibold text-gray-500">
+                                            Loading assigned learners...
+                                        </p>
+                                    </div>
+                                ) : filteredLearners.length >
                                 0 ? (
                                     <div className="space-y-1">
                                         {filteredLearners.map(
@@ -670,7 +1457,7 @@ const TherapistCollaboration = () => {
                                                                                 ) => {
                                                                                     const isCurrentTherapist =
                                                                                         therapist.id ===
-                                                                                        currentTherapist.id;
+                                                                                        currentTherapist?.id;
 
                                                                                     return (
                                                                                         <div
@@ -782,10 +1569,9 @@ const TherapistCollaboration = () => {
                                                         •
                                                     </span>
 
-                                                    {
-                                                        selectedLearner.age
-                                                    }{" "}
-                                                    years old
+                                                    {selectedLearner.age === null
+                                                        ? "Age not set"
+                                                        : `${selectedLearner.age} years old`}
                                                 </p>
                                             </div>
 
@@ -904,7 +1690,13 @@ const TherapistCollaboration = () => {
 
                                     {/* NOTES TIMELINE */}
                                     <div className="px-5 py-5 sm:px-6">
-                                        {visibleRecords.length >
+                                        {isLoadingNotes ? (
+                                            <div className="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center">
+                                                <p className="font-semibold text-gray-600">
+                                                    Loading collaboration notes...
+                                                </p>
+                                            </div>
+                                        ) : visibleRecords.length >
                                         0 ? (
                                             <div className="space-y-4">
                                                 {visibleRecords.map(
@@ -919,7 +1711,7 @@ const TherapistCollaboration = () => {
                                                             record.senderRole ===
                                                                 "Therapist" &&
                                                             record.therapistId ===
-                                                                currentTherapist.id;
+                                                                currentTherapist?.id;
 
                                                         return (
                                                             <div
@@ -1125,7 +1917,8 @@ const TherapistCollaboration = () => {
                                                 handleAddNote
                                             }
                                             disabled={
-                                                !noteContent.trim()
+                                                !noteContent.trim() ||
+                                                isSavingNote
                                             }
                                             className={`rounded-xl px-5 py-3 font-semibold text-white transition ${
                                                 noteContent.trim()
@@ -1133,7 +1926,9 @@ const TherapistCollaboration = () => {
                                                     : "cursor-not-allowed bg-gray-300"
                                             }`}
                                         >
-                                            Add Note
+                                            {isSavingNote
+                                                ? "Saving..."
+                                                : "Add Note"}
                                         </button>
                                     </div>
                                 </div>

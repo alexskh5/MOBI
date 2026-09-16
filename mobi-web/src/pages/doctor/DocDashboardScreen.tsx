@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
   type ChangeEvent,
@@ -14,17 +15,95 @@ import {
   SlidersHorizontal,
   UserRound,
   Users,
-  X,
 } from "lucide-react";
 import DocSidebar from "../../components/doctor/DocSidebar";
 import {
-  doctorPatients,
-  getDoctorPatientFullName,
-  type DoctorPatient,
-  type PatientStatus,
-} from "../../data/doctorPatients";
+  getDoctorPatients,
+  type DoctorPatientRecord,
+} from "../../services/doctor/doctorApi";
 
+type PatientStatus = "active" | "inactive";
 type StatusFilter = "all" | PatientStatus;
+
+interface DoctorPatient {
+  id: string;
+  learnerCode: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  age: number | null;
+  profilePicture: string | null;
+  guardianName: string;
+  speechLevel: string;
+  assignedDate: string;
+  status: PatientStatus;
+}
+
+function getDoctorPatientFullName(patient: DoctorPatient) {
+  return [patient.firstName, patient.middleName, patient.lastName]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function calculateAge(birthDate: string | null) {
+  if (!birthDate) return null;
+
+  const birth = new Date(`${birthDate}T00:00:00`);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDifference = today.getMonth() - birth.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 && today.getDate() < birth.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function formatSpeechLevel(level: string | null) {
+  if (!level) return "Not set";
+
+  return level
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatAssignedDate(value: string | null) {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not available";
+
+  return date.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function mapDoctorPatient(patient: DoctorPatientRecord): DoctorPatient {
+  return {
+    id: patient.id,
+    learnerCode: patient.learnerCode || "No learner code",
+    firstName: patient.firstName,
+    middleName: patient.middleName,
+    lastName: patient.lastName,
+    age: calculateAge(patient.birthDate),
+    profilePicture: patient.profilePhotoUrl,
+    guardianName: patient.guardianName || "No primary guardian linked",
+    speechLevel: formatSpeechLevel(patient.currentSpeechLadder),
+    assignedDate: formatAssignedDate(patient.assignedAt),
+    status:
+      patient.enrollmentStatus?.toLowerCase() === "active"
+        ? "active"
+        : "inactive",
+  };
+}
 
 interface SummaryCardProps {
   label: string;
@@ -139,8 +218,56 @@ function DocDashboardScreen() {
     () => typeof window !== "undefined" && window.innerWidth >= 1024,
   );
 
-  // Static for now. Later, replace this with GET /doctor/patients.
-  const [patients] = useState<DoctorPatient[]>(doctorPatients);
+  const [patients, setPatients] = useState<DoctorPatient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPatients() {
+      const role = localStorage.getItem("mobi_staff_role");
+      const doctorId = localStorage.getItem("mobi_staff_profile_id");
+
+      if (role !== "doctor" || !doctorId) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setErrorMessage("");
+
+        const result = await getDoctorPatients(doctorId);
+
+        if (!mounted) return;
+
+        const records: DoctorPatientRecord[] = Array.isArray(result?.patients)
+          ? result.patients
+          : [];
+
+        setPatients(records.map(mapDoctorPatient));
+      } catch (error: any) {
+        if (!mounted) return;
+
+        setErrorMessage(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Unable to load assigned patients.",
+        );
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadPatients();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -159,7 +286,6 @@ function DocDashboardScreen() {
           patient.learnerCode,
           patient.guardianName,
           patient.speechLevel,
-          patient.diagnosis,
         ]
           .join(" ")
           .toLowerCase();
@@ -356,7 +482,22 @@ function DocDashboardScreen() {
               </div>
             </div>
 
-            {filteredPatients.length === 0 ? (
+            {errorMessage && !loading && (
+              <div className="border-b border-[#eeeef2] bg-red-50 px-5 py-3">
+                <p className="text-[10px] font-semibold text-red-700">
+                  {errorMessage}
+                </p>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="flex min-h-[300px] flex-col items-center justify-center px-5 py-12 text-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#ded8e8] border-t-[#7456a3]" />
+                <p className="mt-3 text-[11px] text-[#757580]">
+                  Loading assigned patients...
+                </p>
+              </div>
+            ) : filteredPatients.length === 0 ? (
               <div className="flex min-h-[300px] flex-col items-center justify-center px-5 py-12 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f3eff8] text-[#7456a3]">
                   <Users size={21} />
@@ -367,17 +508,20 @@ function DocDashboardScreen() {
                 </h3>
 
                 <p className="mt-1.5 max-w-md text-[11px] leading-5 text-[#757580]">
-                  No assigned patient matches the current search or
-                  status filter.
+                  {patients.length === 0
+                    ? "No learner is currently assigned to your doctor account."
+                    : "No assigned patient matches the current search or status filter."}
                 </p>
 
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="mt-4 min-h-[36px] rounded-[8px] border border-[#ded8e8] bg-white px-3.5 text-[10px] font-semibold text-[#7456a3] transition hover:bg-[#f3eff8]"
-                >
-                  Clear filters
-                </button>
+                {patients.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="mt-4 min-h-[36px] rounded-[8px] border border-[#ded8e8] bg-white px-3.5 text-[10px] font-semibold text-[#7456a3] transition hover:bg-[#f3eff8]"
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -391,7 +535,7 @@ function DocDashboardScreen() {
                           "Age",
                           "Current Level",
                           "Guardian",
-                          "Last Session",
+                          "Assigned",
                           "Status",
                         ].map((heading) => (
                           <th
@@ -437,7 +581,7 @@ function DocDashboardScreen() {
                           </td>
 
                           <td className="px-5 py-3.5 text-[10px] text-[#757580]">
-                            {patient.age} years
+                            {patient.age === null ? "—" : `${patient.age} years`}
                           </td>
 
                           <td className="px-5 py-3.5">
@@ -453,7 +597,7 @@ function DocDashboardScreen() {
                           </td>
 
                           <td className="px-5 py-3.5 text-[10px] text-[#757580]">
-                            {patient.lastSession ?? "No session yet"}
+                            {patient.assignedDate}
                           </td>
 
                           <td className="px-5 py-3.5">
@@ -502,8 +646,10 @@ function DocDashboardScreen() {
                               </button>
 
                               <p className="mt-1 text-[9px] text-[#9898a3]">
-                                {patient.learnerCode} • {patient.age} years
-                                old
+                                {patient.learnerCode}
+                                {patient.age !== null
+                                  ? ` • ${patient.age} years old`
+                                  : ""}
                               </p>
                             </div>
 
@@ -527,7 +673,7 @@ function DocDashboardScreen() {
                               </p>
 
                               <p className="mt-1 truncate text-[10px] font-semibold text-[#666672]">
-                                {patient.lastSession ?? "No session"}
+                                {patient.assignedDate}
                               </p>
                             </div>
                           </div>

@@ -1,173 +1,501 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  useNavigate,
+} from "react-router-dom";
+import {
+  Search,
+} from "lucide-react";
+
 import TherapistLayout from "../../../layouts/TherapistLayout";
+import {
+  getTherapistLearners,
+  type TherapistLearnerRecord,
+} from "../../../services/therapist/therapistApi";
+
+type SortOption =
+  | "lastname-asc"
+  | "lastname-desc"
+  | "age-asc"
+  | "age-desc"
+  | "level-asc"
+  | "level-desc";
 
 interface LearnerData {
   _id: string;
+  learnerCode: string | null;
   firstName: string;
+  middleName: string | null;
   lastName: string;
-  age: number;
+  age: number | null;
   gender: string;
-  level: number;
+  level: string;
+  currentSpeechLadder: string | null;
+  suggestedSpeechLadder: string | null;
+  therapistConfirmed: boolean;
+  profilePhotoUrl: string | null;
 }
 
-const Learner = () => {
-  const [currentPage, setCurrentPage] = useState(1);
+const learnersPerPage = 10;
 
-  const learnersPerPage = 10;
+/* =========================================================
+   HELPERS
+========================================================= */
 
-  const navigate = useNavigate();
+function calculateAge(
+  birthDate:
+    | string
+    | null,
+) {
+  if (!birthDate) {
+    return null;
+  }
 
-  const [learners, setLearners] = useState<LearnerData[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const birth =
+    new Date(
+      `${birthDate}T00:00:00`,
+    );
 
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  if (
+    Number.isNaN(
+      birth.getTime(),
+    )
+  ) {
+    return null;
+  }
 
-  const [showUnenrollModal, setShowUnenrollModal] = useState(false);
-  const [selectedLearner, setSelectedLearner] =
-    useState<LearnerData | null>(null);
+  const today =
+    new Date();
 
-  const [showSortMenu, setShowSortMenu] = useState(false);
+  let age =
+    today.getFullYear() -
+    birth.getFullYear();
 
-  // const [sortOption, setSortOption] = useState("default");
-  // UNCOMMENT RANI NYA DELETE NING IYA UBOS NA LINE NIG BACKEND NA KAY ERROR MAN RN
-  const [, setSortOption] = useState("default");
+  const monthDifference =
+    today.getMonth() -
+    birth.getMonth();
 
-  // placeholder rani et pero matic na count ang list ehu
-  useEffect(() => {
-    const fetchLearners = async () => {
-      try {
-        const data: LearnerData[] = [
-          {
-            _id: "1",
-            firstName: "Lexi Rose",
-            lastName: "Pantaleon",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "2",
-            firstName: "John",
-            lastName: "Doe",
-            age: 7,
-            gender: "Male",
-            level: 3,
-          },
-          {
-            _id: "3",
-            firstName: "Sophia",
-            lastName: "Garcia",
-            age: 9,
-            gender: "Female",
-            level: 5,
-          },
-          {
-            _id: "4",
-            firstName: "Ethan",
-            lastName: "Santos",
-            age: 6,
-            gender: "Male",
-            level: 2,
-          },
-          {
-            _id: "5",
-            firstName: "Mia",
-            lastName: "Reyes",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "6",
-            firstName: "Lucas",
-            lastName: "Cruz",
-            age: 10,
-            gender: "Male",
-            level: 6,
-          },
-          {
-            _id: "7",
-            firstName: "Emma",
-            lastName: "Flores",
-            age: 7,
-            gender: "Female",
-            level: 3,
-          },
-          {
-            _id: "8",
-            firstName: "Noah",
-            lastName: "Torres",
-            age: 9,
-            gender: "Male",
-            level: 5,
-          },
-          {
-            _id: "9",
-            firstName: "Olivia",
-            lastName: "Mendoza",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "10",
-            firstName: "Liam",
-            lastName: "Villanueva",
-            age: 7,
-            gender: "Male",
-            level: 3,
-          },
-          {
-            _id: "11",
-            firstName: "Ava",
-            lastName: "Ramos",
-            age: 8,
-            gender: "Female",
-            level: 4,
-          },
-          {
-            _id: "12",
-            firstName: "James",
-            lastName: "Navarro",
-            age: 9,
-            gender: "Male",
-            level: 5,
-          },
-        ];
+  if (
+    monthDifference < 0 ||
+    (
+      monthDifference === 0 &&
+      today.getDate() <
+        birth.getDate()
+    )
+  ) {
+    age -= 1;
+  }
 
-        setLearners(data);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching learners:", error);
-        setLoading(false);
-      }
-    };
-
-    fetchLearners();
-  }, []);
-
-  const totalPages = Math.ceil(learners.length / learnersPerPage);
-
-  const startIndex = (currentPage - 1) * learnersPerPage;
-
-  const currentLearners = learners.slice(
-    startIndex,
-    startIndex + learnersPerPage
+  return Math.max(
+    age,
+    0,
   );
+}
+
+function formatGender(
+  value:
+    | string
+    | null,
+) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value
+    .replace(
+      /_/g,
+      " ",
+    )
+    .replace(
+      /\b\w/g,
+      (letter) =>
+        letter.toUpperCase(),
+    );
+}
+
+function formatSpeechLadder(
+  value:
+    | string
+    | null,
+) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value
+    .replace(
+      /_/g,
+      " ",
+    )
+    .replace(
+      /\b\w/g,
+      (letter) =>
+        letter.toUpperCase(),
+    );
+}
+
+function toLearnerData(
+  learner:
+    TherapistLearnerRecord,
+): LearnerData {
+  return {
+    _id:
+      learner.id,
+
+    learnerCode:
+      learner.learnerCode,
+
+    firstName:
+      learner.firstName,
+
+    middleName:
+      learner.middleName,
+
+    lastName:
+      learner.lastName,
+
+    age:
+      calculateAge(
+        learner.birthDate,
+      ),
+
+    gender:
+      formatGender(
+        learner.sexAtBirth,
+      ),
+
+    level:
+      formatSpeechLadder(
+        learner.currentSpeechLadder,
+      ),
+
+    currentSpeechLadder:
+      learner.currentSpeechLadder,
+
+    suggestedSpeechLadder:
+      learner.suggestedSpeechLadder,
+
+    therapistConfirmed:
+      learner.therapistConfirmed,
+
+    profilePhotoUrl:
+      learner.profilePhotoUrl,
+  };
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
+
+const Learner = () => {
+  const navigate =
+    useNavigate();
+
+  const [
+    currentPage,
+    setCurrentPage,
+  ] =
+    useState(1);
+
+  const [
+    learners,
+    setLearners,
+  ] =
+    useState<
+      LearnerData[]
+    >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState("");
+
+  const [
+    searchTerm,
+    setSearchTerm,
+  ] =
+    useState("");
+
+  const [
+    sortOption,
+    setSortOption,
+  ] =
+    useState<SortOption>(
+      "lastname-asc",
+    );
+
+  const [
+    showSortMenu,
+    setShowSortMenu,
+  ] =
+    useState(false);
+
+  /* =======================================================
+     LOAD REAL ASSIGNED LEARNERS
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchLearners() {
+      const role =
+        localStorage.getItem(
+          "mobi_staff_role",
+        );
+
+      const therapistId =
+        localStorage.getItem(
+          "mobi_staff_profile_id",
+        );
+
+      if (
+        role !==
+          "therapist" ||
+        !therapistId
+      ) {
+        navigate(
+          "/login",
+          {
+            replace: true,
+          },
+        );
+
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setErrorMessage("");
+
+        const result =
+          await getTherapistLearners(
+            therapistId,
+          );
+
+        if (!mounted) {
+          return;
+        }
+
+        const realLearners =
+          (
+            result.learners ??
+            []
+          ).map(
+            toLearnerData,
+          );
+
+        setLearners(
+          realLearners,
+        );
+      } catch (
+        error: any
+      ) {
+        if (!mounted) {
+          return;
+        }
+
+        console.error(
+          "Error fetching therapist learners:",
+          error,
+        );
+
+        setLearners([]);
+
+        setErrorMessage(
+          error
+            ?.response
+            ?.data
+            ?.message ||
+          error?.message ||
+          "Unable to load your assigned learners.",
+        );
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void fetchLearners();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
+
+  /* =======================================================
+     SEARCH + SORT
+  ======================================================= */
+
+  const filteredLearners =
+    useMemo(() => {
+      const normalizedSearch =
+        searchTerm
+          .trim()
+          .toLowerCase();
+
+      const result =
+        learners.filter(
+          (learner) => {
+            if (
+              !normalizedSearch
+            ) {
+              return true;
+            }
+
+            const searchable =
+              [
+                learner.firstName,
+                learner.middleName ??
+                  "",
+                learner.lastName,
+                learner.learnerCode ??
+                  "",
+              ]
+                .join(" ")
+                .toLowerCase();
+
+            return searchable.includes(
+              normalizedSearch,
+            );
+          },
+        );
+
+      return [
+        ...result,
+      ].sort(
+        (
+          first,
+          second,
+        ) => {
+          if (
+            sortOption ===
+            "lastname-asc"
+          ) {
+            return first.lastName.localeCompare(
+              second.lastName,
+            );
+          }
+
+          if (
+            sortOption ===
+            "lastname-desc"
+          ) {
+            return second.lastName.localeCompare(
+              first.lastName,
+            );
+          }
+
+          if (
+            sortOption ===
+            "age-asc"
+          ) {
+            return (
+              (
+                first.age ??
+                Number.MAX_SAFE_INTEGER
+              ) -
+              (
+                second.age ??
+                Number.MAX_SAFE_INTEGER
+              )
+            );
+          }
+
+          if (
+            sortOption ===
+            "age-desc"
+          ) {
+            return (
+              (
+                second.age ??
+                -1
+              ) -
+              (
+                first.age ??
+                -1
+              )
+            );
+          }
+
+          if (
+            sortOption ===
+            "level-asc"
+          ) {
+            return first.level.localeCompare(
+              second.level,
+            );
+          }
+
+          return second.level.localeCompare(
+            first.level,
+          );
+        },
+      );
+    }, [
+      learners,
+      searchTerm,
+      sortOption,
+    ]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm,
+    sortOption,
+  ]);
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        filteredLearners.length /
+          learnersPerPage,
+      ),
+    );
+
+  const startIndex =
+    (
+      currentPage - 1
+    ) *
+    learnersPerPage;
+
+  const currentLearners =
+    filteredLearners.slice(
+      startIndex,
+      startIndex +
+        learnersPerPage,
+    );
 
   return (
     <TherapistLayout>
-      {(sidebarOpen, setSidebarOpen) => (
+      {(
+        sidebarOpen,
+        setSidebarOpen,
+      ) => (
         <div className="bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 inter flex flex-col">
           {/* TOP BAR */}
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 gap-6">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
                 <button
+                  type="button"
                   className="text-3xl mr-4"
-                  onClick={() => setSidebarOpen(true)}
+                  onClick={() =>
+                    setSidebarOpen(
+                      true,
+                    )
+                  }
                 >
                   ☰
                 </button>
@@ -176,205 +504,254 @@ const Learner = () => {
               <h1 className="text-2xl font-medium">
                 Learner{" "}
                 <span className="bg-white px-2 rounded-full text-md">
-                  {learners.length}
+                  {
+                    learners.length
+                  }
                 </span>
               </h1>
             </div>
 
-            <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96">
-              <Search size={20} className="text-gray-500 mr-3" />
+            <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96 max-w-full">
+              <Search
+                size={20}
+                className="text-gray-500 mr-3"
+              />
 
               <input
-                type="text"
-                placeholder="Search"
+                type="search"
+                value={
+                  searchTerm
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setSearchTerm(
+                    event.target
+                      .value,
+                  )
+                }
+                placeholder="Search assigned learner"
                 className="bg-transparent outline-none w-full"
               />
             </div>
           </div>
 
-          <div className="border-b border-black mb-6"></div>
+          <div className="border-b border-black mb-6" />
 
           {/* HEADER ACTIONS */}
           <div className="flex justify-between items-center mb-6">
             <p className="text-lg font-medium">
-              Click Learner to view progress
+              Assigned learners
             </p>
 
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <button
-                  className="text-md"
-                  onClick={() => setShowSortMenu(!showSortMenu)}
-                >
-                  Sort List ▾
-                </button>
+            <div className="relative">
+              <button
+                type="button"
+                className="text-md"
+                onClick={() =>
+                  setShowSortMenu(
+                    (
+                      current,
+                    ) =>
+                      !current,
+                  )
+                }
+              >
+                Sort List ▾
+              </button>
 
-                {showSortMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("lastname-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by last name A-Z
-                      }}
-                    >
-                      Last Name A-Z
-                    </button>
-
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("lastname-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by last name Z-A
-                      }}
-                    >
-                      Last Name Z-A
-                    </button>
-
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("age-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by youngest first
-                      }}
-                    >
-                      Age ↑
-                    </button>
-
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("age-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by oldest first
-                      }}
-                    >
-                      Age ↓
-                    </button>
-
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("level-asc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by level ascending
-                      }}
-                    >
-                      Level ↑
-                    </button>
-
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setSortOption("level-desc");
-                        setShowSortMenu(false);
-
-                        // TODO: Backend sort by level descending
-                      }}
-                    >
-                      Level ↓
-                    </button>
-                  </div>
-                )}
-              </div>
+              {showSortMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
+                  {[
+                    [
+                      "lastname-asc",
+                      "Last Name A-Z",
+                    ],
+                    [
+                      "lastname-desc",
+                      "Last Name Z-A",
+                    ],
+                    [
+                      "age-asc",
+                      "Age ↑",
+                    ],
+                    [
+                      "age-desc",
+                      "Age ↓",
+                    ],
+                    [
+                      "level-asc",
+                      "Speech Ladder A-Z",
+                    ],
+                    [
+                      "level-desc",
+                      "Speech Ladder Z-A",
+                    ],
+                  ].map(
+                    ([
+                      value,
+                      label,
+                    ]) => (
+                      <button
+                        key={
+                          value
+                        }
+                        type="button"
+                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                        onClick={() => {
+                          setSortOption(
+                            value as SortOption,
+                          );
+                          setShowSortMenu(
+                            false,
+                          );
+                        }}
+                      >
+                        {
+                          label
+                        }
+                      </button>
+                    ),
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col">
+          {errorMessage && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {
+                errorMessage
+              }
+            </div>
+          )}
+
+          <div className="flex-1 flex flex-col min-h-0">
             {/* TABLE */}
-            <div className="bg-[#E4C9E5] rounded-xl p-6 border border-[#DFA5C9] shadow-md flex-1">
+            <div className="bg-[#E4C9E5] rounded-xl p-6 border border-[#DFA5C9] shadow-md flex-1 overflow-auto">
               {loading ? (
-                <p>Loading learners...</p>
+                <p>
+                  Loading assigned learners...
+                </p>
+              ) : learners.length ===
+                0 ? (
+                <div className="flex min-h-[320px] items-center justify-center text-center">
+                  <div>
+                    <p className="text-lg font-semibold">
+                      No assigned learners
+                    </p>
+
+                    <p className="mt-2 text-sm text-gray-600">
+                      Learners assigned to your Therapist account will appear here.
+                    </p>
+                  </div>
+                </div>
+              ) : filteredLearners.length ===
+                0 ? (
+                <div className="flex min-h-[320px] items-center justify-center text-center">
+                  <div>
+                    <p className="text-lg font-semibold">
+                      No learner found
+                    </p>
+
+                    <p className="mt-2 text-sm text-gray-600">
+                      Try a different search.
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <table className="w-full table-fixed text-md">
+                <table className="w-full min-w-[920px] table-fixed text-md">
                   <thead>
                     <tr className="text-left border-b border-[#DFA5C9] [&>th]:pb-4">
-                      <th className="w-40">ID</th>
-                      <th>FIRST NAME</th>
-                      <th>LAST NAME</th>
-                      <th className="w-32">AGE</th>
-                      <th className="w-40">GENDER</th>
-                      <th className="w-40">LEARNER LEVEL</th>
-                      <th className="w-12"></th>
+                      <th className="w-44">
+                        LEARNER ID
+                      </th>
+
+                      <th>
+                        FIRST NAME
+                      </th>
+
+                      <th>
+                        LAST NAME
+                      </th>
+
+                      <th className="w-28">
+                        AGE
+                      </th>
+
+                      <th className="w-36">
+                        GENDER
+                      </th>
+
+                      <th className="w-40">
+                        SPEECH LADDER
+                      </th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {currentLearners.map((learner) => (
-                      <tr
-                        key={learner._id}
-                        className="border-b border-[#DFA5C9] hover:bg-[#EBCFE9] cursor-pointer [&>td]:py-2"
-                        onClick={() =>
-                          navigate(
-                            `/therapist/dashboard/${learner._id}/progress`,
-                            {
-                              state: {
-                                learner,
-                                learnerCount: learners.length,
+                    {currentLearners.map(
+                      (
+                        learner,
+                      ) => (
+                        <tr
+                          key={
+                            learner._id
+                          }
+                          className="border-b border-[#DFA5C9] hover:bg-[#EBCFE9] cursor-pointer [&>td]:py-3"
+                          onClick={() =>
+                            navigate(
+                              `/therapist/dashboard/${learner._id}/progress`,
+                              {
+                                state: {
+                                  learner,
+                                  learnerCount:
+                                    learners.length,
+                                },
                               },
+                            )
+                          }
+                        >
+                          <td className="truncate pr-4">
+                            {
+                              learner.learnerCode ??
+                              "—"
                             }
-                          )
-                        }
-                      >
-                        <td>{learner._id}</td>
-                        <td>{learner.firstName}</td>
-                        <td>{learner.lastName}</td>
-                        <td>{learner.age}</td>
-                        <td>{learner.gender}</td>
-                        <td>{learner.level}</td>
-                        <td className="relative text-center">
-                          <button
-                            className="text-xl font-bold"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(
-                                openMenu === learner._id
-                                  ? null
-                                  : learner._id
-                              );
-                            }}
-                          >
-                            ⋯
-                          </button>
+                          </td>
 
-                          {openMenu === learner._id && (
-                            <div className="absolute right-0 top-8 w-40 bg-white rounded-xl shadow-lg py-2 z-50">
-                              <button
-                                className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(
-                                    `/therapist/dashboard/${learner._id}/EditLearner`
-                                  );
-                                }}
-                              >
-                                Edit Learner
-                              </button>
+                          <td>
+                            {
+                              learner.firstName
+                            }
+                          </td>
 
-                              <button
-                                className="block w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedLearner(learner);
-                                  setShowUnenrollModal(true);
-                                  setOpenMenu(null);
-                                }}
-                              >
-                                Unenroll Learner
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          <td>
+                            {
+                              learner.lastName
+                            }
+                          </td>
+
+                          <td>
+                            {
+                              learner.age ??
+                              "—"
+                            }
+                          </td>
+
+                          <td>
+                            {
+                              learner.gender
+                            }
+                          </td>
+
+                          <td>
+                            {
+                              learner.level
+                            }
+                          </td>
+                        </tr>
+                      ),
+                    )}
                   </tbody>
                 </table>
               )}
@@ -382,80 +759,69 @@ const Learner = () => {
           </div>
 
           {/* PAGINATION */}
-          <div className="flex justify-between items-center mt-4">
-            <div className="flex gap-2">
-              <button
-                onClick={() =>
-                  setCurrentPage((prev) => Math.max(prev - 1, 1))
-                }
-                disabled={currentPage === 1}
-                className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
-              >
-                &lt;
-              </button>
-
-              <button
-                onClick={() =>
-                  setCurrentPage((prev) =>
-                    Math.min(prev + 1, totalPages)
-                  )
-                }
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
-              >
-                &gt;
-              </button>
-            </div>
-
-            <p className="text-sm font-medium">
-              {currentPage} of {totalPages}
-            </p>
-          </div>
-
-          {showUnenrollModal && (
-            <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-              <div className="bg-[#F4EAF5] rounded-3xl p-8 w-96 shadow-xl">
-                <h2 className="text-2xl font-semibold mb-3 text-center">
-                  Unenroll Learner
-                </h2>
-
-                <p className="text-center text-gray-700 mb-8">
-                  Are you sure you want to unenroll
-                  <br />
-                  <span className="font-semibold">
-                    {selectedLearner?.firstName}{" "}
-                    {selectedLearner?.lastName}
-                  </span>
-                  ?
-                </p>
-
-                <div className="flex justify-center gap-4">
+          {!loading &&
+            filteredLearners.length >
+              0 && (
+              <div className="flex justify-between items-center mt-4">
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setShowUnenrollModal(false)}
-                    className="px-6 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100"
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage(
+                        (
+                          previous,
+                        ) =>
+                          Math.max(
+                            previous -
+                              1,
+                            1,
+                          ),
+                      )
+                    }
+                    disabled={
+                      currentPage ===
+                      1
+                    }
+                    className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
                   >
-                    Cancel
+                    &lt;
                   </button>
 
                   <button
-                    onClick={() => {
-                      setShowUnenrollModal(false);
-
-                      // TODO: Backend unenroll function here
-
-                      console.log(
-                        "Unenrolled:",
-                        selectedLearner?._id
-                      );
-                    }}
-                    className="px-6 py-2 rounded-xl bg-[#DFA5C9] text-white hover:bg-[#d48cb8]"
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage(
+                        (
+                          previous,
+                        ) =>
+                          Math.min(
+                            previous +
+                              1,
+                            totalPages,
+                          ),
+                      )
+                    }
+                    disabled={
+                      currentPage ===
+                      totalPages
+                    }
+                    className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
                   >
-                    Unenroll
+                    &gt;
                   </button>
                 </div>
+
+                <p className="text-sm font-medium">
+                  {
+                    currentPage
+                  }{" "}
+                  of{" "}
+                  {
+                    totalPages
+                  }
+                </p>
               </div>
-            </div>
-          )}
+            )}
         </div>
       )}
     </TherapistLayout>

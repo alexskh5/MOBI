@@ -8,6 +8,10 @@ import {
 import Home from "../pages/Home";
 import About from "../pages/About";
 import Login from "../pages/Login";
+import SetupPassword from "../pages/auth/SetupPassword";
+import ResetPassword from "../pages/auth/ResetPassword";
+import ProfessionalSecurity from "../pages/auth/ProfessionalSecurity";
+import ProfessionalRoute from "../components/auth/ProfessionalRoute";
 
 // Center
 import Learner from "../pages/center/dashboard/learner";
@@ -29,6 +33,7 @@ import ArchivedMaterials from "../pages/center/materials/ArchivedMaterials";
 import Notifications from "../pages/center/notifications/Notifications";
 import Schedule from "../pages/center/schedule/Schedule";
 import Collaboration from "../pages/center/collaboration/Collaboration"
+
 
 // Therapist
 import TherapistLearner from "../pages/therapist/dashboard/Learner";
@@ -98,6 +103,25 @@ const AppRoutes = () => {
           element={<Login />}
         />
 
+        <Route
+          path="/professional/setup-password"
+          element={<SetupPassword />}
+        />
+
+        <Route
+          path="/professional/reset-password"
+          element={<ResetPassword />}
+        />
+
+        <Route
+          path="/professional/security"
+          element={
+            <ProfessionalRoute>
+              <ProfessionalSecurity />
+            </ProfessionalRoute>
+          }
+        />
+
         {/* Center Admin */}
         <Route
           path="/center/dashboard"
@@ -145,7 +169,7 @@ const AppRoutes = () => {
         />
 
         <Route
-          path="/center/profile/:id/EditDoctor"
+          path="/center/profile/doctors/:doctorId/EditDoctor"
           element={<EditDoctor />}
         />
 
@@ -197,61 +221,61 @@ const AppRoutes = () => {
         {/* Therapist */}
         <Route
           path="/therapist/dashboard"
-          element={<TherapistLearner />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistLearner /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/dashboard/:id/progress"
-          element={<Progress />}
+          element={<ProfessionalRoute requiredRole="therapist"><Progress /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/dashboard/:id/progress"
-          element={<TherapistProgress />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistProgress /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/profile"
-          element={<TherapistProfile />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistProfile /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/materials"
-          element={<TherapistMaterials />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistMaterials /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/materials/DraftMaterials"
-          element={<TherapistDraftMaterials />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistDraftMaterials /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/materials/ArchivedMaterials"
-          element={<TherapistArchivedMaterials />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistArchivedMaterials /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/materials/:id"
-          element={<TherapistActivityPreview />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistActivityPreview /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/materials/CreateActivity"
-          element={<TherapistCreateActivity />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistCreateActivity /></ProfessionalRoute>}
         />
         <Route
           path="/therapist/notifications"
-          element={<TherapistNotification />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistNotification /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/schedule"
-          element={<TherapistSchedule />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistSchedule /></ProfessionalRoute>}
         />
 
         <Route
           path="/therapist/collaboration"
-          element={<TherapistCollaboration />}
+          element={<ProfessionalRoute requiredRole="therapist"><TherapistCollaboration /></ProfessionalRoute>}
         />
 
 
@@ -274,27 +298,27 @@ const AppRoutes = () => {
       {/* Doctor */}
         <Route
           path="/doctor/DocDashboardScreen"
-          element={<DocDashboardScreen />}
+          element={<ProfessionalRoute requiredRole="doctor"><DocDashboardScreen /></ProfessionalRoute>}
         />
 
         <Route
           path="/doctor/patients/:patientId"
-          element={<DocPatientProgressScreen />}
+          element={<ProfessionalRoute requiredRole="doctor"><DocPatientProgressScreen /></ProfessionalRoute>}
         />
 
         <Route
           path="/doctor/DocCollabScreen"
-          element={<DocCollabScreen />}
+          element={<ProfessionalRoute requiredRole="doctor"><DocCollabScreen /></ProfessionalRoute>}
         />
 
         <Route
           path="/doctor/DocNotificationScreen"
-          element={<DocNotificationScreen />}
+          element={<ProfessionalRoute requiredRole="doctor"><DocNotificationScreen /></ProfessionalRoute>}
         />
 
         <Route
           path="/doctor/DocProfileScreen"
-          element={<DocProfileScreen />}
+          element={<ProfessionalRoute requiredRole="doctor"><DocProfileScreen /></ProfessionalRoute>}
         />
 
 

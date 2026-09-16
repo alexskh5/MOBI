@@ -14,6 +14,14 @@ import activitySessionRoutes from "./routes/activitySessionRoutes";
 
 import progressRoutes from "./routes/progressRoutes";
 
+import doctorRoutes from "./routes/doctor/doctorRoutes";
+import staffAuthRoutes from "./routes/staffAuthRoutes";
+
+import therapistRoutes from "./routes/therapist/therapistRoutes";
+
+import scheduleRoutes from "./routes/scheduleRoutes";
+
+
 dotenv.config();
 
 const app = express();
@@ -23,6 +31,8 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/super-admin", superAdminRoutes);
+
+app.use("/api/schedules", scheduleRoutes);
 
 
 app.get("/", (_req, res) => {
@@ -47,6 +57,14 @@ app.use("/api/activity-sessions", activitySessionRoutes);
 app.use(
   "/api/progress",
   progressRoutes,
+);
+
+app.use("/api/doctors", doctorRoutes);
+app.use("/api/staff-auth", staffAuthRoutes);
+
+app.use(
+  "/api/therapists",
+  therapistRoutes,
 );
 
 app.listen(PORT, "0.0.0.0", () => {

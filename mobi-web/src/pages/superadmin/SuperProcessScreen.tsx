@@ -1,15 +1,9 @@
-<<<<<<< HEAD
-import { useMemo, useState, type ReactNode } from "react";
-=======
-import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell,
   Building2,
   CalendarDays,
-  CheckCircle2,
   ClipboardCheck,
   Edit3,
   Home,
@@ -17,7 +11,6 @@ import {
   Search,
   Send,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
@@ -57,14 +50,11 @@ function getDateLabel(dateValue: string) {
   const date = new Date(dateValue);
   const now = new Date();
 
-  const isToday = date.toDateString() === now.toDateString();
+  if (date.toDateString() === now.toDateString()) return "Today";
 
-  const yesterday = new Date();
+  const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  const isYesterday = date.toDateString() === yesterday.toDateString();
-
-  if (isToday) return "Today";
-  if (isYesterday) return "Yesterday";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
 
   return date.toLocaleDateString("en-US", {
     month: "short",
@@ -82,20 +72,15 @@ function isWithinDateFilter(dateValue: string, filter: DateFilter) {
   }
 
   if (filter === "This Week") {
-    const sevenDaysAgo = new Date();
+    const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 7);
-
     return date >= sevenDaysAgo && date <= now;
   }
 
-  if (filter === "This Month") {
-    return (
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear()
-    );
-  }
-
-  return true;
+  return (
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear()
+  );
 }
 
 function mapNotification(notification: ApiNotification): NotificationItem {
@@ -105,8 +90,8 @@ function mapNotification(notification: ApiNotification): NotificationItem {
       notification.receivers && notification.receivers.length > 0
         ? notification.receivers
         : notification.receiver
-        ? [notification.receiver]
-        : [],
+          ? [notification.receiver]
+          : [],
     message: notification.message,
     dateLabel: getDateLabel(notification.created_at),
     createdAt: notification.created_at,
@@ -115,8 +100,25 @@ function mapNotification(notification: ApiNotification): NotificationItem {
 
 function formatReceivers(receivers: ReceiverType[]) {
   if (receivers.includes("All")) return "All";
-  if (receivers.length === 0) return "No receiver";
+  if (receivers.length === 0) return "No receiver selected";
   return receivers.join(", ");
+}
+
+function toggleReceiverList(
+  current: ReceiverType[],
+  receiver: ReceiverType,
+): ReceiverType[] {
+  if (receiver === "All") {
+    return current.includes("All") ? [] : ["All"];
+  }
+
+  const withoutAll = current.filter((item) => item !== "All");
+
+  if (withoutAll.includes(receiver)) {
+    return withoutAll.filter((item) => item !== receiver);
+  }
+
+  return [...withoutAll, receiver];
 }
 
 const receiverOptions: ReceiverType[] = [
@@ -132,16 +134,11 @@ const dateOptions: DateFilter[] = ["Today", "This Week", "This Month"];
 export default function SuperProcessScreen() {
   const navigate = useNavigate();
 
-  // Process now opens directly to the notification workspace.
   const [receiverType, setReceiverType] = useState<ReceiverType>("Parents");
   const [selectedReceivers, setSelectedReceivers] = useState<ReceiverType[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilter>("Today");
   const [searchQuery, setSearchQuery] = useState("");
   const [message, setMessage] = useState("");
-<<<<<<< HEAD
-  const [notifications, setNotifications] =
-    useState<NotificationItem[]>(initialNotifications);
-=======
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
@@ -149,21 +146,12 @@ export default function SuperProcessScreen() {
   const [isSending, setIsSending] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
   const [editingNotification, setEditingNotification] =
     useState<NotificationItem | null>(null);
-
-<<<<<<< HEAD
   const [deleteTarget, setDeleteTarget] =
     useState<NotificationItem | null>(null);
-=======
-  const [deleteTarget, setDeleteTarget] = useState<NotificationItem | null>(
-    null
-  );
-
   const [notice, setNotice] = useState<Notice | null>(null);
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
   const filteredNotifications = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -174,76 +162,54 @@ export default function SuperProcessScreen() {
         notification.receivers.includes("All") ||
         notification.receivers.includes(receiverType);
 
-<<<<<<< HEAD
-      const matchesSearch =
-        !normalizedQuery ||
-        `${notification.receiver} ${notification.message} ${notification.dateLabel}`
-          .toLowerCase()
-          .includes(normalizedQuery);
-=======
       const matchesDate = isWithinDateFilter(notification.createdAt, dateFilter);
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
       const matchesSearch =
+        !normalizedQuery ||
         `${formatReceivers(notification.receivers)} ${notification.message} ${notification.dateLabel}`
           .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+          .includes(normalizedQuery);
 
       return matchesReceiver && matchesDate && matchesSearch;
     });
   }, [notifications, receiverType, dateFilter, searchQuery]);
 
-  async function loadNotifications() {
-    try {
-      setLoadingNotifications(true);
-      setNotificationError("");
-
-      const result = await getSuperAdminNotifications();
-
-      const mappedNotifications: NotificationItem[] = result.data.map(
-        (notification: ApiNotification) => mapNotification(notification)
-      );
-
-      setNotifications(mappedNotifications);
-    } catch (error: any) {
-      setNotificationError(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Failed to load system notifications."
-      );
-    } finally {
-      setLoadingNotifications(false);
-    }
-  }
-
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadNotifications() {
+      try {
+        setLoadingNotifications(true);
+        setNotificationError("");
+
+        const result = await getSuperAdminNotifications();
+        const mappedNotifications: NotificationItem[] = result.data.map(
+          (notification: ApiNotification) => mapNotification(notification),
+        );
+
+        if (isMounted) setNotifications(mappedNotifications);
+      } catch (error: any) {
+        if (isMounted) {
+          setNotificationError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load system notifications.",
+          );
+        }
+      } finally {
+        if (isMounted) setLoadingNotifications(false);
+      }
+    }
+
     loadNotifications();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-<<<<<<< HEAD
-  const sendNotification = () => {
-=======
-  const handleBack = () => {
-    setSearchQuery("");
-    setMessage("");
-    setSelectedReceivers([]);
-    setEditingNotification(null);
-    setDeleteTarget(null);
-    setNotice(null);
-
-    if (viewMode === "menu") {
-      navigate("/superadmin/SuperDashboardScreen");
-      return;
-    }
-
-    setViewMode("menu");
-  };
-
   const showNotice = (title: string, noticeMessage: string) => {
-    setNotice({
-      title,
-      message: noticeMessage,
-    });
+    setNotice({ title, message: noticeMessage });
   };
 
   const sendNotification = async () => {
@@ -252,7 +218,6 @@ export default function SuperProcessScreen() {
       return;
     }
 
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
     if (!message.trim()) {
       showNotice("Message required", "Please write a notification first.");
       return;
@@ -261,23 +226,13 @@ export default function SuperProcessScreen() {
     try {
       setIsSending(true);
 
-<<<<<<< HEAD
-    setNotifications((previousNotifications) => [
-      newNotification,
-      ...previousNotifications,
-    ]);
-
-    setMessage("");
-=======
       const result = await createSuperAdminNotification({
         receivers: selectedReceivers,
         message: message.trim(),
       });
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
       const newNotification = mapNotification(result.data);
-
-      setNotifications((prev) => [newNotification, ...prev]);
+      setNotifications((previous) => [newNotification, ...previous]);
       setMessage("");
       setSelectedReceivers([]);
       showNotice("Notification sent", "Your system notification was sent successfully.");
@@ -286,32 +241,20 @@ export default function SuperProcessScreen() {
         "Send failed",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to send notification."
+          "Failed to send notification.",
       );
     } finally {
       setIsSending(false);
     }
   };
 
-<<<<<<< HEAD
-  const deleteNotification = (id: number) => {
-    setNotifications((previousNotifications) =>
-      previousNotifications.filter(
-        (notification) => notification.id !== id,
-      ),
-    );
-=======
   const deleteNotification = async (id: string) => {
     try {
       setIsDeleting(true);
-
       await deleteSuperAdminNotification(id);
-
-      setNotifications((prev) =>
-        prev.filter((notification) => notification.id !== id)
+      setNotifications((previous) =>
+        previous.filter((notification) => notification.id !== id),
       );
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
-
       setDeleteTarget(null);
       showNotice("Notification deleted", "The notification was deleted successfully.");
     } catch (error: any) {
@@ -319,7 +262,7 @@ export default function SuperProcessScreen() {
         "Delete failed",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to delete notification."
+          "Failed to delete notification.",
       );
     } finally {
       setIsDeleting(false);
@@ -334,23 +277,10 @@ export default function SuperProcessScreen() {
       return;
     }
 
-<<<<<<< HEAD
-    setNotifications((previousNotifications) =>
-      previousNotifications.map((notification) =>
-        notification.id === editingNotification.id
-          ? {
-              ...editingNotification,
-              message: editingNotification.message.trim(),
-            }
-          : notification,
-      ),
-    );
-=======
     if (!editingNotification.message.trim()) {
       showNotice("Message required", "Notification message cannot be empty.");
       return;
     }
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
     try {
       setIsSavingEdit(true);
@@ -361,15 +291,13 @@ export default function SuperProcessScreen() {
       });
 
       const updatedNotification = mapNotification(result.data);
-
-      setNotifications((prev) =>
-        prev.map((notification) =>
+      setNotifications((previous) =>
+        previous.map((notification) =>
           notification.id === updatedNotification.id
             ? updatedNotification
-            : notification
-        )
+            : notification,
+        ),
       );
-
       setEditingNotification(null);
       showNotice("Notification updated", "Your changes were saved successfully.");
     } catch (error: any) {
@@ -377,7 +305,7 @@ export default function SuperProcessScreen() {
         "Update failed",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to update notification."
+          "Failed to update notification.",
       );
     } finally {
       setIsSavingEdit(false);
@@ -385,19 +313,7 @@ export default function SuperProcessScreen() {
   };
 
   const toggleReceiver = (receiver: ReceiverType) => {
-    setSelectedReceivers((prev) => {
-      if (receiver === "All") {
-        return prev.includes("All") ? [] : ["All"];
-      }
-
-      const withoutAll = prev.filter((item) => item !== "All");
-
-      if (withoutAll.includes(receiver)) {
-        return withoutAll.filter((item) => item !== receiver);
-      }
-
-      return [...withoutAll, receiver];
-    });
+    setSelectedReceivers((current) => toggleReceiverList(current, receiver));
   };
 
   return (
@@ -557,14 +473,36 @@ export default function SuperProcessScreen() {
               </div>
 
               <div>
-                <span className="compose-eyebrow">
-                  NEW NOTIFICATION
-                </span>
-                <h3>Send to {receiverType}</h3>
+                <span className="compose-eyebrow">NEW NOTIFICATION</span>
+                <h3>Send a system notification</h3>
               </div>
             </div>
 
             <div className="compose-box">
+              <div className="compose-receiver-section">
+                <span className="compose-mini-title">Send to</span>
+
+                <div className="compose-checklist">
+                  {receiverOptions.map((receiver) => (
+                    <label
+                      key={receiver}
+                      className={
+                        selectedReceivers.includes(receiver)
+                          ? "compose-check active"
+                          : "compose-check"
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedReceivers.includes(receiver)}
+                        onChange={() => toggleReceiver(receiver)}
+                      />
+                      <span>{receiver}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
@@ -575,14 +513,15 @@ export default function SuperProcessScreen() {
               <div className="compose-footer">
                 <span>
                   This message will be sent to{" "}
-                  <strong>{receiverType}</strong>.
+                  <strong>{formatReceivers(selectedReceivers)}</strong>.
                 </span>
 
                 <button
                   className="send-button"
                   onClick={sendNotification}
+                  disabled={isSending}
                 >
-                  <span>Send notification</span>
+                  <span>{isSending ? "Sending..." : "Send notification"}</span>
                   <Send size={15} />
                 </button>
               </div>
@@ -629,7 +568,6 @@ export default function SuperProcessScreen() {
               !notificationError &&
               filteredNotifications.length > 0 ? (
                 filteredNotifications.map((notification) => (
-<<<<<<< HEAD
                   <article
                     key={notification.id}
                     className="notification-row"
@@ -637,17 +575,10 @@ export default function SuperProcessScreen() {
                     <div className="receiver-cell">
                       <div className="receiver-icon">
                         <Bell size={15} />
-=======
-                  <article key={notification.id} className="notification-row">
-                    <div>
-                      <div className="notification-title">
-                        <strong>{formatReceivers(notification.receivers)}</strong>
-                        <span>{notification.dateLabel}</span>
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
                       </div>
 
                       <div>
-                        <strong>{notification.receiver}</strong>
+                        <strong>{formatReceivers(notification.receivers)}</strong>
                         <span>System notification</span>
                       </div>
                     </div>
@@ -685,7 +616,6 @@ export default function SuperProcessScreen() {
                     </div>
                   </article>
                 ))
-<<<<<<< HEAD
               ) : (
                 <div className="empty-state">
                   <Search size={20} />
@@ -696,70 +626,12 @@ export default function SuperProcessScreen() {
                 </div>
               )}
             </div>
-=======
-              ) : null}
-
-              {!loadingNotifications &&
-                !notificationError &&
-                filteredNotifications.length === 0 && (
-                  <div className="empty-state">
-                    <p>No notifications found.</p>
-                  </div>
-                )}
-            </div>
-
-            <div className="compose-area">
-              <label>Write notification here</label>
-
-              <div className="compose-box">
-                <div className="compose-receiver-section">
-                  <span className="compose-mini-title">Send to</span>
-
-                  <div className="compose-checklist">
-                    {(["Center", "Parents", "Doctor", "Therapist", "All"] as ReceiverType[]).map(
-                      (receiver) => (
-                        <label
-                          key={receiver}
-                          className={
-                            selectedReceivers.includes(receiver)
-                              ? "compose-check active"
-                              : "compose-check"
-                          }
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedReceivers.includes(receiver)}
-                            onChange={() => toggleReceiver(receiver)}
-                          />
-                          <span>{receiver}</span>
-                        </label>
-                      )
-                    )}
-                  </div>
-                </div>
-
-                <div className="compose-message-row">
-                  <input
-                    value={message}
-                    onChange={(event) => setMessage(event.target.value)}
-                    placeholder="Type here..."
-                  />
-
-                  <button onClick={sendNotification} disabled={isSending}>
-                    <span>{isSending ? "SENDING..." : "SEND"}</span>
-                    <Send size={15} />
-                  </button>
-                </div>
-              </div>
-            </div>
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
           </div>
         </section>
       </section>
 
       {/* EDIT MODAL */}
       {editingNotification && (
-<<<<<<< HEAD
         <Modal
           title="Edit Notification"
           onClose={() => setEditingNotification(null)}
@@ -782,26 +654,34 @@ export default function SuperProcessScreen() {
             <label className="modal-label">
               <span>Receiver</span>
 
-              <select
-                value={editingNotification.receiver}
-                onChange={(event) =>
-                  setEditingNotification((previousNotification) =>
-                    previousNotification
-                      ? {
-                          ...previousNotification,
-                          receiver:
-                            event.target.value as ReceiverType,
-                        }
-                      : previousNotification,
-                  )
-                }
-              >
+              <div className="compose-receivers">
                 {receiverOptions.map((receiver) => (
-                  <option key={receiver} value={receiver}>
+                  <button
+                    key={receiver}
+                    type="button"
+                    className={
+                      editingNotification.receivers.includes(receiver)
+                        ? "compose-receiver active"
+                        : "compose-receiver"
+                    }
+                    onClick={() =>
+                      setEditingNotification((current) =>
+                        current
+                          ? {
+                              ...current,
+                              receivers: toggleReceiverList(
+                                current.receivers,
+                                receiver,
+                              ),
+                            }
+                          : current,
+                      )
+                    }
+                  >
                     {receiver}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </label>
 
             <label className="modal-label">
@@ -828,107 +708,15 @@ export default function SuperProcessScreen() {
               className="modal-secondary-button"
               onClick={() => setEditingNotification(null)}
             >
-=======
-        <Modal title="Edit Notification" onClose={() => setEditingNotification(null)}>
-          <label className="modal-label">
-            Receiver
-            <div className="compose-receivers">
-              {(["Center", "Parents", "Doctor", "Therapist", "All"] as ReceiverType[]).map(
-                (receiver) => (
-                  <button
-                    key={receiver}
-                    type="button"
-                    className={
-                      editingNotification.receivers.includes(receiver)
-                        ? "compose-receiver active"
-                        : "compose-receiver"
-                    }
-                    onClick={() =>
-                      setEditingNotification((prev) => {
-                        if (!prev) return prev;
-
-                        if (receiver === "All") {
-                          return {
-                            ...prev,
-                            receivers: prev.receivers.includes("All") ? [] : ["All"],
-                          };
-                        }
-
-                        const withoutAll = prev.receivers.filter(
-                          (item) => item !== "All"
-                        );
-
-                        if (withoutAll.includes(receiver)) {
-                          return {
-                            ...prev,
-                            receivers: withoutAll.filter((item) => item !== receiver),
-                          };
-                        }
-
-                        return {
-                          ...prev,
-                          receivers: [...withoutAll, receiver],
-                        };
-                      })
-                    }
-                  >
-                    {receiver}
-                  </button>
-                )
-              )}
-            </div>
-          </label>
-
-          <label className="modal-label">
-            Message
-            <textarea
-              value={editingNotification.message}
-              onChange={(event) =>
-                setEditingNotification((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        message: event.target.value,
-                      }
-                    : prev
-                )
-              }
-            />
-          </label>
-
-          <button
-            className="save-btn"
-            onClick={saveEditedNotification}
-            disabled={isSavingEdit}
-          >
-            {isSavingEdit ? "Saving..." : "Save Changes"}
-          </button>
-        </Modal>
-      )}
-
-      {deleteTarget && (
-        <Modal title="Delete Notification" onClose={() => setDeleteTarget(null)}>
-          <p className="confirm-text">
-            Are you sure you want to delete this notification?
-          </p>
-
-          <div className="confirm-preview">
-            <strong>{formatReceivers(deleteTarget.receivers)}</strong>
-            <p>{deleteTarget.message}</p>
-          </div>
-
-          <div className="confirm-actions">
-            <button className="cancel-btn" onClick={() => setDeleteTarget(null)}>
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
               Cancel
             </button>
 
             <button
-<<<<<<< HEAD
               className="save-button"
               onClick={saveEditedNotification}
+              disabled={isSavingEdit}
             >
-              Save Changes
+              {isSavingEdit ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </Modal>
@@ -955,7 +743,7 @@ export default function SuperProcessScreen() {
 
           <div className="confirm-preview">
             <div className="preview-top">
-              <span>{deleteTarget.receiver}</span>
+              <span>{formatReceivers(deleteTarget.receivers)}</span>
               <small>{deleteTarget.dateLabel}</small>
             </div>
 
@@ -973,19 +761,11 @@ export default function SuperProcessScreen() {
             <button
               className="delete-confirm-button"
               onClick={() => deleteNotification(deleteTarget.id)}
-            >
-              Delete Notification
-            </button>
-          </div>
-=======
-              className="delete-btn"
-              onClick={() => deleteNotification(deleteTarget.id)}
               disabled={isDeleting}
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? "Deleting..." : "Delete Notification"}
             </button>
           </div>
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
         </Modal>
       )}
 
@@ -1171,7 +951,6 @@ export default function SuperProcessScreen() {
           display: none;
         }
 
-<<<<<<< HEAD
         .nav-item.active .nav-active-line {
           position: absolute;
           left: 0;
@@ -1181,21 +960,6 @@ export default function SuperProcessScreen() {
           width: 3px;
           border-radius: 0 4px 4px 0;
           background: var(--mobi-purple);
-=======
-        .back-btn {
-          border: none;
-          background: white;
-          cursor: pointer;
-          z-index: 10;
-          width: 38px;
-          height: 38px;
-          border-radius: 999px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 12px;
-          box-shadow: 0 3px 8px rgba(0,0,0,0.12);
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
         }
 
         .nav-icon {
@@ -1760,7 +1524,6 @@ export default function SuperProcessScreen() {
             color 0.14s ease;
         }
 
-<<<<<<< HEAD
         .action-button.edit {
           color: var(--mobi-purple);
         }
@@ -1777,66 +1540,6 @@ export default function SuperProcessScreen() {
         .action-button.delete:hover {
           border-color: #edcece;
           background: var(--danger-light);
-=======
-        .row-actions button:disabled,
-        .compose-message-row button:disabled,
-        .save-btn:disabled,
-        .delete-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .confirm-text {
-          margin: 0 0 14px;
-          font-size: 14px;
-          color: #333;
-        }
-
-        .confirm-preview {
-          background: #f8f3f9;
-          border: 1px solid #ead4ee;
-          border-radius: 14px;
-          padding: 14px;
-          margin-bottom: 18px;
-        }
-
-        .confirm-preview strong {
-          display: block;
-          margin-bottom: 6px;
-          font-size: 14px;
-        }
-
-        .confirm-preview p {
-          margin: 0;
-          font-size: 13px;
-          line-height: 1.45;
-          color: #555;
-        }
-
-        .confirm-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 10px;
-        }
-
-        .cancel-btn,
-        .delete-btn {
-          border: none;
-          border-radius: 999px;
-          padding: 10px 16px;
-          font-weight: 900;
-          cursor: pointer;
-        }
-
-        .cancel-btn {
-          background: #f5eef7;
-          color: #6f2f9d;
-        }
-
-        .delete-btn {
-          background: #fff0f0;
-          color: #b73232;
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
         }
 
         .empty-state {
@@ -1851,7 +1554,6 @@ export default function SuperProcessScreen() {
           text-align: center;
         }
 
-<<<<<<< HEAD
         .empty-state strong {
           color: var(--text-secondary);
           font-size: 11px;
@@ -1865,52 +1567,6 @@ export default function SuperProcessScreen() {
         /* ==============================
            MODAL
         ============================== */
-=======
-        .empty-state p {
-          margin: 0;
-          font-size: 13px;
-        }
-
-        .compose-area label {
-          display: block;
-          font-size: 12px;
-          margin-bottom: 12px;
-        }
-
-        .compose-box {
-          min-height: 108px;
-          background: #a99fc5;
-          border-radius: 8px;
-          display: flex;
-          flex-direction: column;
-          padding: 13px 16px;
-          gap: 12px;
-        }
-
-        .compose-message-row input {
-          flex: 1;
-          border: none;
-          outline: none;
-          background: transparent;
-          color: white;
-          font-size: 13px;
-        }
-
-        .compose-message-row input::placeholder {
-          color: rgba(255,255,255,0.8);
-        }
-
-        .compose-message-row button {
-          border: none;
-          background: transparent;
-          color: white;
-          font-weight: 900;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
 
         .compose-receivers {
           display: flex;
@@ -2535,7 +2191,6 @@ export default function SuperProcessScreen() {
             padding: 12px;
           }
 
-<<<<<<< HEAD
           .receiver-cell {
             grid-column: 1;
           }
@@ -2567,15 +2222,6 @@ export default function SuperProcessScreen() {
           .save-button,
           .delete-confirm-button {
             width: 100%;
-=======
-          .compose-message-row input {
-            width: 100%;
-            min-height: 36px;
-          }
-
-          .compose-message-row button {
-            justify-content: flex-end;
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3
           }
         }
       `}</style>
@@ -2620,8 +2266,6 @@ function Modal({ title, children, onClose }: ModalProps) {
     </div>
   );
 }
-<<<<<<< HEAD
-=======
 
 function NoticeModal({
   title,
@@ -2633,11 +2277,17 @@ function NoticeModal({
   onClose: () => void;
 }) {
   return (
-    <div className="notice-backdrop">
-      <div className="notice-card">
+    <div className="notice-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="notice-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="notice-header">
           <h2>{title}</h2>
-          <button className="close-btn" onClick={onClose}>
+          <button className="close-btn" onClick={onClose} aria-label="Close notice">
             <X size={18} />
           </button>
         </div>
@@ -2651,4 +2301,3 @@ function NoticeModal({
     </div>
   );
 }
->>>>>>> ab67a1ed037e5f5633be7e3f3ae8832a5e45fbc3

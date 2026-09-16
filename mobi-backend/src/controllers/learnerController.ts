@@ -16,6 +16,22 @@ import {
 import {
   getLearnerList,
 } from "../services/learner/learnerListService";
+
+import {
+  assignLearnerDoctorService,
+  getLearnerDoctorService,
+} from "../services/learner/learnerDoctorService";
+
+import {
+  createCenterCollaborationNoteService,
+  getLearnerCollaborationNotesService,
+} from "../services/collaboration/collaborationNoteService";
+
+import {
+  assignLearnerTherapistsService,
+  getLearnerTherapistsService,
+} from "../services/learner/learnerTherapistService";
+
 /* =========================================================
    ENROLL LEARNER CONTROLLER
 ========================================================= */
@@ -407,6 +423,380 @@ export const getLearners = async (
 
       error:
         message,
+    });
+  }
+};
+
+/* =========================================================
+   GET LEARNER'S CURRENT DOCTOR
+========================================================= */
+
+export const getLearnerDoctor = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const learnerIdParam =
+      req.params.learnerId;
+
+    if (
+      !learnerIdParam ||
+      Array.isArray(learnerIdParam)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A valid learner ID is required.",
+      });
+    }
+
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    const result =
+      await getLearnerDoctorService(
+        learnerIdParam,
+        CENTER_ID,
+      );
+
+    return res.status(200).json({
+      success: true,
+      doctorAssignment: result,
+    });
+  } catch (error) {
+    console.error(
+      "Get learner doctor error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to fetch learner doctor.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+  }
+};
+
+
+/* =========================================================
+   ASSIGN / CHANGE LEARNER DOCTOR
+========================================================= */
+
+export const assignLearnerDoctor = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const learnerIdParam =
+      req.params.learnerId;
+
+    if (
+      !learnerIdParam ||
+      Array.isArray(learnerIdParam)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A valid learner ID is required.",
+      });
+    }
+
+    const doctorId =
+      typeof req.body.doctorId ===
+      "string"
+        ? req.body.doctorId.trim()
+        : "";
+
+    if (!doctorId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Doctor ID is required.",
+      });
+    }
+
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    const result =
+      await assignLearnerDoctorService(
+        learnerIdParam,
+        doctorId,
+        CENTER_ID,
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Doctor assigned successfully.",
+      ...result,
+    });
+  } catch (error) {
+    console.error(
+      "Assign learner doctor error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to assign doctor.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+  }
+};
+
+/* =========================================================
+   GET LEARNER COLLABORATION NOTES
+========================================================= */
+
+export const getLearnerCollaborationNotes = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const learnerId = req.params.learnerId;
+
+    if (
+      !learnerId ||
+      Array.isArray(learnerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid learner ID is required.",
+      });
+    }
+
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    const notes =
+      await getLearnerCollaborationNotesService(
+        learnerId,
+        CENTER_ID,
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: "Collaboration notes fetched successfully.",
+      notes,
+    });
+  } catch (error) {
+    console.error(
+      "Get collaboration notes error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch collaboration notes.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+  }
+};
+
+
+/* =========================================================
+   CREATE CENTER COLLABORATION NOTE
+========================================================= */
+
+export const createLearnerCollaborationNote = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const learnerId = req.params.learnerId;
+
+    if (
+      !learnerId ||
+      Array.isArray(learnerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid learner ID is required.",
+      });
+    }
+
+    const title =
+      typeof req.body.title === "string"
+        ? req.body.title
+        : "";
+
+    const content =
+      typeof req.body.content === "string"
+        ? req.body.content
+        : "";
+
+    const category =
+      typeof req.body.category === "string"
+        ? req.body.category
+        : "MOBI Session";
+
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    const note =
+      await createCenterCollaborationNoteService(
+        learnerId,
+        CENTER_ID,
+        {
+          title,
+          content,
+          category,
+        },
+      );
+
+    return res.status(201).json({
+      success: true,
+      message: "Progress note added successfully.",
+      note,
+    });
+  } catch (error) {
+    console.error(
+      "Create collaboration note error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to add progress note.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+  }
+};
+
+/* =========================================================
+   GET LEARNER THERAPISTS
+========================================================= */
+
+export const getLearnerTherapists = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const learnerId = req.params.learnerId;
+
+    if (
+      !learnerId ||
+      Array.isArray(learnerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A valid learner ID is required.",
+      });
+    }
+
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    const therapists =
+      await getLearnerTherapistsService(
+        learnerId,
+        CENTER_ID,
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Learner therapists fetched successfully.",
+      therapists,
+    });
+  } catch (error) {
+    console.error(
+      "Get learner therapists error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to fetch learner therapists.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    });
+  }
+};
+
+
+/* =========================================================
+   ASSIGN LEARNER THERAPISTS
+========================================================= */
+
+export const assignLearnerTherapists = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const learnerId = req.params.learnerId;
+
+    if (
+      !learnerId ||
+      Array.isArray(learnerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "A valid learner ID is required.",
+      });
+    }
+
+    const therapistIds =
+      Array.isArray(
+        req.body.therapistIds,
+      )
+        ? req.body.therapistIds.filter(
+            (id: unknown) =>
+              typeof id === "string" &&
+              id.trim() !== "",
+          )
+        : [];
+
+    const CENTER_ID =
+      "d5ae1649-0343-46d4-b433-575c97e064e1";
+
+    const therapists =
+      await assignLearnerTherapistsService(
+        learnerId,
+        therapistIds,
+        CENTER_ID,
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Learner therapists updated successfully.",
+      therapists,
+    });
+  } catch (error) {
+    console.error(
+      "Assign learner therapists error:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to update learner therapists.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
     });
   }
 };

@@ -1,63 +1,382 @@
-// const API_BASE_URL = "http://localhost:5050";
+// mobi-web/src/services/activityApi.ts
 
-// export async function getActivities() {
-//   const response = await fetch(`${API_BASE_URL}/activities`);
+const API_BASE_URL =
+  "http://localhost:5050";
 
-//   if (!response.ok) {
-//     throw new Error("Failed to fetch activities");
-//   }
+export type TherapistMaterialView =
+  | "mine"
+  | "all"
+  | "center"
+  | "drafts"
+  | "archived";
 
-//   return response.json();
-// }
+export interface ActivityRecord {
+  id: string;
+  center_id?: string | null;
+  title: string;
+  description: string | null;
+  activity_type: string;
+  speech_ladder_level?: string | null;
+  max_attempts?: number | null;
+  estimated_minutes?: number | null;
+  allow_skip?: boolean | null;
+  success_required_count?: number | null;
+  thumbnail_url: string | null;
+  ai_voice_gender?: string | null;
+  ai_voice_speed?: string | null;
+  access_scope?: string | null;
+  activity_domain?: string | null;
+  status: string;
+  uploaded_by: string | null;
+  created_by_role?: "center" | "therapist" | null;
+  created_by_therapist_id?: string | null;
+  archived_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  steps?: any[];
+  activity_steps?: any[];
+}
 
-// export async function getActivityById(id: string) {
-//   const response = await fetch(`${API_BASE_URL}/activities/${id}`);
+function staffHeaders() {
+  const role =
+    localStorage.getItem(
+      "mobi_staff_role",
+    );
 
-//   if (!response.ok) {
-//     throw new Error("Failed to fetch activity");
-//   }
+  const profileId =
+    localStorage.getItem(
+      "mobi_staff_profile_id",
+    );
 
-//   return response.json();
-// }
+  const headers:
+    Record<string, string> =
+    {};
 
-//mobi-web/src/services/activityApi.ts
-const API_BASE_URL = "http://localhost:5050";
+  if (role) {
+    headers[
+      "x-mobi-staff-role"
+    ] = role;
+  }
+
+  if (profileId) {
+    headers[
+      "x-mobi-staff-profile-id"
+    ] = profileId;
+  }
+
+  return headers;
+}
+
+async function readJson(
+  response: Response,
+) {
+  return response
+    .json()
+    .catch(() => null);
+}
+
+function throwApiError(
+  result: any,
+  fallback: string,
+) {
+  throw new Error(
+    result?.message ||
+      result?.error ||
+      fallback,
+  );
+}
 
 export async function getActivities() {
-  const response = await fetch(`${API_BASE_URL}/activities`);
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities`,
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch activities");
+    throwApiError(
+      result,
+      "Failed to fetch activities",
+    );
   }
 
-  return response.json();
+  return result as
+    ActivityRecord[];
 }
 
-export async function getActivityById(id: string) {
-  const response = await fetch(`${API_BASE_URL}/activities/${id}`);
+export async function getTherapistMaterials(
+  therapistId: string,
+  view:
+    TherapistMaterialView,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/therapists/${therapistId}/materials?view=${encodeURIComponent(
+        view,
+      )}`,
+      {
+        headers: {
+          ...staffHeaders(),
+        },
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch activity");
+    throwApiError(
+      result,
+      "Failed to fetch Therapist materials.",
+    );
   }
 
-  return response.json();
+  return (
+    result?.activities ??
+    []
+  ) as ActivityRecord[];
 }
 
-export async function createActivity(payload: any) {
-  const response = await fetch(`${API_BASE_URL}/activities`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+export async function getActivityById(
+  id: string,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/${id}`,
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to create activity");
+    throwApiError(
+      result,
+      "Failed to fetch activity",
+    );
   }
 
-  return response.json();
+  return result as
+    ActivityRecord;
+}
+
+export async function createActivity(
+  payload: any,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...staffHeaders(),
+        },
+
+        body:
+          JSON.stringify(
+            payload,
+          ),
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
+
+  if (!response.ok) {
+    throwApiError(
+      result,
+      "Failed to create activity",
+    );
+  }
+
+  return result;
+}
+
+export async function updateActivity(
+  activityId: string,
+  payload: any,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/${activityId}`,
+      {
+        method:
+          "PATCH",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...staffHeaders(),
+        },
+
+        body:
+          JSON.stringify(
+            payload,
+          ),
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
+
+  if (!response.ok) {
+    throwApiError(
+      result,
+      "Failed to update activity.",
+    );
+  }
+
+  return result;
+}
+
+export async function submitActivityForReview(
+  activityId: string,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/${activityId}/submit-review`,
+      {
+        method:
+          "PATCH",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...staffHeaders(),
+        },
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
+
+  if (!response.ok) {
+    throwApiError(
+      result,
+      "Failed to submit activity for review.",
+    );
+  }
+
+  return result;
+}
+
+export async function archiveActivity(
+  activityId: string,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/${activityId}/archive`,
+      {
+        method:
+          "PATCH",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...staffHeaders(),
+        },
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
+
+  if (!response.ok) {
+    throwApiError(
+      result,
+      "Failed to archive activity.",
+    );
+  }
+
+  return result;
+}
+
+export async function restoreActivity(
+  activityId: string,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/${activityId}/restore`,
+      {
+        method:
+          "PATCH",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...staffHeaders(),
+        },
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
+
+  if (!response.ok) {
+    throwApiError(
+      result,
+      "Failed to restore activity.",
+    );
+  }
+
+  return result;
+}
+
+export async function deleteActivity(
+  activityId: string,
+) {
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/${activityId}`,
+      {
+        method:
+          "DELETE",
+
+        headers: {
+          ...staffHeaders(),
+        },
+      },
+    );
+
+  const result =
+    await readJson(
+      response,
+    );
+
+  if (!response.ok) {
+    throwApiError(
+      result,
+      "Failed to delete activity.",
+    );
+  }
+
+  return result;
 }
 
 export async function previewTTS({
@@ -71,111 +390,119 @@ export async function previewTTS({
   style?: string;
   emotion?: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/speech/tts`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text,
-      voice,
-      style,
-      emotion,
-    }),
-  });
+  const response =
+    await fetch(
+      `${API_BASE_URL}/speech/tts`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify({
+            text,
+            voice,
+            style,
+            emotion,
+          }),
+      },
+    );
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to preview TTS");
+    const error =
+      await response
+        .json()
+        .catch(
+          () => null,
+        );
+
+    throw new Error(
+      error?.message ||
+        "Failed to preview TTS",
+    );
   }
 
-  const audioBlob = await response.blob();
-  const audioUrl = URL.createObjectURL(audioBlob);
+  const audioBlob =
+    await response.blob();
 
-  const audio = new Audio(audioUrl);
+  const audioUrl =
+    URL.createObjectURL(
+      audioBlob,
+    );
+
+  const audio =
+    new Audio(
+      audioUrl,
+    );
+
   await audio.play();
 
-  audio.onended = () => {
-    URL.revokeObjectURL(audioUrl);
-  };
+  audio.onended =
+    () => {
+      URL.revokeObjectURL(
+        audioUrl,
+      );
+    };
 }
-
 
 /* =========================================================
    ASSIGN ACTIVITY TO LEARNERS
 ========================================================= */
 
-/*
-  Backend route:
-
-  POST /activities/assignments
-
-  This is called AFTER the activity has successfully
-  been created, because the assignment table needs the
-  newly-created activity UUID.
-*/
-
 export interface AssignActivityRequest {
   activityId: string;
   learnerIds: string[];
-
-  /*
-    This is different from activity access_scope.
-
-    required:
-    therapist/center explicitly expects the learner to do it
-
-    recommended:
-    learner should receive it as a prioritized recommendation
-  */
   assignmentType?:
     | "required"
     | "recommended";
-
   priority?: number;
-
   maxAttemptsOverride?:
     | number
     | null;
-
   estimatedMinutesOverride?:
     | number
     | null;
-
   allowSkipOverride?:
     | boolean
     | null;
 }
 
 export async function assignActivityToLearners(
-  payload: AssignActivityRequest,
+  payload:
+    AssignActivityRequest,
 ) {
-  const response = await fetch(
-    `${API_BASE_URL}/activities/assignments`,
-    {
-      method: "POST",
+  const response =
+    await fetch(
+      `${API_BASE_URL}/activities/assignments`,
+      {
+        method:
+          "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify(
+            payload,
+          ),
       },
-
-      body: JSON.stringify(
-        payload,
-      ),
-    },
-  );
+    );
 
   const result =
-    await response
-      .json()
-      .catch(() => null);
+    await readJson(
+      response,
+    );
 
   if (!response.ok) {
-    throw new Error(
-      result?.message ||
-        result?.error ||
-        "Failed to assign activity to learners.",
+    throwApiError(
+      result,
+      "Failed to assign activity to learners.",
     );
   }
 
