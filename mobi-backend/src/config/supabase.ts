@@ -1,4 +1,20 @@
+// // import { createClient } from "@supabase/supabase-js";
+// // import dotenv from "dotenv";
+
+// // dotenv.config();
+
+// // const supabaseUrl = process.env.SUPABASE_URL;
+// // const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// // if (!supabaseUrl || !supabaseServiceKey) {
+// //   throw new Error("Missing Supabase environment variables.");
+// // }
+
+// // export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+
 // import { createClient } from "@supabase/supabase-js";
+// import ws from "ws";
 // import dotenv from "dotenv";
 
 // dotenv.config();
@@ -7,71 +23,68 @@
 // const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // if (!supabaseUrl || !supabaseServiceKey) {
-//   throw new Error("Missing Supabase environment variables.");
+//   throw new Error("Missing Supabase environment variables");
 // }
 
-// export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+//   realtime: {
+//     transport: ws as any,
+//   },
+// });
+
+
+
+// kz adjustrment sep 3 2026
+
+import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 import dotenv from "dotenv";
 
 dotenv.config({ quiet: true });
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/* =========================================================
+   ENVIRONMENT VARIABLES
+========================================================= */
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error("Missing Supabase environment variables");
+const supabaseUrl =
+  process.env.SUPABASE_URL;
+
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabasePublishableKey =
+  process.env.SUPABASE_PUBLISHABLE_KEY ??
+  process.env.SUPABASE_ANON_KEY;
+
+/* =========================================================
+   VALIDATION
+========================================================= */
+
+if (!supabaseUrl) {
+  throw new Error(
+    "Missing SUPABASE_URL in mobi-backend/.env",
+  );
 }
 
-function createSupabaseClient(options: Record<string, unknown> = {}) {
-  const {
-    createClient,
-  } = require("@supabase/supabase-js");
-  const ws = require("ws");
-
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    ...options,
-    realtime: {
-      transport: ws,
-    },
-  });
+if (!supabaseServiceKey) {
+  throw new Error(
+    "Missing SUPABASE_SERVICE_ROLE_KEY in mobi-backend/.env",
+  );
 }
 
-function createLazyClient(
-  options: Record<string, unknown> = {},
-) {
-  let client: any = null;
-
-  return new Proxy(
-    {},
-    {
-      get(_target, property) {
-        if (!client) {
-          client = createSupabaseClient(options);
-        }
-
-        const value = client[property];
-        return typeof value === "function"
-          ? value.bind(client)
-          : value;
-      },
-    },
-  ) as any;
+if (!supabasePublishableKey) {
+  throw new Error(
+    "Missing SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY) in mobi-backend/.env",
+  );
 }
 
-export const supabase = createLazyClient();
+/* =========================================================
+   ADMIN / DATABASE CLIENT
 
-export const supabaseAdmin = createLazyClient({
-  auth: {
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-    persistSession: false,
-  },
-});
+   Use this for:
+   - Database queries
+   - CRUD
+   - auth.admin.listUsers()
+   - auth.admin.deleteUser()
 
-export const supabaseAuth = createLazyClient({
-  auth: {
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-    persistSession: false,
-  },
-});
+   Uses SERVICE ROLE KEY.

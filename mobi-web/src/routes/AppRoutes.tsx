@@ -11,6 +11,10 @@ import type {
 import Home from "../pages/Home";
 import About from "../pages/About";
 import Login from "../pages/Login";
+import SetupPassword from "../pages/auth/SetupPassword";
+import ResetPassword from "../pages/auth/ResetPassword";
+import ProfessionalSecurity from "../pages/auth/ProfessionalSecurity";
+import ProfessionalRoute from "../components/auth/ProfessionalRoute";
 
 // auth
 import FreeTrial from "../pages/auth/FreeTrial";
@@ -41,6 +45,7 @@ import RegulatoryActivities from "../pages/center/materials/RegulatoryActivities
 import Notifications from "../pages/center/notifications/Notifications";
 import Schedule from "../pages/center/schedule/Schedule";
 import Collaboration from "../pages/center/collaboration/Collaboration"
+
 
 // Therapist
 import TherapistLearner from "../pages/therapist/dashboard/Learner";

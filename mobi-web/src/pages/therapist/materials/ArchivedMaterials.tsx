@@ -1,62 +1,210 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { RotateCcw, Trash2, X } from "lucide-react";
+import {
+  useEffect,
+  useState,
+} from "react";
+import {
+  useNavigate,
+} from "react-router-dom";
+import {
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
+
 import TherapistLayout from "../../../layouts/TherapistLayout";
+import {
+  deleteActivity,
+  getTherapistMaterials,
+  restoreActivity,
+  type ActivityRecord,
+} from "../../../services/activityApi";
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500";
 
 const ArchivedMaterials = () => {
-  const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const navigate =
+    useNavigate();
 
-  // TEMP DATA ONLY.
-  // Later, backend should return only archived activities
-  // created by the logged-in therapist.
-  const archivedActivities = [
-    {
-      id: 1,
-      title: "Greeting Practice",
-      description:
-        "Simple greeting activity for practicing hello, goodbye, and friendly responses.",
-      image:
-        "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500",
-      type: "Teach & Practice",
-      archivedDate: "July 8, 2026",
-      uploadedBy: "Anna Reyes",
-    },
-    {
-      id: 2,
-      title: "Waiting for My Turn",
-      description:
-        "Social readiness activity for practicing patience and turn-taking.",
-      image:
-        "https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=500",
-      type: "Turn Taking",
-      archivedDate: "July 6, 2026",
-      uploadedBy: "Anna Reyes",
-    },
-    {
-      id: 3,
-      title: "Color Matching",
-      description:
-        "Visual matching task for identifying and choosing correct colors.",
-      image:
-        "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=500",
-      type: "Show & Choose",
-      archivedDate: "July 4, 2026",
-      uploadedBy: "Anna Reyes",
-    },
-  ];
+  const [
+    archivedActivities,
+    setArchivedActivities,
+  ] =
+    useState<
+      ActivityRecord[]
+    >([]);
+
+  const [
+    openMenu,
+    setOpenMenu,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState("");
+
+  const therapistId =
+    localStorage.getItem(
+      "mobi_staff_profile_id",
+    );
+
+  useEffect(() => {
+    if (!therapistId) {
+      navigate(
+        "/login",
+        {
+          replace: true,
+        },
+      );
+
+      return;
+    }
+
+    let mounted = true;
+
+    async function loadArchived() {
+      try {
+        setLoading(true);
+
+        const rows =
+          await getTherapistMaterials(
+            therapistId,
+            "archived",
+          );
+
+        if (mounted) {
+          setArchivedActivities(
+            rows,
+          );
+        }
+      } catch (
+        error: any
+      ) {
+        if (mounted) {
+          setErrorMessage(
+            error?.message ||
+              "Unable to load archived materials.",
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadArchived();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    navigate,
+    therapistId,
+  ]);
+
+  const handleRestore =
+    async (
+      activity:
+        ActivityRecord,
+    ) => {
+      try {
+        await restoreActivity(
+          activity.id,
+        );
+
+        setArchivedActivities(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                activity.id,
+            ),
+        );
+      } catch (
+        error: any
+      ) {
+        setErrorMessage(
+          error?.message ||
+            "Unable to restore activity.",
+        );
+      } finally {
+        setOpenMenu(
+          null,
+        );
+      }
+    };
+
+  const handleDelete =
+    async (
+      activity:
+        ActivityRecord,
+    ) => {
+      const confirmed =
+        window.confirm(
+          "Are you sure you want to permanently delete this archived activity?",
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await deleteActivity(
+          activity.id,
+        );
+
+        setArchivedActivities(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                activity.id,
+            ),
+        );
+      } catch (
+        error: any
+      ) {
+        setErrorMessage(
+          error?.message ||
+            "Unable to delete archived activity.",
+        );
+      } finally {
+        setOpenMenu(
+          null,
+        );
+      }
+    };
 
   return (
     <TherapistLayout>
-      {(sidebarOpen, setSidebarOpen) => (
-        <div className="inter bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 flex flex-col">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+      {(
+        sidebarOpen,
+        setSidebarOpen,
+      ) => (
+        <div className="flex h-full flex-col rounded-[30px] bg-[#E4C9E5]/80 p-8 inter">
+          <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
                 <button
+                  type="button"
                   className="text-3xl"
-                  onClick={() => setSidebarOpen(true)}
+                  onClick={() =>
+                    setSidebarOpen(
+                      true,
+                    )
+                  }
                 >
                   ☰
                 </button>
@@ -68,150 +216,175 @@ const ArchivedMaterials = () => {
             </div>
 
             <button
-              onClick={() => navigate("/therapist/materials")}
-              className="
-                w-11
-                h-11
-                flex
-                items-center
-                justify-center
-                bg-[#F5EEF6]
-                rounded-xl
-                shadow-md
-                hover:bg-[#EBD7EC]
-                transition
-              "
+              type="button"
+              onClick={() =>
+                navigate(
+                  "/therapist/materials",
+                )
+              }
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F5EEF6] shadow-md transition hover:bg-[#EBD7EC]"
             >
-              <X size={20} className="text-[#7A5D7F]" />
+              <X
+                size={20}
+                className="text-[#7A5D7F]"
+              />
             </button>
           </div>
 
-          {archivedActivities.length === 0 ? (
+          {errorMessage && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
+          {loading ? (
+            <p className="text-center text-lg font-semibold">
+              Loading archived materials...
+            </p>
+          ) : archivedActivities.length ===
+            0 ? (
             <div className="flex flex-1 items-center justify-center">
               <p className="text-lg font-semibold text-gray-600">
                 No archived materials yet.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-4 overflow-y-auto no-scrollbar pr-2">
-              {archivedActivities.map((activity) => (
-                <div
-                  key={activity.id}
-                  onClick={() =>
-                    navigate(`/therapist/materials/${activity.id}`)
-                  }
-                  className="
-                    bg-white
-                    rounded-3xl
-                    shadow-md
-                    overflow-hidden
-                    cursor-pointer
-                    hover:shadow-lg
-                    transition
-                    h-96
-                    flex
-                    flex-col
-                    opacity-80
-                    hover:opacity-100
-                  "
-                >
-                  <div className="relative">
-                    <img
-                      src={activity.image}
-                      alt={activity.title}
-                      className="w-full h-48 object-cover shrink-0"
-                    />
+            <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-2 sm:grid-cols-2 xl:grid-cols-4 no-scrollbar">
+              {archivedActivities.map(
+                (
+                  activity,
+                ) => (
+                  <div
+                    key={
+                      activity.id
+                    }
+                    onClick={() =>
+                      navigate(
+                        `/therapist/materials/${activity.id}`,
+                      )
+                    }
+                    className="flex h-96 cursor-pointer flex-col overflow-hidden rounded-3xl bg-white opacity-80 shadow-md transition hover:opacity-100 hover:shadow-lg"
+                  >
+                    <div className="relative">
+                      <img
+                        src={
+                          activity.thumbnail_url ||
+                          fallbackImage
+                        }
+                        alt={
+                          activity.title
+                        }
+                        className="h-48 w-full shrink-0 object-cover"
+                      />
 
-                    <div className="absolute inset-0 bg-black/20"></div>
+                      <div className="absolute inset-0 bg-black/20" />
 
-                    <div className="absolute top-3 left-3 bg-white px-3 py-1 rounded-full text-sm font-semibold">
-                      Archived
+                      <div className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-sm font-semibold">
+                        Archived
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="p-4 flex flex-col flex-1">
-                    <h3 className="font-bold text-lg leading-tight mb-2">
-                      {activity.title}
-                    </h3>
+                    <div className="flex flex-1 flex-col p-4">
+                      <h3 className="mb-2 text-lg font-bold leading-tight">
+                        {
+                          activity.title
+                        }
+                      </h3>
 
-                    <p className="text-sm text-gray-600 line-clamp-2 min-h-10 mt-2">
-                      {activity.description}
-                    </p>
-
-                    <div className="mt-auto">
-                      <p className="text-xs text-gray-500 mb-2">
-                        Type: {activity.type}
+                      <p className="mt-2 line-clamp-2 min-h-10 text-sm text-gray-600">
+                        {activity.description ||
+                          "No description provided."}
                       </p>
 
-                      <p className="text-xs font-semibold">
-                        Uploaded by: {activity.uploadedBy}
-                      </p>
+                      <div className="mt-auto">
+                        <p className="mb-2 text-xs text-gray-500">
+                          Type:{" "}
+                          {
+                            activity.activity_type
+                          }
+                        </p>
 
-                      <p className="text-xs text-gray-500 mt-2">
-                        Archived: {activity.archivedDate}
-                      </p>
+                        <p className="text-xs font-semibold">
+                          Uploaded by:{" "}
+                          {activity.uploaded_by ||
+                            "Therapist"}
+                        </p>
 
-                      <div className="flex justify-end relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenu(
-                              openMenu === activity.id ? null : activity.id
-                            );
-                          }}
-                          className="text-2xl text-gray-500 hover:text-gray-700"
-                        >
-                          ⋯
-                        </button>
+                        <p className="mt-2 text-xs text-gray-500">
+                          Archived:{" "}
+                          {activity.archived_at
+                            ? new Date(
+                                activity.archived_at,
+                              ).toLocaleString()
+                            : "—"}
+                        </p>
 
-                        {openMenu === activity.id && (
-                          <div className="absolute right-0 bottom-8 w-44 bg-white rounded-xl shadow-lg py-2 z-50">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
+                        <div className="relative flex justify-end">
+                          <button
+                            type="button"
+                            onClick={(
+                              event,
+                            ) => {
+                              event.stopPropagation();
 
-                                // TODO Backend:
-                                // Restore only therapist's own archived activity.
-                                // await restoreArchivedActivity(activity.id);
+                              setOpenMenu(
+                                openMenu ===
+                                  activity.id
+                                  ? null
+                                  : activity.id,
+                              );
+                            }}
+                            className="text-2xl text-gray-500 hover:text-gray-700"
+                          >
+                            ⋯
+                          </button>
 
-                                console.log("Restore:", activity.id);
-                                setOpenMenu(null);
-                              }}
-                              className="flex w-full items-center gap-2 text-left px-4 py-2 hover:bg-gray-100"
-                            >
-                              <RotateCcw size={16} />
-                              Restore
-                            </button>
+                          {openMenu ===
+                            activity.id && (
+                            <div className="absolute bottom-8 right-0 z-50 w-44 rounded-xl bg-white py-2 shadow-lg">
+                              <button
+                                type="button"
+                                onClick={(
+                                  event,
+                                ) => {
+                                  event.stopPropagation();
+                                  void handleRestore(
+                                    activity,
+                                  );
+                                }}
+                                className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-gray-100"
+                              >
+                                <RotateCcw
+                                  size={16}
+                                />
+                                Restore
+                              </button>
 
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-
-                                const confirmDelete = window.confirm(
-                                  "Are you sure you want to permanently delete this archived activity?"
-                                );
-
-                                if (!confirmDelete) return;
-
-                                // TODO Backend:
-                                // Permanently delete only therapist's own archived activity.
-                                // await deleteArchivedActivity(activity.id);
-
-                                console.log("Delete archived:", activity.id);
-                                setOpenMenu(null);
-                              }}
-                              className="flex w-full items-center gap-2 text-left px-4 py-2 text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </button>
-                          </div>
-                        )}
+                              <button
+                                type="button"
+                                onClick={(
+                                  event,
+                                ) => {
+                                  event.stopPropagation();
+                                  void handleDelete(
+                                    activity,
+                                  );
+                                }}
+                                className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2
+                                  size={16}
+                                />
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ),
+              )}
             </div>
           )}
         </div>

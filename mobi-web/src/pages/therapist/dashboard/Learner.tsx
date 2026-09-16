@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  useNavigate,
+} from "react-router-dom";
+import {
+  Search,
+} from "lucide-react";
+
 import TherapistLayout from "../../../layouts/TherapistLayout";
 import {
   getLearners,
@@ -9,7 +18,9 @@ import {
 
 interface LearnerData {
   _id: string;
+  learnerCode: string | null;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   age: string;
   gender: string;
@@ -58,12 +69,114 @@ function mapLearner(
   };
 }
 
-const Learner = () => {
-  const [currentPage, setCurrentPage] = useState(1);
+const learnersPerPage = 10;
 
-  const learnersPerPage = 10;
+/* =========================================================
+   HELPERS
+========================================================= */
 
-  const navigate = useNavigate();
+function calculateAge(
+  birthDate:
+    | string
+    | null,
+) {
+  if (!birthDate) {
+    return null;
+  }
+
+  const birth =
+    new Date(
+      `${birthDate}T00:00:00`,
+    );
+
+  if (
+    Number.isNaN(
+      birth.getTime(),
+    )
+  ) {
+    return null;
+  }
+
+  const today =
+    new Date();
+
+  let age =
+    today.getFullYear() -
+    birth.getFullYear();
+
+  const monthDifference =
+    today.getMonth() -
+    birth.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (
+      monthDifference === 0 &&
+      today.getDate() <
+        birth.getDate()
+    )
+  ) {
+    age -= 1;
+  }
+
+  return Math.max(
+    age,
+    0,
+  );
+}
+
+function formatGender(
+  value:
+    | string
+    | null,
+) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value
+    .replace(
+      /_/g,
+      " ",
+    )
+    .replace(
+      /\b\w/g,
+      (letter) =>
+        letter.toUpperCase(),
+    );
+}
+
+function formatSpeechLadder(
+  value:
+    | string
+    | null,
+) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return value
+    .replace(
+      /_/g,
+      " ",
+    )
+    .replace(
+      /\b\w/g,
+      (letter) =>
+        letter.toUpperCase(),
+    );
+}
+
+function toLearnerData(
+  learner:
+    TherapistLearnerRecord,
+): LearnerData {
+  return {
+    _id:
+      learner.id,
+
+    learnerCode:
+      learner.learnerCode,
 
   const [learners, setLearners] = useState<LearnerData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -72,13 +185,44 @@ const Learner = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalLearners, setTotalLearners] = useState(0);
 
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+    middleName:
+      learner.middleName,
 
-  const [showUnenrollModal, setShowUnenrollModal] = useState(false);
-  const [selectedLearner, setSelectedLearner] =
-    useState<LearnerData | null>(null);
+    lastName:
+      learner.lastName,
 
-  const [showSortMenu, setShowSortMenu] = useState(false);
+    age:
+      calculateAge(
+        learner.birthDate,
+      ),
+
+    gender:
+      formatGender(
+        learner.sexAtBirth,
+      ),
+
+    level:
+      formatSpeechLadder(
+        learner.currentSpeechLadder,
+      ),
+
+    currentSpeechLadder:
+      learner.currentSpeechLadder,
+
+    suggestedSpeechLadder:
+      learner.suggestedSpeechLadder,
+
+    therapistConfirmed:
+      learner.therapistConfirmed,
+
+    profilePhotoUrl:
+      learner.profilePhotoUrl,
+  };
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
 
   const [sortOption, setSortOption] = useState("default");
 
@@ -159,7 +303,6 @@ const Learner = () => {
           setLoading(false);
         }
       }
-    };
 
     fetchLearners();
 
@@ -174,15 +317,23 @@ const Learner = () => {
 
   return (
     <TherapistLayout>
-      {(sidebarOpen, setSidebarOpen) => (
+      {(
+        sidebarOpen,
+        setSidebarOpen,
+      ) => (
         <div className="bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 inter flex flex-col">
           {/* TOP BAR */}
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 gap-6">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
                 <button
+                  type="button"
                   className="text-3xl mr-4"
-                  onClick={() => setSidebarOpen(true)}
+                  onClick={() =>
+                    setSidebarOpen(
+                      true,
+                    )
+                  }
                 >
                   ☰
                 </button>
@@ -196,8 +347,11 @@ const Learner = () => {
               </h1>
             </div>
 
-            <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96">
-              <Search size={20} className="text-gray-500 mr-3" />
+            <div className="flex items-center bg-[#F5EEF6] px-5 py-3 rounded-xl shadow-md w-96 max-w-full">
+              <Search
+                size={20}
+                className="text-gray-500 mr-3"
+              />
 
               <input
                 type="text"
@@ -211,22 +365,29 @@ const Learner = () => {
             </div>
           </div>
 
-          <div className="border-b border-black mb-6"></div>
+          <div className="border-b border-black mb-6" />
 
           {/* HEADER ACTIONS */}
           <div className="flex justify-between items-center mb-6">
             <p className="text-lg font-medium">
-              Click Learner to view progress
+              Assigned learners
             </p>
 
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <button
-                  className="text-md"
-                  onClick={() => setShowSortMenu(!showSortMenu)}
-                >
-                  Sort List ▾
-                </button>
+            <div className="relative">
+              <button
+                type="button"
+                className="text-md"
+                onClick={() =>
+                  setShowSortMenu(
+                    (
+                      current,
+                    ) =>
+                      !current,
+                  )
+                }
+              >
+                Sort List ▾
+              </button>
 
                 {showSortMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-2 z-50">
@@ -285,7 +446,15 @@ const Learner = () => {
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col">
+          {errorMessage && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {
+                errorMessage
+              }
+            </div>
+          )}
+
+          <div className="flex-1 flex flex-col min-h-0">
             {/* TABLE */}
             <div className="bg-[#E4C9E5] rounded-xl p-6 border border-[#DFA5C9] shadow-md flex-1">
 	              {loading ? (
@@ -298,13 +467,29 @@ const Learner = () => {
                 <table className="w-full table-fixed text-md">
                   <thead>
                     <tr className="text-left border-b border-[#DFA5C9] [&>th]:pb-4">
-                      <th className="w-40">ID</th>
-                      <th>FIRST NAME</th>
-                      <th>LAST NAME</th>
-                      <th className="w-32">AGE</th>
-                      <th className="w-40">GENDER</th>
-                      <th className="w-40">LEARNER LEVEL</th>
-                      <th className="w-12"></th>
+                      <th className="w-44">
+                        LEARNER ID
+                      </th>
+
+                      <th>
+                        FIRST NAME
+                      </th>
+
+                      <th>
+                        LAST NAME
+                      </th>
+
+                      <th className="w-28">
+                        AGE
+                      </th>
+
+                      <th className="w-36">
+                        GENDER
+                      </th>
+
+                      <th className="w-40">
+                        SPEECH LADDER
+                      </th>
                     </tr>
                   </thead>
 
@@ -321,61 +506,49 @@ const Learner = () => {
                                 learner,
                                 learnerCount: learners.length,
                               },
+                            )
+                          }
+                        >
+                          <td className="truncate pr-4">
+                            {
+                              learner.learnerCode ??
+                              "—"
                             }
-                          )
-                        }
-                      >
-                        <td>{learner._id}</td>
-                        <td>{learner.firstName}</td>
-                        <td>{learner.lastName}</td>
-                        <td>{learner.age}</td>
-                        <td>{learner.gender}</td>
-                        <td>{learner.level}</td>
-                        <td className="relative text-center">
-                          <button
-                            className="text-xl font-bold"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(
-                                openMenu === learner._id
-                                  ? null
-                                  : learner._id
-                              );
-                            }}
-                          >
-                            ⋯
-                          </button>
+                          </td>
 
-                          {openMenu === learner._id && (
-                            <div className="absolute right-0 top-8 w-40 bg-white rounded-xl shadow-lg py-2 z-50">
-                              <button
-                                className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(
-                                    `/therapist/dashboard/${learner._id}/EditLearner`
-                                  );
-                                }}
-                              >
-                                Edit Learner
-                              </button>
+                          <td>
+                            {
+                              learner.firstName
+                            }
+                          </td>
 
-                              <button
-                                className="block w-full text-left px-4 py-2 hover:bg-red-100 text-red-600"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedLearner(learner);
-                                  setShowUnenrollModal(true);
-                                  setOpenMenu(null);
-                                }}
-                              >
-                                Unenroll Learner
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          <td>
+                            {
+                              learner.lastName
+                            }
+                          </td>
+
+                          <td>
+                            {
+                              learner.age ??
+                              "—"
+                            }
+                          </td>
+
+                          <td>
+                            {
+                              learner.gender
+                            }
+                          </td>
+
+                          <td>
+                            {
+                              learner.level
+                            }
+                          </td>
+                        </tr>
+                      ),
+                    )}
                   </tbody>
                 </table>
               )}
@@ -432,31 +605,63 @@ const Learner = () => {
 
                 <div className="flex justify-center gap-4">
                   <button
-                    onClick={() => setShowUnenrollModal(false)}
-                    className="px-6 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100"
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage(
+                        (
+                          previous,
+                        ) =>
+                          Math.max(
+                            previous -
+                              1,
+                            1,
+                          ),
+                      )
+                    }
+                    disabled={
+                      currentPage ===
+                      1
+                    }
+                    className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
                   >
-                    Cancel
+                    &lt;
                   </button>
 
                   <button
-                    onClick={() => {
-                      setShowUnenrollModal(false);
-
-                      // TODO: Backend unenroll function here
-
-                      console.log(
-                        "Unenrolled:",
-                        selectedLearner?._id
-                      );
-                    }}
-                    className="px-6 py-2 rounded-xl bg-[#DFA5C9] text-white hover:bg-[#d48cb8]"
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage(
+                        (
+                          previous,
+                        ) =>
+                          Math.min(
+                            previous +
+                              1,
+                            totalPages,
+                          ),
+                      )
+                    }
+                    disabled={
+                      currentPage ===
+                      totalPages
+                    }
+                    className="px-4 py-2 bg-white rounded-lg disabled:opacity-50"
                   >
-                    Unenroll
+                    &gt;
                   </button>
                 </div>
+
+                <p className="text-sm font-medium">
+                  {
+                    currentPage
+                  }{" "}
+                  of{" "}
+                  {
+                    totalPages
+                  }
+                </p>
               </div>
-            </div>
-          )}
+            )}
         </div>
       )}
     </TherapistLayout>

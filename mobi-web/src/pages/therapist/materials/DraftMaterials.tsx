@@ -1,59 +1,175 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { X } from "lucide-react";
+import {
+  useEffect,
+  useState,
+} from "react";
+import {
+  useNavigate,
+} from "react-router-dom";
+import {
+  X,
+} from "lucide-react";
+
 import TherapistLayout from "../../../layouts/TherapistLayout";
+import {
+  deleteActivity,
+  getTherapistMaterials,
+  type ActivityRecord,
+} from "../../../services/activityApi";
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500";
 
 const DraftMaterials = () => {
-  const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const navigate =
+    useNavigate();
 
-  // TEMP DATA ONLY.
-  // Later, backend should return only drafts created by the logged-in therapist.
-  const drafts = [
-    {
-      id: 1,
-      title: "Saying Hello: Social Story",
-      description:
-        "Guide using first-person language to help children practice making eye contact and offering a friendly wave.",
-      image:
-        "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500",
-      type: "Story",
-      lastEdited: "2 hours ago",
-      uploadedBy: "Anna Reyes",
-    },
-    {
-      id: 2,
-      title: "Brushing Teeth Routine",
-      description: "Teach brushing teeth through simple visual steps.",
-      image:
-        "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=500",
-      type: "Life Skills",
-      lastEdited: "Yesterday",
-      uploadedBy: "Anna Reyes",
-    },
-    {
-      id: 3,
-      title: "Learning Colors",
-      description: "Identify primary colors through picture matching.",
-      image:
-        "https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=500",
-      type: "Teach & Practice",
-      lastEdited: "3 days ago",
-      uploadedBy: "Anna Reyes",
-    },
-  ];
+  const [
+    drafts,
+    setDrafts,
+  ] =
+    useState<
+      ActivityRecord[]
+    >([]);
+
+  const [
+    openMenu,
+    setOpenMenu,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState("");
+
+  const therapistId =
+    localStorage.getItem(
+      "mobi_staff_profile_id",
+    );
+
+  useEffect(() => {
+    if (!therapistId) {
+      navigate(
+        "/login",
+        {
+          replace: true,
+        },
+      );
+
+      return;
+    }
+
+    let mounted = true;
+
+    async function loadDrafts() {
+      try {
+        setLoading(true);
+
+        const rows =
+          await getTherapistMaterials(
+            therapistId,
+            "drafts",
+          );
+
+        if (mounted) {
+          setDrafts(
+            rows,
+          );
+        }
+      } catch (
+        error: any
+      ) {
+        if (mounted) {
+          setErrorMessage(
+            error?.message ||
+              "Unable to load drafts.",
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadDrafts();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    navigate,
+    therapistId,
+  ]);
+
+  const handleDelete =
+    async (
+      draft:
+        ActivityRecord,
+    ) => {
+      const confirmed =
+        window.confirm(
+          "Are you sure you want to delete this draft?",
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await deleteActivity(
+          draft.id,
+        );
+
+        setDrafts(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                draft.id,
+            ),
+        );
+      } catch (
+        error: any
+      ) {
+        setErrorMessage(
+          error?.message ||
+            "Unable to delete draft.",
+        );
+      } finally {
+        setOpenMenu(
+          null,
+        );
+      }
+    };
 
   return (
     <TherapistLayout>
-      {(sidebarOpen, setSidebarOpen) => (
-        <div className="inter bg-[#E4C9E5]/80 h-full rounded-[30px] p-8 flex flex-col">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+      {(
+        sidebarOpen,
+        setSidebarOpen,
+      ) => (
+        <div className="flex h-full flex-col rounded-[30px] bg-[#E4C9E5]/80 p-8 inter">
+          <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center gap-4">
               {!sidebarOpen && (
                 <button
+                  type="button"
                   className="text-3xl"
-                  onClick={() => setSidebarOpen(true)}
+                  onClick={() =>
+                    setSidebarOpen(
+                      true,
+                    )
+                  }
                 >
                   ☰
                 </button>
@@ -65,148 +181,193 @@ const DraftMaterials = () => {
             </div>
 
             <button
-              onClick={() => navigate("/therapist/materials")}
-              className="
-                w-11
-                h-11
-                flex
-                items-center
-                justify-center
-                bg-[#F5EEF6]
-                rounded-xl
-                shadow-md
-                hover:bg-[#EBD7EC]
-                transition
-              "
+              type="button"
+              onClick={() =>
+                navigate(
+                  "/therapist/materials",
+                )
+              }
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F5EEF6] shadow-md transition hover:bg-[#EBD7EC]"
             >
-              <X size={20} className="text-[#7A5D7F]" />
+              <X
+                size={20}
+                className="text-[#7A5D7F]"
+              />
             </button>
           </div>
 
-          {/* Draft Cards */}
-          <div className="grid grid-cols-4 gap-4">
-            {drafts.map((draft) => (
-              <div
-                key={draft.id}
-                onClick={() =>
-                  navigate("/therapist/materials/CreateActivity", {
-                    state: {
-                      mode: "draft",
-                      draftId: draft.id,
-                      draftData: draft,
-                    },
-                  })
-                }
-                className="
-                  bg-white
-                  rounded-3xl
-                  shadow-md
-                  overflow-hidden
-                  cursor-pointer
-                  hover:shadow-lg
-                  transition
-                  h-96
-                  flex
-                  flex-col
-                "
-              >
-                <img
-                  src={draft.image}
-                  alt={draft.title}
-                  className="w-full h-48 object-cover shrink-0"
-                />
+          {errorMessage && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          )}
 
-                <div className="p-4 flex flex-col flex-1">
-                  <h3 className="font-bold text-lg leading-tight mb-2">
-                    {draft.title}
-                  </h3>
+          {loading ? (
+            <p className="text-center text-lg font-semibold">
+              Loading drafts...
+            </p>
+          ) : drafts.length ===
+            0 ? (
+            <div className="flex flex-1 items-center justify-center text-center">
+              <div>
+                <p className="text-lg font-semibold text-gray-700">
+                  No draft materials yet.
+                </p>
 
-                  <p className="text-sm text-gray-600 line-clamp-2 min-h-10 mt-2">
-                    {draft.description}
-                  </p>
+                <p className="mt-2 text-sm text-gray-500">
+                  Save an activity as a draft and it will appear here.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-2 sm:grid-cols-2 xl:grid-cols-4 no-scrollbar">
+              {drafts.map(
+                (
+                  draft,
+                ) => (
+                  <div
+                    key={
+                      draft.id
+                    }
+                    onClick={() =>
+                      navigate(
+                        "/therapist/materials/CreateActivity",
+                        {
+                          state: {
+                            mode:
+                              "draft",
+                            draftId:
+                              draft.id,
+                          },
+                        },
+                      )
+                    }
+                    className="flex h-96 cursor-pointer flex-col overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg"
+                  >
+                    <img
+                      src={
+                        draft.thumbnail_url ||
+                        fallbackImage
+                      }
+                      alt={
+                        draft.title
+                      }
+                      className="h-48 w-full shrink-0 object-cover"
+                    />
 
-                  <div className="mt-auto">
-                    <p className="text-xs text-gray-500 mb-2">
-                      Type: {draft.type}
-                    </p>
+                    <div className="flex flex-1 flex-col p-4">
+                      <h3 className="mb-2 text-lg font-bold leading-tight">
+                        {
+                          draft.title
+                        }
+                      </h3>
 
-                    <p className="text-xs font-semibold">
-                      Draft
-                    </p>
+                      <p className="mt-2 line-clamp-2 min-h-10 text-sm text-gray-600">
+                        {draft.description ||
+                          "No description provided."}
+                      </p>
 
-                    <p className="text-xs text-gray-500 mt-2">
-                      Created by: {draft.uploadedBy}
-                    </p>
+                      <div className="mt-auto">
+                        <p className="mb-2 text-xs text-gray-500">
+                          Type:{" "}
+                          {
+                            draft.activity_type
+                          }
+                        </p>
 
-                    <p className="text-xs text-gray-500 mt-2">
-                      Last edited: {draft.lastEdited}
-                    </p>
+                        <p className="text-xs font-semibold">
+                          Draft
+                        </p>
 
-                    <div className="flex justify-end relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenu(
-                            openMenu === draft.id ? null : draft.id
-                          );
-                        }}
-                        className="text-2xl text-gray-500 hover:text-gray-700"
-                      >
-                        ⋯
-                      </button>
+                        <p className="mt-2 text-xs text-gray-500">
+                          Created by:{" "}
+                          {draft.uploaded_by ||
+                            "Therapist"}
+                        </p>
 
-                      {openMenu === draft.id && (
-                        <div className="absolute right-0 bottom-8 w-40 bg-white rounded-xl shadow-lg py-2 z-50">
+                        <p className="mt-2 text-xs text-gray-500">
+                          Last edited:{" "}
+                          {new Date(
+                            draft.updated_at ||
+                              draft.created_at,
+                          ).toLocaleString()}
+                        </p>
+
+                        <div className="relative flex justify-end">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            type="button"
+                            onClick={(
+                              event,
+                            ) => {
+                              event.stopPropagation();
 
-                              navigate(
-                                "/therapist/materials/CreateActivity",
-                                {
-                                  state: {
-                                    mode: "draft",
-                                    draftId: draft.id,
-                                    draftData: draft,
-                                  },
-                                }
+                              setOpenMenu(
+                                openMenu ===
+                                  draft.id
+                                  ? null
+                                  : draft.id,
                               );
-
-                              setOpenMenu(null);
                             }}
-                            className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                            className="text-2xl text-gray-500 hover:text-gray-700"
                           >
-                            Continue Edit
+                            ⋯
                           </button>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                          {openMenu ===
+                            draft.id && (
+                            <div className="absolute bottom-8 right-0 z-50 w-40 rounded-xl bg-white py-2 shadow-lg">
+                              <button
+                                type="button"
+                                onClick={(
+                                  event,
+                                ) => {
+                                  event.stopPropagation();
 
-                              const confirmDelete = window.confirm(
-                                "Are you sure you want to delete this draft?"
-                              );
+                                  navigate(
+                                    "/therapist/materials/CreateActivity",
+                                    {
+                                      state: {
+                                        mode:
+                                          "draft",
+                                        draftId:
+                                          draft.id,
+                                      },
+                                    },
+                                  );
 
-                              if (!confirmDelete) return;
+                                  setOpenMenu(
+                                    null,
+                                  );
+                                }}
+                                className="block w-full px-4 py-2 text-left hover:bg-gray-100"
+                              >
+                                Continue Edit
+                              </button>
 
-                              // TODO Backend:
-                              // Delete only the logged-in therapist's own draft.
-                              // await deleteDraftActivity(draft.id);
-
-                              setOpenMenu(null);
-                            }}
-                            className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
-                          >
-                            Delete Draft
-                          </button>
+                              <button
+                                type="button"
+                                onClick={(
+                                  event,
+                                ) => {
+                                  event.stopPropagation();
+                                  void handleDelete(
+                                    draft,
+                                  );
+                                }}
+                                className="block w-full px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                              >
+                                Delete Draft
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                ),
+              )}
+            </div>
+          )}
         </div>
       )}
     </TherapistLayout>

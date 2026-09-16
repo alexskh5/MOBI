@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,7 +12,10 @@ import {
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
-import { getSuperAdminCenter, getSuperAdminParents } from "../../services/super_admin/superAdminApi";
+import {
+  getSuperAdminCenter,
+  getSuperAdminParents,
+} from "../../services/super_admin/superAdminApi";
 
 type ViewMode = "menu" | "users" ;
 type UserTab = "center" | "parents";
@@ -42,6 +45,7 @@ type ParentAccount = {
   firstName: string;
   lastName: string;
   email: string;
+  planDetail: string;
   childNumber: number;
   status: "Active" | "Suspended";
 };
@@ -51,7 +55,7 @@ type ApiParentAccount = {
   first_name: string;
   last_name: string;
   email: string;
-  plan_detail: string;
+  plan_detail: string | null;
   child_number: number;
   status: "Active" | "Suspended";
 };
@@ -76,51 +80,11 @@ const centerAccount: CenterAccount = {
   contactPerson: "Maria Garcia",
   centerOwner: "Ruby Jane",
   email: "abledmind@example.com",
+  planDetail: "No plan",
   status: "Active",
 };
 
-const initialParents: ParentAccount[] = [
-  {
-    id: "P-001",
-    firstName: "Maria Curry",
-    lastName: "Deguzman",
-    email: "maria@example.com",
-    childNumber: 2,
-    status: "Active",
-  },
-  {
-    id: "P-002",
-    firstName: "Habibi",
-    lastName: "Deloz Reyes",
-    email: "habibi@example.com",
-    childNumber: 2,
-    status: "Active",
-  },
-  {
-    id: "P-003",
-    firstName: "Maria Curry",
-    lastName: "Kwanza",
-    email: "kwanza@example.com",
-    childNumber: 2,
-    status: "Active",
-  },
-  {
-    id: "P-004",
-    firstName: "Gwen",
-    lastName: "Garcia",
-    email: "gwen@example.com",
-    childNumber: 2,
-    status: "Active",
-  },
-  {
-    id: "P-005",
-    firstName: "Say",
-    lastName: "Dela Peña",
-    email: "say@example.com",
-    childNumber: 2,
-    status: "Active",
-  },
-];
+const fallbackParents: ParentAccount[] = [];
 
 export default function SuperManageScreen() {
   const navigate = useNavigate();
@@ -129,7 +93,7 @@ export default function SuperManageScreen() {
   const [activeTab, setActiveTab] = useState<UserTab>("center");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [center, setCenter] = useState<CenterAccount>(centerAccount);
+  const [center, setCenter] = useState<CenterAccount>(fallbackCenter);
   const [centerLoading, setCenterLoading] = useState(false);
   const [centerError, setCenterError] = useState("");
 
@@ -217,33 +181,62 @@ export default function SuperManageScreen() {
           status: apiCenter.status,
         };
 
-        if (isMounted) {
-          setCenter(mappedCenter);
-        }
+        if (isMounted) setCenter(mappedCenter);
       } catch (error: any) {
         if (isMounted) {
           setCenterError(
             error?.response?.data?.message ||
               error?.message ||
-              "Failed to load center account."
+              "Failed to load center account.",
           );
         }
       } finally {
+        if (isMounted) setCenterLoading(false);
+      }
+    }
+
+    async function loadParents() {
+      try {
+        setParentsLoading(true);
+        setParentsError("");
+
+        const result = await getSuperAdminParents();
+        const mappedParents: ParentAccount[] = result.data.map(
+          (parent: ApiParentAccount) => ({
+            id: parent.id,
+            firstName: parent.first_name,
+            lastName: parent.last_name,
+            email: parent.email,
+            planDetail: parent.plan_detail || "Free Trial",
+            childNumber: parent.child_number,
+            status: parent.status,
+          }),
+        );
+
+        if (isMounted) setParents(mappedParents);
+      } catch (error: any) {
         if (isMounted) {
-          setCenterLoading(false);
+          setParentsError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load parent accounts.",
+          );
         }
+      } finally {
+        if (isMounted) setParentsLoading(false);
       }
     }
 
     loadCenter();
+    loadParents();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const handleBack = () => {
-    setSearchQuery("");
+  const handleTabChange = (tab: UserTab) => {
+    setActiveTab(tab);
     setSelectedUser(null);
 
     if (viewMode === "menu") {
@@ -380,35 +373,33 @@ export default function SuperManageScreen() {
                 )}
 
                 {centerError && (
-                  <div className="center-card">
-                    <p>{centerError}</p>
+                  <div className="center-account-card">
+                    <div className="empty-state">
+                      <strong>Unable to load center account</strong>
+                      <span>{centerError}</span>
+                    </div>
                   </div>
                 )}
 
                 {!centerLoading && !centerError && (
-                  <div className="center-card">
-                    <div className="center-top">
-                      <div className="center-icon">
-                        <Building2 size={28} />
+                  <div className="center-account-card">
+                    <div className="center-account-top">
+                      <div className="center-account-main">
+                        <div className="center-icon">
+                          <Building2 size={22} />
+                        </div>
+
+                        <div>
+                          <span className="account-kicker">PARTNERED CENTER</span>
+                          <h3>{center.centerName}</h3>
+                          <p>{center.email}</p>
+                        </div>
                       </div>
 
-                      <div>
-                        <h2>{center.centerName}</h2>
-                        <p>{center.email}</p>
-                      </div>
-
-                      <span
-                        className={
-                          center.status === "Active"
-                            ? "status active"
-                            : "status suspended"
-                        }
-                      >
-                        {center.status}
-                      </span>
+                      <StatusBadge status={center.status} />
                     </div>
 
-                    <div className="info-grid">
+                    <div className="center-details-grid">
                       <InfoItem label="Center ID" value={center.id} />
                       <InfoItem label="Contact Person" value={center.contactPerson} />
                       <InfoItem label="Center Owner" value={center.centerOwner} />

@@ -1,6 +1,6 @@
 // MOBI/mobi-web/src/pages/therapist/materials/CreateActivity.tsx
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -26,20 +26,58 @@ import ActivityAssignLearner from "../../../components/center/materials/Activity
 import ActivityLimits from "../../../components/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
 
-import { createActivity } from "../../../services/activityApi";
+import {
+  createActivity,
+  getActivityById,
+  updateActivity,
+} from "../../../services/activityApi";
+import { getTherapistById } from "../../../services/therapist/therapistApi";
 
 function CreateActivity() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // TEMP ONLY.
-  // Later, get this from logged-in therapist account.
-  const currentTherapistName = "Anna Reyes";
+  const therapistId =
+    localStorage.getItem(
+      "mobi_staff_profile_id",
+    );
+
+  const [
+    currentTherapistName,
+    setCurrentTherapistName,
+  ] = useState(
+    "Therapist",
+  );
+
+  const existingActivityId =
+    location.state?.activityId ||
+    location.state?.draftId ||
+    null;
+
+  const [
+    existingStatus,
+    setExistingStatus,
+  ] = useState<string | null>(
+    null,
+  );
+
+  const [
+    loadingExisting,
+    setLoadingExisting,
+  ] = useState(
+    Boolean(
+      existingActivityId,
+    ),
+  );
 
   const [title, setTitle] = useState("");
 
-  const [selectedTemplate] = useState(
-    location.state?.template || "Teach & Practice"
+  const [
+    selectedTemplate,
+    setSelectedTemplate,
+  ] = useState(
+    location.state?.template ||
+      "Teach & Practice"
   );
 
   const [description, setDescription] = useState("");
@@ -48,6 +86,11 @@ function CreateActivity() {
 
   const [maxAttempts, setMaxAttempts] = useState(3);
   const [estimatedMinutes, setEstimatedMinutes] = useState(5);
+
+  const [
+    speechLadderLevel,
+    setSpeechLadderLevel,
+  ] = useState("word");
 
   const [stepData, setStepData] = useState<Record<string, any>>({});
 
@@ -68,7 +111,7 @@ function CreateActivity() {
   const steps =
     ACTIVITY_TEMPLATES[
       selectedTemplate as keyof typeof ACTIVITY_TEMPLATES
-    ];
+    ] || [];
 
   const updateStepData = (stepKey: string, data: any) => {
     setStepData((prev) => ({
@@ -97,198 +140,673 @@ function CreateActivity() {
     setCustomSteps([...customSteps, stepType]);
   };
 
-  const handleSaveDraft = async () => {
-    try {
-      if (!title.trim()) {
-        alert("Please add an activity title before saving draft.");
+  const stepTypeToLabel = (
+    stepType: string,
+  ) => {
+    const map:
+      Record<string, string> = {
+        teach: "Teach",
+        ask: "Ask",
+        feedback: "Feedback",
+        conversation:
+          "Conversation",
+        do_it:
+          "Learn by Doing",
+        show_choose:
+          "Show & Choose",
+      };
+
+    return (
+      map[stepType] ||
+      stepType
+    );
+  };
+
+  const loadStepData =
+    (
+      activitySteps:
+        any[],
+      templateLength:
+        number,
+    ) => {
+      const loaded:
+        Record<
+          string,
+          any
+        > = {};
+
+      const extra:
+        string[] = [];
+
+      activitySteps.forEach(
+        (
+          step,
+          index,
+        ) => {
+          const isTemplate =
+            index <
+            templateLength;
+
+          const key =
+            isTemplate
+              ? `template-${index}`
+              : `custom-${
+                  index -
+                  templateLength
+                }`;
+
+          loaded[key] = {
+            lesson:
+              step.lesson ||
+              "",
+
+            question:
+              step.question ||
+              "",
+
+            instruction:
+              step.instruction ||
+              "",
+
+            prompt:
+              step.prompt ||
+              "",
+
+            media:
+              step.media ||
+              [],
+
+            choices:
+              step.choices ||
+              [],
+
+            topics:
+              step.topics ||
+              [],
+
+            materials_needed:
+              step.materials_needed ||
+              [],
+
+            expected_answers:
+              step.expected_answers ||
+              [],
+
+            accepted_variations:
+              step.accepted_variations ||
+              [],
+
+            correct_feedback:
+              step.correct_feedback ||
+              [],
+
+            wrong_feedback:
+              step.wrong_feedback ||
+              [],
+
+            max_attempts_feedback:
+              step.max_attempts_feedback ||
+              [],
+
+            ai_voice_style:
+              step.ai_voice_style ||
+              null,
+          };
+
+          if (!isTemplate) {
+            extra.push(
+              stepTypeToLabel(
+                step.step_type,
+              ),
+            );
+          }
+        },
+      );
+
+      setStepData(
+        loaded,
+      );
+
+      setCustomSteps(
+        extra,
+      );
+    };
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadTherapist() {
+      if (!therapistId) {
+        navigate(
+          "/login",
+          {
+            replace: true,
+          },
+        );
+
         return;
       }
 
-      // TODO Backend:
-      // Save therapist draft only.
-      // status should be "draft".
-      // await createActivity(payload);
+      try {
+        const result =
+          await getTherapistById(
+            therapistId,
+          );
 
-      console.log("Save therapist draft");
+        const therapist =
+          result?.therapist;
 
-      alert("Draft saved.");
-      navigate("/therapist/materials/DraftMaterials");
-    } catch (error) {
-      console.error(error);
-      alert("Failed to save draft.");
+        if (
+          mounted &&
+          therapist
+        ) {
+          setCurrentTherapistName(
+            [
+              therapist.first_name,
+              therapist.middle_name,
+              therapist.last_name,
+            ]
+              .filter(Boolean)
+              .join(" ") ||
+              "Therapist",
+          );
+        }
+      } catch (
+        error
+      ) {
+        console.error(
+          "Unable to load Therapist identity:",
+          error,
+        );
+      }
+    }
+
+    void loadTherapist();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    navigate,
+    therapistId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !existingActivityId
+    ) {
+      return;
+    }
+
+    let mounted = true;
+
+    async function loadExisting() {
+      try {
+        setLoadingExisting(
+          true,
+        );
+
+        const activity =
+          await getActivityById(
+            existingActivityId,
+          );
+
+        if (!mounted) {
+          return;
+        }
+
+        if (
+          therapistId &&
+          activity.created_by_therapist_id &&
+          activity.created_by_therapist_id !==
+            therapistId
+        ) {
+          throw new Error(
+            "You can only edit your own Therapist-created activity.",
+          );
+        }
+
+        const activityType =
+          activity.activity_type ||
+          "Teach & Practice";
+
+        setSelectedTemplate(
+          activityType,
+        );
+
+        setTitle(
+          activity.title ||
+          "",
+        );
+
+        setDescription(
+          activity.description ||
+          "",
+        );
+
+        setThumbnail(
+          activity.thumbnail_url ||
+          null,
+        );
+
+        setMaxAttempts(
+          activity.max_attempts ??
+          3,
+        );
+
+        setEstimatedMinutes(
+          activity.estimated_minutes ??
+          5,
+        );
+
+        setSpeechLadderLevel(
+          activity.speech_ladder_level ||
+          "word",
+        );
+
+        setAiVoiceGender(
+          activity.ai_voice_gender ||
+          "girl",
+        );
+
+        setAiVoiceSpeed(
+          activity.ai_voice_speed ||
+          "moderate",
+        );
+
+        setExistingStatus(
+          activity.status ||
+          null,
+        );
+
+        const templateSteps =
+          ACTIVITY_TEMPLATES[
+            activityType as keyof typeof ACTIVITY_TEMPLATES
+          ] || [];
+
+        loadStepData(
+          activity.steps ||
+            activity.activity_steps ||
+            [],
+          templateSteps.length,
+        );
+      } catch (
+        error: any
+      ) {
+        console.error(
+          error,
+        );
+
+        alert(
+          error?.message ||
+            "Unable to load activity.",
+        );
+      } finally {
+        if (mounted) {
+          setLoadingExisting(
+            false,
+          );
+        }
+      }
+    }
+
+    void loadExisting();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    existingActivityId,
+    therapistId,
+  ]);
+
+  const buildFormattedSteps =
+    () => {
+      const allSteps = [
+        ...steps,
+        ...customSteps,
+      ];
+
+      return allSteps.map(
+        (
+          step,
+          index,
+        ) => {
+          const stepKey =
+            index <
+            steps.length
+              ? `template-${index}`
+              : `custom-${
+                  index -
+                  steps.length
+                }`;
+
+          const savedStepData =
+            stepData[
+              stepKey
+            ] || {};
+
+          const stepTypeMap:
+            Record<
+              string,
+              string
+            > = {
+              Teach:
+                "teach",
+              Ask:
+                "ask",
+              Feedback:
+                "feedback",
+              Conversation:
+                "conversation",
+              "Learn by Doing":
+                "do_it",
+              "Show & Choose":
+                "show_choose",
+            };
+
+          return {
+            step_order:
+              index + 1,
+
+            step_type:
+              stepTypeMap[
+                step
+              ] ||
+              step.toLowerCase(),
+
+            instruction:
+              step ===
+              "Learn by Doing"
+                ? savedStepData.instruction ||
+                  ""
+                : savedStepData.instruction ||
+                  `${step} step`,
+
+            materials_needed:
+              step ===
+              "Learn by Doing"
+                ? savedStepData.materials_needed ||
+                  []
+                : savedStepData.materials_needed ||
+                  [],
+
+            prompt:
+              savedStepData.prompt ||
+              (
+                step ===
+                "Ask"
+                  ? savedStepData.question ||
+                    `Ask step for ${title}.`
+                  : step ===
+                    "Teach"
+                    ? savedStepData.lesson ||
+                      `Teach step for ${title}.`
+                    : step ===
+                      "Show & Choose"
+                      ? savedStepData.question ||
+                        `Show and choose step for ${title}.`
+                      : step ===
+                        "Learn by Doing"
+                        ? savedStepData.instruction ||
+                          `Learn by doing step for ${title}.`
+                        : step ===
+                          "Conversation"
+                          ? savedStepData.topics?.[0] ||
+                            `Conversation step for ${title}.`
+                          : `This is a ${step} step for ${title}.`
+              ),
+
+            lesson:
+              step ===
+              "Teach"
+                ? savedStepData.lesson ||
+                  ""
+                : undefined,
+
+            question:
+              step ===
+                "Ask" ||
+              step ===
+                "Show & Choose"
+                ? savedStepData.question ||
+                  ""
+                : undefined,
+
+            expected_answers:
+              savedStepData.expected_answers ||
+              [],
+
+            accepted_variations:
+              savedStepData.accepted_variations ||
+              [],
+
+            choices:
+              savedStepData.choices ||
+              [],
+
+            correct_feedback:
+              savedStepData.correct_feedback ||
+              [],
+
+            wrong_feedback:
+              savedStepData.wrong_feedback ||
+              [],
+
+            max_attempts_feedback:
+              savedStepData.max_attempts_feedback ||
+              [],
+
+            topics:
+              savedStepData.topics ||
+              [],
+
+            can_repeat:
+              true,
+
+            can_give_hint:
+              true,
+
+            can_skip:
+              true,
+
+            ai_voice_style:
+              savedStepData.ai_voice_style ||
+              null,
+
+            ai_feedback_rules: {
+              correct:
+                savedStepData.correct_feedback ||
+                [],
+
+              wrong:
+                savedStepData.wrong_feedback ||
+                [],
+
+              max_attempts_reached:
+                savedStepData.max_attempts_feedback ||
+                [],
+            },
+          };
+        },
+      );
+    };
+
+  const buildPayload =
+    (
+      status:
+        "draft" |
+        "pending_review",
+    ) => ({
+      title:
+        title.trim(),
+
+      description,
+
+      activity_type:
+        selectedTemplate,
+
+      speech_ladder_level:
+        speechLadderLevel,
+
+      max_attempts:
+        maxAttempts,
+
+      estimated_minutes:
+        estimatedMinutes,
+
+      allow_skip:
+        true,
+
+      success_required_count:
+        1,
+
+      thumbnail_url:
+        thumbnail,
+
+      ai_voice_gender:
+        aiVoiceGender,
+
+      ai_voice_speed:
+        aiVoiceSpeed,
+
+      status,
+
+      steps:
+        buildFormattedSteps(),
+    });
+
+  const handleSaveDraft = async () => {
+    try {
+      if (!title.trim()) {
+        alert(
+          "Please add an activity title before saving.",
+        );
+
+        return;
+      }
+
+      const nextStatus:
+        "draft" |
+        "pending_review" =
+        existingActivityId &&
+        existingStatus !==
+          "draft"
+          ? "pending_review"
+          : "draft";
+
+      const payload =
+        buildPayload(
+          nextStatus,
+        );
+
+      if (
+        existingActivityId
+      ) {
+        await updateActivity(
+          existingActivityId,
+          payload,
+        );
+      } else {
+        await createActivity(
+          payload,
+        );
+      }
+
+      if (
+        nextStatus ===
+        "draft"
+      ) {
+        alert(
+          "Draft saved.",
+        );
+
+        navigate(
+          "/therapist/materials/DraftMaterials",
+        );
+      } else {
+        alert(
+          "Changes saved and sent back for Center review.",
+        );
+
+        navigate(
+          "/therapist/materials",
+        );
+      }
+    } catch (
+      error: any
+    ) {
+      console.error(
+        error,
+      );
+
+      alert(
+        error?.message ||
+          "Failed to save activity.",
+      );
     }
   };
 
   const handleSubmitForReview = async () => {
     try {
       if (!title.trim()) {
-        alert("Please add an activity title.");
+        alert(
+          "Please add an activity title.",
+        );
+
         return;
       }
 
-      const allSteps = [...steps, ...customSteps];
+      const payload =
+        buildPayload(
+          "pending_review",
+        );
 
-      console.log("STEP DATA");
-      console.log(JSON.stringify(stepData, null, 2));
+      if (
+        existingActivityId
+      ) {
+        await updateActivity(
+          existingActivityId,
+          payload,
+        );
+      } else {
+        await createActivity(
+          payload,
+        );
+      }
 
-      const formattedSteps = allSteps.map((step, index) => {
-        const stepKey =
-          index < steps.length
-            ? `template-${index}`
-            : `custom-${index - steps.length}`;
+      alert(
+        "Activity submitted for Center review!",
+      );
 
-        const savedStepData = stepData[stepKey] || {};
+      navigate(
+        "/therapist/materials",
+      );
+    } catch (
+      error: any
+    ) {
+      console.error(
+        error,
+      );
 
-        const stepTypeMap: Record<string, string> = {
-          Teach: "teach",
-          Ask: "ask",
-          Feedback: "feedback",
-          Conversation: "conversation",
-          "Learn by Doing": "do_it",
-          "Show & Choose": "show_choose",
-        };
-
-        return {
-          step_order: index + 1,
-          step_type: stepTypeMap[step] || step.toLowerCase(),
-
-          instruction:
-            step === "Learn by Doing"
-              ? savedStepData.instruction || ""
-              : `${step} step`,
-
-          materials_needed:
-            step === "Learn by Doing"
-              ? savedStepData.materials_needed || []
-              : [],
-
-          prompt:
-            step === "Ask"
-              ? savedStepData.question || `Ask step for ${title}.`
-              : step === "Teach"
-              ? savedStepData.lesson || `Teach step for ${title}.`
-              : step === "Show & Choose"
-              ? savedStepData.question ||
-                `Show and choose step for ${title}.`
-              : step === "Learn by Doing"
-              ? savedStepData.instruction ||
-                `Learn by doing step for ${title}.`
-              : step === "Conversation"
-              ? savedStepData.topics?.[0] ||
-                `Conversation step for ${title}.`
-              : `This is a ${step} step for ${title}.`,
-
-          lesson:
-            step === "Teach"
-              ? savedStepData.lesson || ""
-              : undefined,
-
-          question:
-            step === "Ask" || step === "Show & Choose"
-              ? savedStepData.question || ""
-              : undefined,
-
-          expected_answers:
-            step === "Ask"
-              ? savedStepData.expected_answers || []
-              : [],
-
-          accepted_variations:
-            step === "Ask"
-              ? savedStepData.accepted_variations || []
-              : [],
-
-          choices:
-            step === "Show & Choose"
-              ? savedStepData.choices || []
-              : [],
-
-          correct_feedback:
-            step === "Feedback"
-              ? savedStepData.correct_feedback || []
-              : [],
-
-          wrong_feedback:
-            step === "Feedback"
-              ? savedStepData.wrong_feedback || []
-              : [],
-
-          max_attempts_feedback:
-            step === "Feedback"
-              ? savedStepData.max_attempts_feedback || []
-              : [],
-
-          topics:
-            step === "Conversation"
-              ? savedStepData.topics || []
-              : [],
-
-          can_repeat: true,
-          can_give_hint: true,
-          can_skip: true,
-
-          ai_voice_style:
-            step === "Feedback"
-              ? {
-                  correct:
-                    savedStepData.correct_voice_style || "Celebratory",
-                  wrong:
-                    savedStepData.wrong_voice_style || "Encouraging",
-                }
-              : savedStepData.ai_voice_style || null,
-
-          ai_feedback_rules: {
-            correct:
-              step === "Feedback"
-                ? savedStepData.correct_feedback || []
-                : [],
-            wrong:
-              step === "Feedback"
-                ? savedStepData.wrong_feedback || []
-                : [],
-            max_attempts_reached:
-              step === "Feedback"
-                ? savedStepData.max_attempts_feedback || []
-                : [],
-          },
-        };
-      });
-
-      const payload = {
-        title,
-        description,
-        activity_type: selectedTemplate,
-        speech_ladder_level: "word",
-        max_attempts: maxAttempts,
-        estimated_minutes: estimatedMinutes,
-        allow_skip: true,
-        success_required_count: 1,
-        thumbnail_url: thumbnail,
-        ai_voice_gender: aiVoiceGender,
-        ai_voice_speed: aiVoiceSpeed,
-
-        // Therapist-created activities should be checked by center admin first.
-        status: "pending_review",
-
-        uploaded_by: currentTherapistName,
-        steps: formattedSteps,
-      };
-
-      console.log("Formatted steps:");
-      console.dir(formattedSteps, { depth: null });
-
-      console.log("Payload:");
-      console.dir(payload, { depth: null });
-
-      await createActivity(payload);
-
-      alert("Activity submitted for center review!");
-      navigate("/therapist/materials");
-    } catch (error) {
-      console.error(error);
-      alert("Failed to submit activity for review.");
+      alert(
+        error?.message ||
+          "Failed to submit activity for review.",
+      );
     }
   };
+
+  if (
+    loadingExisting
+  ) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F7F7F7]">
+        <p className="text-lg font-semibold text-gray-600">
+          Loading activity...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-[#F7F7F7] flex flex-col">
@@ -346,7 +864,11 @@ function CreateActivity() {
             onClick={handleSaveDraft}
             className="text-gray-600 hover:text-gray-800"
           >
-            Save Draft
+            {existingActivityId &&
+            existingStatus !==
+              "draft"
+              ? "Save Changes"
+              : "Save Draft"}
           </button>
 
           <button

@@ -53,14 +53,11 @@ function getDateLabel(dateValue: string) {
   const date = new Date(dateValue);
   const now = new Date();
 
-  const isToday = date.toDateString() === now.toDateString();
+  if (date.toDateString() === now.toDateString()) return "Today";
 
-  const yesterday = new Date();
+  const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  const isYesterday = date.toDateString() === yesterday.toDateString();
-
-  if (isToday) return "Today";
-  if (isYesterday) return "Yesterday";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
 
   return date.toLocaleDateString("en-US", {
     month: "short",
@@ -78,20 +75,15 @@ function isWithinDateFilter(dateValue: string, filter: DateFilter) {
   }
 
   if (filter === "This Week") {
-    const sevenDaysAgo = new Date();
+    const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(now.getDate() - 7);
-
     return date >= sevenDaysAgo && date <= now;
   }
 
-  if (filter === "This Month") {
-    return (
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear()
-    );
-  }
-
-  return true;
+  return (
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear()
+  );
 }
 
 function mapNotification(notification: ApiNotification): NotificationItem {
@@ -101,8 +93,8 @@ function mapNotification(notification: ApiNotification): NotificationItem {
       notification.receivers && notification.receivers.length > 0
         ? notification.receivers
         : notification.receiver
-        ? [notification.receiver]
-        : [],
+          ? [notification.receiver]
+          : [],
     message: notification.message,
     dateLabel: getDateLabel(notification.created_at),
     createdAt: notification.created_at,
@@ -111,7 +103,7 @@ function mapNotification(notification: ApiNotification): NotificationItem {
 
 function formatReceivers(receivers: ReceiverType[]) {
   if (receivers.includes("All")) return "All";
-  if (receivers.length === 0) return "No receiver";
+  if (receivers.length === 0) return "No receiver selected";
   return receivers.join(", ");
 }
 
@@ -151,40 +143,43 @@ export default function SuperProcessScreen() {
       const matchesDate = isWithinDateFilter(notification.createdAt, dateFilter);
 
       const matchesSearch =
+        !normalizedQuery ||
         `${formatReceivers(notification.receivers)} ${notification.message} ${notification.dateLabel}`
           .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+          .includes(normalizedQuery);
 
       return matchesReceiver && matchesDate && matchesSearch;
     });
   }, [notifications, receiverType, dateFilter, searchQuery]);
 
-  async function loadNotifications() {
-    try {
-      setLoadingNotifications(true);
-      setNotificationError("");
-
-      const result = await getSuperAdminNotifications();
-
-      const mappedNotifications: NotificationItem[] = result.data.map(
-        (notification: ApiNotification) => mapNotification(notification)
-      );
-
-      setNotifications(mappedNotifications);
-    } catch (error: any) {
-      setNotificationError(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Failed to load system notifications."
-      );
-    } finally {
-      setLoadingNotifications(false);
-    }
-  }
-
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadNotifications() {
+      try {
+        setLoadingNotifications(true);
+        setNotificationError("");
+
+        const result = await getSuperAdminNotifications();
+        const mappedNotifications: NotificationItem[] = result.data.map(
+          (notification: ApiNotification) => mapNotification(notification),
+        );
+
+        if (isMounted) setNotifications(mappedNotifications);
+      } catch (error: any) {
+        if (isMounted) {
+          setNotificationError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load system notifications.",
+          );
+        }
+      } finally {
+        if (isMounted) setLoadingNotifications(false);
+      }
+    }
+
     loadNotifications();
-  }, []);
 
   const handleBack = () => {
     setSearchQuery("");
@@ -203,10 +198,7 @@ export default function SuperProcessScreen() {
   };
 
   const showNotice = (title: string, noticeMessage: string) => {
-    setNotice({
-      title,
-      message: noticeMessage,
-    });
+    setNotice({ title, message: noticeMessage });
   };
 
   const sendNotification = async () => {
@@ -229,8 +221,7 @@ export default function SuperProcessScreen() {
       });
 
       const newNotification = mapNotification(result.data);
-
-      setNotifications((prev) => [newNotification, ...prev]);
+      setNotifications((previous) => [newNotification, ...previous]);
       setMessage("");
       setSelectedReceivers([]);
       showNotice("Notification sent", "Your system notification was sent successfully.");
@@ -239,7 +230,7 @@ export default function SuperProcessScreen() {
         "Send failed",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to send notification."
+          "Failed to send notification.",
       );
     } finally {
       setIsSending(false);
@@ -249,11 +240,9 @@ export default function SuperProcessScreen() {
   const deleteNotification = async (id: string) => {
     try {
       setIsDeleting(true);
-
       await deleteSuperAdminNotification(id);
-
-      setNotifications((prev) =>
-        prev.filter((notification) => notification.id !== id)
+      setNotifications((previous) =>
+        previous.filter((notification) => notification.id !== id),
       );
 
       setDeleteTarget(null);
@@ -263,7 +252,7 @@ export default function SuperProcessScreen() {
         "Delete failed",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to delete notification."
+          "Failed to delete notification.",
       );
     } finally {
       setIsDeleting(false);
@@ -292,15 +281,13 @@ export default function SuperProcessScreen() {
       });
 
       const updatedNotification = mapNotification(result.data);
-
-      setNotifications((prev) =>
-        prev.map((notification) =>
+      setNotifications((previous) =>
+        previous.map((notification) =>
           notification.id === updatedNotification.id
             ? updatedNotification
-            : notification
-        )
+            : notification,
+        ),
       );
-
       setEditingNotification(null);
       showNotice("Notification updated", "Your changes were saved successfully.");
     } catch (error: any) {
@@ -308,7 +295,7 @@ export default function SuperProcessScreen() {
         "Update failed",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to update notification."
+          "Failed to update notification.",
       );
     } finally {
       setIsSavingEdit(false);
@@ -316,19 +303,7 @@ export default function SuperProcessScreen() {
   };
 
   const toggleReceiver = (receiver: ReceiverType) => {
-    setSelectedReceivers((prev) => {
-      if (receiver === "All") {
-        return prev.includes("All") ? [] : ["All"];
-      }
-
-      const withoutAll = prev.filter((item) => item !== "All");
-
-      if (withoutAll.includes(receiver)) {
-        return withoutAll.filter((item) => item !== receiver);
-      }
-
-      return [...withoutAll, receiver];
-    });
+    setSelectedReceivers((current) => toggleReceiverList(current, receiver));
   };
 
   return (
@@ -651,7 +626,7 @@ export default function SuperProcessScreen() {
               onClick={() => deleteNotification(deleteTarget.id)}
               disabled={isDeleting}
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? "Deleting..." : "Delete Notification"}
             </button>
           </div>
         </Modal>
@@ -1445,11 +1420,17 @@ function NoticeModal({
   onClose: () => void;
 }) {
   return (
-    <div className="notice-backdrop">
-      <div className="notice-card">
+    <div className="notice-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="notice-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="notice-header">
           <h2>{title}</h2>
-          <button className="close-btn" onClick={onClose}>
+          <button className="close-btn" onClick={onClose} aria-label="Close notice">
             <X size={18} />
           </button>
         </div>

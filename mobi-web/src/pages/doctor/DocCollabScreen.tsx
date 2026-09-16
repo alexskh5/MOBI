@@ -1,33 +1,38 @@
 import {
+  useEffect,
   useMemo,
   useState,
   type ChangeEvent,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import {
   CalendarDays,
-  CheckCircle2,
   ClipboardList,
   Menu,
-  Plus,
   Search,
   Share2,
   Stethoscope,
   UserRound,
   Users,
-  X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 import DocSidebar from "../../components/doctor/DocSidebar";
+import {
+  getDoctorById,
+  getDoctorPatients,
+} from "../../services/doctor/doctorApi";
+import {
+  getLearnerCollaborationNotes,
+  getLearnerTherapists,
+} from "../../services/collaboration/collaborationApi";
 
 /* =========================================================
    TYPES
-   Static for now, but already shaped for future API data.
 ========================================================= */
 
 type NoteSource = "Clinical" | "MOBI Session";
 type NotePeriod = "today" | "week" | "month";
-type NoteCategory = "Observation" | "Recommendation" | "Follow-up";
 
 interface CareMember {
   id: string;
@@ -40,216 +45,345 @@ interface CareMember {
 interface ProgressNote {
   id: string;
   source: NoteSource;
+  createdAt: string;
   dateLabel: string;
-  period: NotePeriod;
   authorName: string;
   authorRole?: string;
   isCurrentUser?: boolean;
   content: string;
   title?: string;
-  category?: NoteCategory;
-  nextSteps?: string;
+  category?: string;
 }
 
 interface CollaborationPatient {
   id: string;
+  learnerCode?: string | null;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
-  age: number;
+  age: number | null;
   profilePicture?: string | null;
   assignedDoctor: CareMember;
   assignedTherapists: CareMember[];
   notes: ProgressNote[];
 }
 
+interface DoctorPatientApiRecord {
+  id: string;
+  learnerCode?: string | null;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  birthDate?: string | null;
+  profilePhotoUrl?: string | null;
+}
+
+interface DoctorApiRecord {
+  id: string;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  specialization?: string | null;
+}
+
 /* =========================================================
-   STATIC PREVIEW DATA
-   Later, replace this with your doctor collaboration API.
+   HELPERS
 ========================================================= */
 
-const collaborationPatients: CollaborationPatient[] = [
-  {
-    id: "patient-001",
-    firstName: "Lea",
-    lastName: "Sarsoza",
-    age: 8,
-    profilePicture: null,
-    assignedDoctor: {
-      id: "doctor-001",
-      name: "Dr. Jane R. Doe",
-      role: "Developmental Pediatrician",
-      type: "doctor",
-      isCurrentUser: true,
+function getFullName(patient: CollaborationPatient) {
+  return [
+    patient.firstName,
+    patient.middleName,
+    patient.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function calculateAge(birthDate?: string | null) {
+  if (!birthDate) return null;
+
+  const birth = new Date(`${birthDate}T00:00:00`);
+
+  if (Number.isNaN(birth.getTime())) {
+    return null;
+  }
+
+  const today = new Date();
+
+  let age =
+    today.getFullYear() -
+    birth.getFullYear();
+
+  const monthDifference =
+    today.getMonth() -
+    birth.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (
+      monthDifference === 0 &&
+      today.getDate() <
+        birth.getDate()
+    )
+  ) {
+    age -= 1;
+  }
+
+  return Math.max(age, 0);
+}
+
+function formatRecordDate(createdAt: string) {
+  const date = new Date(createdAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-PH",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     },
-    assignedTherapists: [
-      {
-        id: "therapist-001",
-        name: "John Lenon",
-        role: "OT",
-        type: "therapist",
-      },
-      {
-        id: "therapist-002",
-        name: "Villa R. Reese",
-        role: "ST",
-        type: "therapist",
-      },
-    ],
-    notes: [
-      {
-        id: "note-001",
-        source: "Clinical",
-        dateLabel: "May 2, 2026",
-        period: "month",
-        authorName: "Dr. Jane R. Doe",
-        authorRole: "You",
-        isCurrentUser: true,
-        content:
-          "Lea practiced following simple directions and used short verbal requests during play activities. She showed improved attention during sensory breaks and participated well in peer interaction exercises.",
-      },
-      {
-        id: "note-002",
-        source: "MOBI Session",
-        dateLabel: "May 3, 2026",
-        period: "week",
-        authorName: "John Lenon",
-        authorRole: "OT",
-        content:
-          "Lea completed AI-guided speech activities focused on emotion recognition and turn-taking skills in MOBI. She responded positively to adaptive prompts and demonstrated progress in initiating simple social greetings.",
-      },
-      {
-        id: "note-003",
-        source: "MOBI Session",
-        dateLabel: "May 5, 2026",
-        period: "today",
-        authorName: "John Lenon",
-        authorRole: "OT",
-        content:
-          "Lea completed AI-guided speech activities focused on emotion recognition and turn-taking skills in MOBI. She responded positively to adaptive prompts and demonstrated progress in initiating simple social greetings.",
-      },
-    ],
-  },
-  {
-    id: "patient-002",
-    firstName: "Harry",
-    lastName: "Potter",
-    age: 9,
-    profilePicture: null,
-    assignedDoctor: {
-      id: "doctor-001",
-      name: "Dr. Jane R. Doe",
-      role: "Developmental Pediatrician",
-      type: "doctor",
-      isCurrentUser: true,
-    },
-    assignedTherapists: [
-      {
-        id: "therapist-003",
-        name: "Grace Lim",
-        role: "ST",
-        type: "therapist",
-      },
-    ],
-    notes: [
-      {
-        id: "note-004",
-        source: "Clinical",
-        dateLabel: "May 4, 2026",
-        period: "week",
-        authorName: "Dr. Jane R. Doe",
-        authorRole: "You",
-        isCurrentUser: true,
-        content:
-          "Harry demonstrated better response consistency during phrase-level practice. Continue reinforcing spontaneous requesting and short conversational turns.",
-      },
-      {
-        id: "note-005",
-        source: "MOBI Session",
-        dateLabel: "May 5, 2026",
-        period: "today",
-        authorName: "Grace Lim",
-        authorRole: "ST",
-        content:
-          "Harry completed the daily request activity and responded correctly to four out of five prompts with minimal support.",
-      },
-    ],
-  },
-  {
-    id: "patient-003",
-    firstName: "Albus",
-    lastName: "Severus",
-    age: 7,
-    profilePicture: null,
-    assignedDoctor: {
-      id: "doctor-001",
-      name: "Dr. Jane R. Doe",
-      role: "Developmental Pediatrician",
-      type: "doctor",
-      isCurrentUser: true,
-    },
-    assignedTherapists: [
-      {
-        id: "therapist-004",
-        name: "Rachel Kim",
-        role: "OT",
-        type: "therapist",
-      },
-      {
-        id: "therapist-005",
-        name: "Noel Ramos",
-        role: "ST",
-        type: "therapist",
-      },
-    ],
-    notes: [
-      {
-        id: "note-006",
-        source: "MOBI Session",
-        dateLabel: "May 5, 2026",
-        period: "today",
-        authorName: "Rachel Kim",
-        authorRole: "OT",
-        content:
-          "Albus remained engaged during the visual matching activity and completed the session with two short breaks.",
-      },
-    ],
-  },
-  {
-    id: "patient-004",
-    firstName: "George",
-    lastName: "Weasley",
-    age: 10,
-    profilePicture: null,
-    assignedDoctor: {
-      id: "doctor-001",
-      name: "Dr. Jane R. Doe",
-      role: "Developmental Pediatrician",
-      type: "doctor",
-      isCurrentUser: true,
-    },
-    assignedTherapists: [
-      {
-        id: "therapist-006",
-        name: "Ana Cruz",
-        role: "ST",
-        type: "therapist",
-      },
-    ],
-    notes: [
-      {
-        id: "note-007",
-        source: "Clinical",
-        dateLabel: "April 30, 2026",
-        period: "month",
-        authorName: "Dr. Jane R. Doe",
-        authorRole: "You",
-        isCurrentUser: true,
-        content:
-          "George continues to show steady improvement in maintaining topic and responding appropriately to familiar social situations.",
-      },
-    ],
-  },
-];
+  ).format(date);
+}
+
+function isWithinPeriod(
+  createdAt: string,
+  selectedPeriod: NotePeriod,
+) {
+  const recordDate =
+    new Date(createdAt);
+
+  if (
+    Number.isNaN(
+      recordDate.getTime(),
+    )
+  ) {
+    return false;
+  }
+
+  const now = new Date();
+  const startDate =
+    new Date(now);
+
+  if (
+    selectedPeriod ===
+    "today"
+  ) {
+    startDate.setHours(
+      0,
+      0,
+      0,
+      0,
+    );
+
+    return (
+      recordDate >=
+        startDate &&
+      recordDate <= now
+    );
+  }
+
+  if (
+    selectedPeriod ===
+    "week"
+  ) {
+    const currentDay =
+      now.getDay();
+
+    const daysSinceMonday =
+      currentDay === 0
+        ? 6
+        : currentDay - 1;
+
+    startDate.setDate(
+      now.getDate() -
+        daysSinceMonday,
+    );
+
+    startDate.setHours(
+      0,
+      0,
+      0,
+      0,
+    );
+
+    return (
+      recordDate >=
+        startDate &&
+      recordDate <= now
+    );
+  }
+
+  startDate.setDate(1);
+  startDate.setHours(
+    0,
+    0,
+    0,
+    0,
+  );
+
+  return (
+    recordDate >=
+      startDate &&
+    recordDate <= now
+  );
+}
+
+function normalizeRole(
+  senderRole?: string | null,
+) {
+  const role =
+    senderRole
+      ?.trim()
+      .toLowerCase() ??
+    "";
+
+  if (role === "doctor") {
+    return "Doctor";
+  }
+
+  if (
+    role === "therapist"
+  ) {
+    return "Therapist";
+  }
+
+  return "Center";
+}
+
+function mapNote(
+  note: any,
+  doctorId: string,
+): ProgressNote {
+  const senderRole =
+    String(
+      note.senderRole ??
+        "",
+    )
+      .trim()
+      .toLowerCase();
+
+  const category =
+    note.category
+      ? String(note.category)
+      : undefined;
+
+  const clinical =
+    senderRole ===
+      "doctor" ||
+    category
+      ?.toLowerCase()
+      .includes(
+        "clinical",
+      );
+
+  const isCurrentUser =
+    senderRole ===
+      "doctor" &&
+    String(
+      note.doctorId ?? "",
+    ) === doctorId;
+
+  const createdAt =
+    String(
+      note.createdAt ??
+        new Date().toISOString(),
+    );
+
+  return {
+    id:
+      String(note.id),
+
+    source:
+      clinical
+        ? "Clinical"
+        : "MOBI Session",
+
+    createdAt,
+
+    dateLabel:
+      formatRecordDate(
+        createdAt,
+      ),
+
+    authorName:
+      String(
+        note.sender ??
+          normalizeRole(
+            note.senderRole,
+          ),
+      ),
+
+    authorRole:
+      isCurrentUser
+        ? "You"
+        : normalizeRole(
+            note.senderRole,
+          ),
+
+    isCurrentUser,
+
+    content:
+      String(
+        note.content ??
+          "",
+      ),
+
+    title:
+      note.title
+        ? String(note.title)
+        : undefined,
+
+    category,
+  };
+}
+
+function mapTherapist(
+  therapist: any,
+): CareMember {
+  const generatedName =
+    [
+      therapist.first_name ??
+        therapist.firstName,
+      therapist.middle_name ??
+        therapist.middleName,
+      therapist.last_name ??
+        therapist.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+  return {
+    id:
+      String(
+        therapist.id,
+      ),
+
+    name:
+      String(
+        therapist.name ??
+          generatedName ??
+          "Therapist",
+      ) ||
+      "Therapist",
+
+    role:
+      String(
+        therapist.specialization ??
+          "Therapist",
+      ),
+
+    type:
+      "therapist",
+  };
+}
 
 /* =========================================================
    SMALL REUSABLE COMPONENTS
@@ -266,16 +400,18 @@ function Avatar({
 }) {
   const sizeClass =
     size === "small"
-      ? "h-9 w-9 text-[10px]"
+      ? "h-8 w-8 text-[9px]"
       : size === "large"
-        ? "h-[52px] w-[52px] text-sm"
-        : "h-11 w-11 text-xs";
+        ? "h-12 w-12 text-sm"
+        : "h-10 w-10 text-[10px]";
 
   const initials = name
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part.charAt(0))
+    .map((part) =>
+      part.charAt(0),
+    )
     .join("")
     .toUpperCase();
 
@@ -294,14 +430,22 @@ function Avatar({
       className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-[#f3eff8] font-bold text-[#7456a3]`}
       aria-label={`${name} avatar`}
     >
-      {initials || <UserRound size={16} />}
+      {initials || (
+        <UserRound
+          size={16}
+        />
+      )}
     </div>
   );
 }
 
-function SectionEyebrow({ children }: { children: ReactNode }) {
+function SectionEyebrow({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
-    <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.12em] text-[#7456a3]">
+    <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.14em] text-[#7456a3]">
       {children}
     </span>
   );
@@ -315,23 +459,28 @@ function CareMemberRow({
   label?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] px-3.5 py-3">
-      <Avatar name={member.name} size="small" />
+    <div className="flex items-center gap-2.5 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] px-3 py-2.5">
+      <Avatar
+        name={member.name}
+        size="small"
+      />
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <strong className="truncate text-[13px] font-semibold text-[#202027]">
-            {member.isCurrentUser ? "You" : member.name}
+          <strong className="truncate text-[10px] font-semibold text-[#202027]">
+            {member.isCurrentUser
+              ? "You"
+              : member.name}
           </strong>
 
           {label && (
-            <span className="rounded-full bg-[#f3eff8] px-2 py-0.5 text-[9px] font-semibold text-[#7456a3]">
+            <span className="rounded-full bg-[#f3eff8] px-1.5 py-0.5 text-[8px] font-semibold text-[#7456a3]">
               {label}
             </span>
           )}
         </div>
 
-        <span className="mt-1 block truncate text-[11px] text-[#9898a3]">
+        <span className="mt-0.5 block truncate text-[8px] text-[#9898a3]">
           {member.role}
         </span>
       </div>
@@ -339,12 +488,18 @@ function CareMemberRow({
   );
 }
 
-function SourceBadge({ source }: { source: NoteSource }) {
-  const isClinical = source === "Clinical";
+function SourceBadge({
+  source,
+}: {
+  source: NoteSource;
+}) {
+  const isClinical =
+    source ===
+    "Clinical";
 
   return (
     <span
-      className={`inline-flex min-h-[26px] items-center rounded-full px-2.5 text-[9px] font-semibold ${
+      className={`inline-flex min-h-[24px] items-center rounded-full px-2 text-[8px] font-semibold ${
         isClinical
           ? "bg-[#f3eff8] text-[#7456a3]"
           : "bg-[#edf7f0] text-[#4f9467]"
@@ -360,141 +515,478 @@ function SourceBadge({ source }: { source: NoteSource }) {
 ========================================================= */
 
 function DocCollabScreen() {
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => typeof window !== "undefined" && window.innerWidth >= 1024,
-  );
+  const navigate =
+    useNavigate();
 
-  const [selectedPatientId, setSelectedPatientId] = useState(
-    collaborationPatients[0].id,
-  );
-
-  const [patientSearch, setPatientSearch] = useState("");
-  const [notePeriod, setNotePeriod] = useState<NotePeriod>("month");
-
-  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
-  const [draftNote, setDraftNote] = useState("");
-  const [draftNoteTitle, setDraftNoteTitle] = useState("");
-  const [draftNoteCategory, setDraftNoteCategory] =
-    useState<NoteCategory>("Observation");
-  const [draftNextSteps, setDraftNextSteps] = useState("");
-
-  const [noteSavedMessage, setNoteSavedMessage] = useState("");
-  const [patients, setPatients] = useState(collaborationPatients);
-
-  const filteredPatients = useMemo(() => {
-    const normalizedSearch = patientSearch.trim().toLowerCase();
-
-    if (!normalizedSearch) return patients;
-
-    return patients.filter((patient) =>
-      `${patient.firstName} ${patient.lastName}`
-        .toLowerCase()
-        .includes(normalizedSearch),
-    );
-  }, [patientSearch, patients]);
-
-  const selectedPatient =
-    patients.find((patient) => patient.id === selectedPatientId) ??
-    patients[0];
-
-  const visibleNotes = useMemo(() => {
-    const notePriority: Record<NotePeriod, number> = {
-      today: 1,
-      week: 2,
-      month: 3,
-    };
-
-    return selectedPatient.notes.filter(
-      (note) => notePriority[note.period] <= notePriority[notePeriod],
-    );
-  }, [selectedPatient, notePeriod]);
-
-  const fullName =
-    `${selectedPatient.firstName} ${selectedPatient.lastName}`;
-
-  const handlePatientSearch = (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    setPatientSearch(event.target.value);
-  };
-
-  const resetNoteForm = () => {
-    setDraftNote("");
-    setDraftNoteTitle("");
-    setDraftNoteCategory("Observation");
-    setDraftNextSteps("");
-  };
-
-  const closeAddNoteModal = () => {
-    resetNoteForm();
-    setIsAddNoteOpen(false);
-  };
-
-  const handleAddNote = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const content = draftNote.trim();
-    const title = draftNoteTitle.trim();
-    const nextSteps = draftNextSteps.trim();
-
-    if (!content) return;
-
-    const newNote: ProgressNote = {
-      id: `note-${Date.now()}`,
-      source: "Clinical",
-      dateLabel: "Today",
-      period: "today",
-      authorName: "Dr. Jane R. Doe",
-      authorRole: "You",
-      isCurrentUser: true,
-      content,
-      title: title || undefined,
-      category: draftNoteCategory,
-      nextSteps: nextSteps || undefined,
-    };
-
-    setPatients((currentPatients) =>
-      currentPatients.map((patient) =>
-        patient.id === selectedPatient.id
-          ? {
-              ...patient,
-              notes: [newNote, ...patient.notes],
-            }
-          : patient,
-      ),
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] =
+    useState(
+      () =>
+        typeof window !==
+          "undefined" &&
+        window.innerWidth >=
+          1024,
     );
 
-    setNotePeriod("today");
-    closeAddNoteModal();
-    setNoteSavedMessage("Progress note saved successfully.");
-    window.setTimeout(() => setNoteSavedMessage(""), 2600);
+  const [
+    patients,
+    setPatients,
+  ] =
+    useState<
+      CollaborationPatient[]
+    >([]);
 
-    /*
-      Later backend call:
-      POST /doctor/patients/:patientId/progress-notes
-      body: { title, category, content, nextSteps }
-    */
-  };
+  const [
+    selectedPatientId,
+    setSelectedPatientId,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  const handleShare = async () => {
-    const shareText =
-      `${fullName}, ${selectedPatient.age} years old: Progress Notes`;
+  const [
+    patientSearch,
+    setPatientSearch,
+  ] =
+    useState("");
 
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "MOBI Collaboration",
-          text: shareText,
-        });
+  const [
+    notePeriod,
+    setNotePeriod,
+  ] =
+    useState<NotePeriod>(
+      "month",
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCollaboration() {
+      const role =
+        localStorage.getItem(
+          "mobi_staff_role",
+        );
+
+      const doctorId =
+        localStorage.getItem(
+          "mobi_staff_profile_id",
+        );
+
+      if (
+        role !== "doctor" ||
+        !doctorId
+      ) {
+        navigate(
+          "/login",
+          {
+            replace: true,
+          },
+        );
         return;
       }
 
-      await navigator.clipboard.writeText(shareText);
-      window.alert("Progress note title copied to clipboard.");
-    } catch (error) {
-      console.error("Unable to share collaboration details:", error);
+      try {
+        setLoading(true);
+        setErrorMessage("");
+
+        const [
+          doctorResult,
+          patientResult,
+        ] =
+          await Promise.all([
+            getDoctorById(
+              doctorId,
+            ),
+            getDoctorPatients(
+              doctorId,
+            ),
+          ]);
+
+        const doctor =
+          doctorResult
+            ?.doctor as
+            | DoctorApiRecord
+            | undefined;
+
+        if (!doctor) {
+          throw new Error(
+            "Unable to identify the logged-in doctor.",
+          );
+        }
+
+        const doctorName =
+          [
+            doctor.first_name ??
+              doctor.firstName,
+            doctor.middle_name ??
+              doctor.middleName,
+            doctor.last_name ??
+              doctor.lastName,
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+        const doctorMember:
+          CareMember = {
+            id:
+              String(
+                doctor.id,
+              ),
+
+            name:
+              doctorName ||
+              "Doctor",
+
+            role:
+              doctor.specialization ??
+              "Doctor",
+
+            type:
+              "doctor",
+
+            isCurrentUser:
+              true,
+          };
+
+        const records:
+          DoctorPatientApiRecord[] =
+          Array.isArray(
+            patientResult
+              ?.patients,
+          )
+            ? patientResult.patients
+            : [];
+
+        const mappedPatients =
+          await Promise.all(
+            records.map(
+              async (
+                patient,
+              ) => {
+                const [
+                  notesResult,
+                  therapistsResult,
+                ] =
+                  await Promise.allSettled([
+                    getLearnerCollaborationNotes(
+                      patient.id,
+                    ),
+                    getLearnerTherapists(
+                      patient.id,
+                    ),
+                  ]);
+
+                let notes:
+                  ProgressNote[] =
+                  [];
+
+                if (
+                  notesResult.status ===
+                  "fulfilled"
+                ) {
+                  notes =
+                    (
+                      notesResult
+                        .value
+                        ?.notes ??
+                      []
+                    )
+                      .map(
+                        (
+                          note:
+                            any,
+                        ) =>
+                          mapNote(
+                            note,
+                            doctorId,
+                          ),
+                      )
+                      .sort(
+                        (
+                          first,
+                          second,
+                        ) =>
+                          new Date(
+                            second.createdAt,
+                          ).getTime() -
+                          new Date(
+                            first.createdAt,
+                          ).getTime(),
+                      );
+                } else {
+                  console.error(
+                    `Unable to load notes for learner ${patient.id}:`,
+                    notesResult.reason,
+                  );
+                }
+
+                let assignedTherapists:
+                  CareMember[] =
+                  [];
+
+                if (
+                  therapistsResult.status ===
+                  "fulfilled"
+                ) {
+                  assignedTherapists =
+                    (
+                      therapistsResult
+                        .value
+                        ?.therapists ??
+                      []
+                    ).map(
+                      mapTherapist,
+                    );
+                } else {
+                  console.error(
+                    `Unable to load therapists for learner ${patient.id}:`,
+                    therapistsResult.reason,
+                  );
+                }
+
+                return {
+                  id:
+                    String(
+                      patient.id,
+                    ),
+
+                  learnerCode:
+                    patient.learnerCode ??
+                    null,
+
+                  firstName:
+                    patient.firstName,
+
+                  middleName:
+                    patient.middleName ??
+                    null,
+
+                  lastName:
+                    patient.lastName,
+
+                  age:
+                    calculateAge(
+                      patient.birthDate,
+                    ),
+
+                  profilePicture:
+                    patient.profilePhotoUrl ??
+                    null,
+
+                  assignedDoctor:
+                    doctorMember,
+
+                  assignedTherapists,
+
+                  notes,
+                } satisfies CollaborationPatient;
+              },
+            ),
+          );
+
+        if (!mounted) {
+          return;
+        }
+
+        setPatients(
+          mappedPatients,
+        );
+
+        setSelectedPatientId(
+          (
+            currentId,
+          ) =>
+            currentId &&
+            mappedPatients.some(
+              (
+                patient,
+              ) =>
+                patient.id ===
+                currentId,
+            )
+              ? currentId
+              : mappedPatients[0]
+                  ?.id ??
+                null,
+        );
+      } catch (
+        error: any
+      ) {
+        if (!mounted) {
+          return;
+        }
+
+        setErrorMessage(
+          error?.response
+            ?.data?.message ||
+            error?.message ||
+            "Unable to load collaboration data.",
+        );
+
+        setPatients([]);
+        setSelectedPatientId(
+          null,
+        );
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     }
-  };
+
+    void loadCollaboration();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
+
+  const filteredPatients =
+    useMemo(() => {
+      const normalizedSearch =
+        patientSearch
+          .trim()
+          .toLowerCase();
+
+      if (
+        !normalizedSearch
+      ) {
+        return patients;
+      }
+
+      return patients.filter(
+        (patient) =>
+          `${getFullName(
+            patient,
+          )} ${
+            patient.learnerCode ??
+            ""
+          }`
+            .toLowerCase()
+            .includes(
+              normalizedSearch,
+            ),
+      );
+    }, [
+      patientSearch,
+      patients,
+    ]);
+
+  const selectedPatient =
+    patients.find(
+      (patient) =>
+        patient.id ===
+        selectedPatientId,
+    ) ?? null;
+
+  const visibleNotes =
+    useMemo(() => {
+      if (
+        !selectedPatient
+      ) {
+        return [];
+      }
+
+      return selectedPatient.notes.filter(
+        (note) =>
+          isWithinPeriod(
+            note.createdAt,
+            notePeriod,
+          ),
+      );
+    }, [
+      selectedPatient,
+      notePeriod,
+    ]);
+
+  const handlePatientSearch =
+    (
+      event:
+        ChangeEvent<HTMLInputElement>,
+    ) => {
+      setPatientSearch(
+        event.target.value,
+      );
+    };
+
+  const handleShare =
+    async () => {
+      if (
+        !selectedPatient
+      ) {
+        return;
+      }
+
+      const fullName =
+        getFullName(
+          selectedPatient,
+        );
+
+      const ageLabel =
+        selectedPatient.age ===
+        null
+          ? ""
+          : `, ${selectedPatient.age} years old`;
+
+      const shareText =
+        `${fullName}${ageLabel}: ${selectedPatient.notes.length} shared collaboration note${
+          selectedPatient.notes
+            .length === 1
+            ? ""
+            : "s"
+        }.`;
+
+      try {
+        if (
+          navigator.share
+        ) {
+          await navigator.share(
+            {
+              title:
+                "MOBI Collaboration",
+              text:
+                shareText,
+            },
+          );
+
+          return;
+        }
+
+        await navigator.clipboard.writeText(
+          shareText,
+        );
+
+        window.alert(
+          "Collaboration summary copied to clipboard.",
+        );
+      } catch (error) {
+        console.error(
+          "Unable to share collaboration details:",
+          error,
+        );
+      }
+    };
+
+  const fullName =
+    selectedPatient
+      ? getFullName(
+          selectedPatient,
+        )
+      : "";
 
   return (
     <div className="min-h-screen bg-[#f7f7f9] font-professional text-[#202027]">
@@ -503,95 +995,133 @@ function DocCollabScreen() {
           <button
             type="button"
             aria-label="Close sidebar overlay"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() =>
+              setSidebarOpen(
+                false,
+              )
+            }
             className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
           />
 
-          <DocSidebar setSidebarOpen={setSidebarOpen} />
+          <DocSidebar
+            setSidebarOpen={
+              setSidebarOpen
+            }
+          />
         </>
       )}
 
       {!sidebarOpen && (
         <button
           type="button"
-          onClick={() => setSidebarOpen(true)}
+          onClick={() =>
+            setSidebarOpen(
+              true,
+            )
+          }
           className="fixed left-4 top-4 z-40 hidden h-11 w-11 items-center justify-center rounded-[10px] border border-[#e8e8ed] bg-white text-[#666672] transition hover:bg-[#f3eff8] hover:text-[#7456a3] lg:flex"
           aria-label="Open sidebar"
           title="Open sidebar"
         >
-          <Menu size={19} />
+          <Menu
+            size={19}
+          />
         </button>
       )}
 
       <main
         className={`min-h-screen transition-[padding] duration-300 ${
-          sidebarOpen ? "lg:pl-[280px]" : "lg:pl-0"
+          sidebarOpen
+            ? "lg:pl-[280px]"
+            : "lg:pl-0"
         }`}
       >
-        {/* MOBILE HEADER */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#e8e8ed] bg-white/95 px-4 backdrop-blur lg:hidden">
           <button
             type="button"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() =>
+              setSidebarOpen(
+                true,
+              )
+            }
             className="flex h-10 w-10 items-center justify-center rounded-[10px] text-[#666672] transition hover:bg-[#f3eff8] hover:text-[#7456a3]"
             aria-label="Open sidebar"
           >
-            <Menu size={20} />
+            <Menu
+              size={20}
+            />
           </button>
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[#202027]">
               Collaboration
             </p>
-            <p className="truncate text-[11px] text-[#9898a3]">
+
+            <p className="truncate text-[10px] text-[#9898a3]">
               Progress notes and care team
             </p>
           </div>
         </header>
 
         <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-[42px] lg:py-[35px]">
-          {/* PAGE HEADER */}
           <section className="mb-[30px] flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <SectionEyebrow>Doctor Workspace</SectionEyebrow>
+              <SectionEyebrow>
+                Doctor Workspace
+              </SectionEyebrow>
 
               <h1 className="m-0 text-[30px] font-bold leading-[1.15] tracking-[-0.025em] text-[#202027]">
                 Collaboration
               </h1>
 
-              <p className="mt-2 max-w-[680px] text-[14px] leading-[1.65] text-[#757580]">
-                Review progress notes and stay aligned with the care team
-                supporting each assigned learner.
+              <p className="mt-2 max-w-[650px] text-[13px] leading-[1.6] text-[#757580]">
+                Review real progress notes and stay aligned with the care team
+                supporting each learner currently assigned to you.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => void handleShare()}
-              className="inline-flex min-h-[38px] items-center justify-center gap-2 self-start rounded-[9px] border border-[#ded8e8] bg-white px-4 text-[12px] font-semibold text-[#7456a3] transition hover:bg-[#f3eff8]"
+              onClick={() =>
+                void handleShare()
+              }
+              disabled={
+                !selectedPatient
+              }
+              className="inline-flex min-h-[38px] items-center justify-center gap-2 self-start rounded-[9px] border border-[#ded8e8] bg-white px-3.5 text-[10px] font-semibold text-[#7456a3] transition hover:bg-[#f3eff8] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Share2 size={15} />
+              <Share2
+                size={15}
+              />
               Share Notes
             </button>
           </section>
 
-          {/* COLLABORATION WORKSPACE */}
+          {errorMessage && (
+            <div className="mb-5 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-[11px] font-semibold text-red-700">
+                {errorMessage}
+              </p>
+            </div>
+          )}
+
           <section className="overflow-hidden rounded-[14px] border border-[#e8e8ed] bg-white">
-            {/* WORKSPACE HEADER */}
             <div className="flex flex-col gap-4 border-b border-[#eeeef2] px-5 py-[21px] xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <SectionEyebrow>Shared Records</SectionEyebrow>
+                <SectionEyebrow>
+                  Care Coordination
+                </SectionEyebrow>
 
-                <h2 className="m-0 text-[20px] font-semibold tracking-[-0.015em] text-[#202027]">
-                  Progress Notes
+                <h2 className="m-0 text-[18px] font-semibold tracking-[-0.015em] text-[#202027]">
+                  Patient Collaboration
                 </h2>
 
-                <p className="mt-2 text-[13px] leading-[1.55] text-[#757580]">
-                  Choose a patient to review clinical observations and MOBI session updates from the care team.
+                <p className="mt-1.5 text-[11px] leading-[1.5] text-[#757580]">
+                  Only learners currently assigned to your Doctor account are shown.
                 </p>
               </div>
 
-              <div className="relative w-full xl:w-[360px]">
+              <div className="relative w-full xl:w-[340px]">
                 <Search
                   size={15}
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9898a3]"
@@ -599,488 +1129,456 @@ function DocCollabScreen() {
 
                 <input
                   type="search"
-                  value={patientSearch}
-                  onChange={handlePatientSearch}
+                  value={
+                    patientSearch
+                  }
+                  onChange={
+                    handlePatientSearch
+                  }
                   placeholder="Search patient..."
-                  className="h-[42px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] pl-10 pr-3 text-[12px] text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
+                  className="h-[38px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] pl-9 pr-3 text-[11px] text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
                 />
               </div>
             </div>
 
-            <div className="grid min-h-[620px] lg:grid-cols-[290px_minmax(0,1fr)]">
-              {/* LEFT SIDEBAR */}
-              <aside className="border-b border-[#eeeef2] bg-[#fafafd] lg:border-b-0 lg:border-r">
-                {/* PATIENT LIST */}
-                <section>
-                  <div className="flex items-center justify-between gap-2 border-b border-[#eeeef2] px-4 py-3.5">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9898a3]">
-                        Patients
-                      </span>
+            {loading ? (
+              <div className="flex min-h-[620px] items-center justify-center px-6 py-12">
+                <div className="text-center">
+                  <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-[#ded8e8] border-t-[#7456a3]" />
 
-                      <p className="mt-1 text-[12px] font-semibold text-[#202027]">
-                        {filteredPatients.length} patient
-                        {filteredPatients.length === 1 ? "" : "s"}
-                      </p>
-                    </div>
+                  <p className="mt-3 text-[11px] text-[#757580]">
+                    Loading assigned learners and collaboration notes...
+                  </p>
+                </div>
+              </div>
+            ) : patients.length ===
+              0 ? (
+              <div className="flex min-h-[620px] flex-col items-center justify-center px-6 py-12 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f3eff8] text-[#7456a3]">
+                  <Users
+                    size={21}
+                  />
+                </div>
 
-                    <Users size={16} className="text-[#7456a3]" />
-                  </div>
+                <h3 className="mt-4 text-sm font-semibold text-[#202027]">
+                  No assigned learners
+                </h3>
 
-                  <div className="max-h-[300px] overflow-y-auto py-1.5">
-                    {filteredPatients.length === 0 ? (
-                      <div className="px-4 py-8 text-center">
-                        <Search
-                          size={18}
-                          className="mx-auto text-[#9898a3]"
-                        />
-                        <p className="mt-2 text-[12px] font-medium text-[#757580]">
-                          No patient found.
+                <p className="mt-1.5 max-w-md text-[11px] leading-5 text-[#757580]">
+                  This Doctor account currently has no active learner assignments.
+                </p>
+              </div>
+            ) : (
+              <div className="grid min-h-[620px] lg:grid-cols-[250px_minmax(0,1fr)]">
+                <aside className="border-b border-[#eeeef2] bg-[#fafafd] lg:border-b-0 lg:border-r">
+                  <section>
+                    <div className="flex items-center justify-between gap-2 border-b border-[#eeeef2] px-4 py-3.5">
+                      <div>
+                        <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-[#9898a3]">
+                          Assigned Learners
+                        </span>
+
+                        <p className="mt-1 text-[10px] font-semibold text-[#202027]">
+                          {
+                            filteredPatients.length
+                          }{" "}
+                          patient
+                          {filteredPatients.length ===
+                          1
+                            ? ""
+                            : "s"}
                         </p>
                       </div>
-                    ) : (
-                      filteredPatients.map((patient) => {
-                        const patientName =
-                          `${patient.firstName} ${patient.lastName}`;
-                        const isSelected =
-                          patient.id === selectedPatient.id;
 
-                        return (
-                          <button
-                            key={patient.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedPatientId(patient.id)
-                            }
-                            className={`relative flex w-full items-center gap-3 px-4 py-3 text-left transition ${
-                              isSelected
-                                ? "bg-[#f3eff8]"
-                                : "hover:bg-white"
-                            }`}
-                          >
-                            {isSelected && (
-                              <span className="absolute inset-y-2 left-0 w-[3px] rounded-r bg-[#7456a3]" />
-                            )}
+                      <Users
+                        size={16}
+                        className="text-[#7456a3]"
+                      />
+                    </div>
 
-                            <Avatar
-                              name={patientName}
-                              image={patient.profilePicture}
-                              size="small"
-                            />
+                    <div className="max-h-[270px] overflow-y-auto py-1.5">
+                      {filteredPatients.length ===
+                      0 ? (
+                        <div className="px-4 py-8 text-center">
+                          <Search
+                            size={18}
+                            className="mx-auto text-[#9898a3]"
+                          />
 
-                            <div className="min-w-0">
-                              <span
-                                className={`block truncate text-[13px] font-semibold ${
+                          <p className="mt-2 text-[10px] font-medium text-[#757580]">
+                            No patient found.
+                          </p>
+                        </div>
+                      ) : (
+                        filteredPatients.map(
+                          (
+                            patient,
+                          ) => {
+                            const patientName =
+                              getFullName(
+                                patient,
+                              );
+
+                            const isSelected =
+                              patient.id ===
+                              selectedPatient?.id;
+
+                            return (
+                              <button
+                                key={
+                                  patient.id
+                                }
+                                type="button"
+                                onClick={() =>
+                                  setSelectedPatientId(
+                                    patient.id,
+                                  )
+                                }
+                                className={`relative flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition ${
                                   isSelected
-                                    ? "text-[#7456a3]"
-                                    : "text-[#202027]"
+                                    ? "bg-[#f3eff8]"
+                                    : "hover:bg-white"
                                 }`}
                               >
-                                {patientName}
-                              </span>
+                                {isSelected && (
+                                  <span className="absolute inset-y-2 left-0 w-[3px] rounded-r bg-[#7456a3]" />
+                                )}
 
-                              <span className="mt-1 block text-[10px] text-[#9898a3]">
-                                {patient.age} years old
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </section>
+                                <Avatar
+                                  name={
+                                    patientName
+                                  }
+                                  image={
+                                    patient.profilePicture
+                                  }
+                                  size="small"
+                                />
 
-                {/* CARE TEAM */}
-                <section className="border-t border-[#eeeef2] px-4 py-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-[14px] font-semibold text-[#202027]">
-                        Care Team
-                      </h3>
+                                <div className="min-w-0">
+                                  <span
+                                    className={`block truncate text-[10px] font-semibold ${
+                                      isSelected
+                                        ? "text-[#7456a3]"
+                                        : "text-[#202027]"
+                                    }`}
+                                  >
+                                    {
+                                      patientName
+                                    }
+                                  </span>
 
-                      <p className="mt-1 text-[11px] text-[#9898a3]">
-                        Doctor and assigned therapists
-                      </p>
+                                  <span className="mt-0.5 block truncate text-[8px] text-[#9898a3]">
+                                    {patient.age ===
+                                    null
+                                      ? "Age unavailable"
+                                      : `${patient.age} years old`}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          },
+                        )
+                      )}
                     </div>
+                  </section>
 
-                    <Stethoscope size={16} className="text-[#7456a3]" />
-                  </div>
+                  {selectedPatient && (
+                    <section className="border-t border-[#eeeef2] px-4 py-4">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-[#9898a3]">
+                            Care Team
+                          </span>
 
-                  <div className="space-y-2">
-                    <CareMemberRow
-                      member={selectedPatient.assignedDoctor}
-                      label="Doctor"
-                    />
+                          <p className="mt-1 text-[10px] font-semibold text-[#202027]">
+                            Assigned Professionals
+                          </p>
+                        </div>
 
-                    {selectedPatient.assignedTherapists.map(
-                      (therapist) => (
-                        <CareMemberRow
-                          key={therapist.id}
-                          member={therapist}
-                          label="Therapist"
+                        <Stethoscope
+                          size={16}
+                          className="text-[#7456a3]"
                         />
-                      ),
-                    )}
-                  </div>
-                </section>
-              </aside>
-
-              {/* RIGHT CONTENT */}
-              <div className="min-w-0">
-                {/* PATIENT SUMMARY */}
-                <div className="flex flex-col gap-4 border-b border-[#eeeef2] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Avatar
-                      name={fullName}
-                      image={selectedPatient.profilePicture}
-                      size="large"
-                    />
-
-                    <div className="min-w-0">
-                      <span className="block text-[8px] font-bold uppercase tracking-[0.08em] text-[#7456a3]">
-                        Patient
-                      </span>
-
-                      <h3 className="mt-1 truncate text-[20px] font-semibold text-[#202027]">
-                        {fullName}
-                      </h3>
-
-                      <p className="mt-1 text-[11px] text-[#9898a3]">
-                        {selectedPatient.age} years old •{" "}
-                        {selectedPatient.notes.length} progress note
-                        {selectedPatient.notes.length === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsAddNoteOpen(true)}
-                    className="inline-flex min-h-[36px] items-center justify-center gap-2 self-start rounded-[8px] bg-[#7456a3] px-4 text-[12px] font-semibold text-white transition hover:bg-[#5f4588] sm:self-auto"
-                  >
-                    <Plus size={14} />
-                    Add Progress Note
-                  </button>
-                </div>
-
-                {/* NOTES HEADER */}
-                <div className="flex flex-col gap-3 border-b border-[#eeeef2] bg-[#fafafd] px-5 py-3.5 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <h3 className="text-[14px] font-semibold text-[#202027]">
-                      Shared Notes
-                    </h3>
-
-                    <p className="mt-1 text-[12px] text-[#757580]">
-                      Notes from the doctor, therapists, and MOBI sessions.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1 rounded-[8px] border border-[#e8e8ed] bg-white p-1">
-                    {(
-                      [
-                        ["today", "Today"],
-                        ["week", "This Week"],
-                        ["month", "This Month"],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setNotePeriod(value)}
-                        className={`min-h-[32px] rounded-[6px] px-3 text-[10px] font-semibold transition ${
-                          notePeriod === value
-                            ? "bg-[#f3eff8] text-[#7456a3]"
-                            : "text-[#9898a3] hover:bg-[#f7f7f9] hover:text-[#666672]"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* NOTES LIST */}
-                <div className="min-h-[470px] px-5 py-4">
-                  {visibleNotes.length === 0 ? (
-                    <div className="flex min-h-[390px] flex-col items-center justify-center text-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f3eff8] text-[#7456a3]">
-                        <ClipboardList size={20} />
                       </div>
 
-                      <h3 className="mt-4 text-sm font-semibold text-[#202027]">
-                        No notes in this period
-                      </h3>
+                      <div className="space-y-2">
+                        <CareMemberRow
+                          member={
+                            selectedPatient.assignedDoctor
+                          }
+                          label="Doctor"
+                        />
 
-                      <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[#757580]">
-                        Add a clinical progress note or select a longer
-                        time period.
+                        {selectedPatient.assignedTherapists.length >
+                        0 ? (
+                          selectedPatient.assignedTherapists.map(
+                            (
+                              therapist,
+                            ) => (
+                              <CareMemberRow
+                                key={
+                                  therapist.id
+                                }
+                                member={
+                                  therapist
+                                }
+                                label="Therapist"
+                              />
+                            ),
+                          )
+                        ) : (
+                          <div className="rounded-[10px] border border-dashed border-[#dedce4] bg-white px-3 py-3">
+                            <p className="text-[9px] leading-4 text-[#9898a3]">
+                              No therapists are currently assigned to this learner.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  )}
+                </aside>
+
+                <div className="min-w-0">
+                  {!selectedPatient ? (
+                    <div className="flex min-h-[620px] flex-col items-center justify-center px-6 text-center">
+                      <UserRound
+                        size={25}
+                        className="text-[#7456a3]"
+                      />
+
+                      <p className="mt-3 text-[11px] text-[#757580]">
+                        Select an assigned learner to review collaboration notes.
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {visibleNotes.map((note) => (
-                        <article
-                          key={note.id}
-                          className="rounded-[12px] border border-[#e8e8ed] bg-white p-5 transition hover:border-[#dedce4]"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="flex min-w-0 items-start gap-3">
-                              <Avatar
-                                name={note.authorName}
-                                size="small"
+                    <>
+                      <div className="flex flex-col gap-4 border-b border-[#eeeef2] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar
+                            name={
+                              fullName
+                            }
+                            image={
+                              selectedPatient.profilePicture
+                            }
+                            size="large"
+                          />
+
+                          <div className="min-w-0">
+                            <span className="block text-[8px] font-bold uppercase tracking-[0.08em] text-[#7456a3]">
+                              Selected Patient
+                            </span>
+
+                            <h3 className="mt-1 truncate text-[15px] font-semibold text-[#202027]">
+                              {
+                                fullName
+                              }
+                            </h3>
+
+                            <p className="mt-0.5 text-[9px] text-[#9898a3]">
+                              {selectedPatient.age ===
+                              null
+                                ? "Age unavailable"
+                                : `${selectedPatient.age} years old`}{" "}
+                              •{" "}
+                              {
+                                selectedPatient.notes.length
+                              }{" "}
+                              progress note
+                              {selectedPatient.notes.length ===
+                              1
+                                ? ""
+                                : "s"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="inline-flex min-h-[36px] items-center gap-2 self-start rounded-[8px] border border-[#e8e8ed] bg-[#fafafd] px-3.5 text-[9px] font-semibold text-[#757580] sm:self-auto">
+                          <ClipboardList
+                            size={14}
+                            className="text-[#7456a3]"
+                          />
+                          Notes are read-only for now
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3 border-b border-[#eeeef2] bg-[#fafafd] px-5 py-3.5 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-[#9898a3]">
+                            Progress Notes
+                          </span>
+
+                          <p className="mt-1 text-[10px] text-[#757580]">
+                            Real shared notes from the learner's care team.
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 rounded-[8px] border border-[#e8e8ed] bg-white p-1">
+                          {(
+                            [
+                              [
+                                "today",
+                                "Today",
+                              ],
+                              [
+                                "week",
+                                "This Week",
+                              ],
+                              [
+                                "month",
+                                "This Month",
+                              ],
+                            ] as const
+                          ).map(
+                            ([
+                              value,
+                              label,
+                            ]) => (
+                              <button
+                                key={
+                                  value
+                                }
+                                type="button"
+                                onClick={() =>
+                                  setNotePeriod(
+                                    value,
+                                  )
+                                }
+                                className={`min-h-[28px] rounded-[6px] px-2.5 text-[8px] font-semibold transition ${
+                                  notePeriod ===
+                                  value
+                                    ? "bg-[#f3eff8] text-[#7456a3]"
+                                    : "text-[#9898a3] hover:bg-[#f7f7f9] hover:text-[#666672]"
+                                }`}
+                              >
+                                {
+                                  label
+                                }
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="min-h-[470px] px-5 py-4">
+                        {visibleNotes.length ===
+                        0 ? (
+                          <div className="flex min-h-[390px] flex-col items-center justify-center text-center">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f3eff8] text-[#7456a3]">
+                              <ClipboardList
+                                size={20}
                               />
-
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <strong className="text-[10px] font-semibold text-[#202027]">
-                                    {note.authorName}
-                                  </strong>
-
-                                  {note.authorRole && (
-                                    <span className="text-[10px] text-[#9898a3]">
-                                      {note.authorRole}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                                  <SourceBadge source={note.source} />
-
-                                  {note.category && (
-                                    <span className="inline-flex min-h-[24px] items-center rounded-full bg-[#f6f5f8] px-2 text-[8px] font-semibold text-[#666672]">
-                                      {note.category}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
                             </div>
 
-                            <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-[#9898a3]">
-                              <CalendarDays size={12} />
-                              {note.dateLabel}
+                            <h3 className="mt-4 text-sm font-semibold text-[#202027]">
+                              No notes in this period
+                            </h3>
+
+                            <p className="mt-1.5 max-w-sm text-[10px] leading-5 text-[#757580]">
+                              No shared collaboration notes were found for the selected time period.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {visibleNotes.map(
+                              (
+                                note,
+                              ) => (
+                                <article
+                                  key={
+                                    note.id
+                                  }
+                                  className="rounded-[12px] border border-[#e8e8ed] bg-white p-4 transition hover:border-[#dedce4]"
+                                >
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                      <Avatar
+                                        name={
+                                          note.authorName
+                                        }
+                                        size="small"
+                                      />
+
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <strong className="text-[10px] font-semibold text-[#202027]">
+                                            {
+                                              note.authorName
+                                            }
+                                          </strong>
+
+                                          {note.authorRole && (
+                                            <span className="text-[8px] text-[#9898a3]">
+                                              {
+                                                note.authorRole
+                                              }
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                          <SourceBadge
+                                            source={
+                                              note.source
+                                            }
+                                          />
+
+                                          {note.category && (
+                                            <span className="inline-flex min-h-[24px] items-center rounded-full bg-[#f6f5f8] px-2 text-[8px] font-semibold text-[#666672]">
+                                              {
+                                                note.category
+                                              }
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-1.5 text-[8px] text-[#9898a3]">
+                                      <CalendarDays
+                                        size={12}
+                                      />
+                                      {
+                                        note.dateLabel
+                                      }
+                                    </div>
+                                  </div>
+
+                                  {note.title && (
+                                    <h4 className="mt-3 text-[11px] font-semibold text-[#202027]">
+                                      {
+                                        note.title
+                                      }
+                                    </h4>
+                                  )}
+
+                                  <p className="mt-3 whitespace-pre-wrap text-[10px] leading-[1.65] text-[#666672]">
+                                    {
+                                      note.content
+                                    }
+                                  </p>
+                                </article>
+                              ),
+                            )}
+
+                            <div className="flex items-center justify-center gap-3 py-2 text-[8px] text-[#b0afb8]">
+                              <span className="h-px w-16 border-t border-dashed border-[#d6d5db]" />
+                              <span>
+                                End of notes
+                              </span>
+                              <span className="h-px w-16 border-t border-dashed border-[#d6d5db]" />
                             </div>
                           </div>
-
-                          {note.title && (
-                            <h4 className="mt-3 text-[14px] font-semibold text-[#202027]">
-                              {note.title}
-                            </h4>
-                          )}
-
-                          <p className="mt-3 text-[13px] leading-[1.75] text-[#5f5f69]">
-                            {note.content}
-                          </p>
-
-                          {note.nextSteps && (
-                            <div className="mt-3 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] px-3.5 py-3">
-                              <div className="flex items-center gap-2 text-[#7456a3]">
-                                <CheckCircle2 size={13} />
-                                <span className="text-[10px] font-bold uppercase tracking-[0.07em]">
-                                  Recommended Next Steps
-                                </span>
-                              </div>
-
-                              <p className="mt-2 text-[12px] leading-[1.65] text-[#666672]">
-                                {note.nextSteps}
-                              </p>
-                            </div>
-                          )}
-                        </article>
-                      ))}
-
-                      <div className="flex items-center justify-center gap-3 py-3 text-[10px] text-[#b0afb8]">
-                        <span className="h-px w-16 border-t border-dashed border-[#d6d5db]" />
-                        <span>End of notes</span>
-                        <span className="h-px w-16 border-t border-dashed border-[#d6d5db]" />
+                        )}
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
-            </div>
+            )}
           </section>
         </div>
       </main>
-
-      {/* SUCCESS TOAST */}
-      {noteSavedMessage && (
-        <div className="fixed right-4 top-4 z-[90] flex items-center gap-2 rounded-[10px] border border-[#cfe4d6] bg-white px-4 py-3 text-[12px] font-semibold text-[#4f9467] shadow-[0_14px_36px_rgba(31,25,39,0.12)]">
-          <CheckCircle2 size={15} />
-          {noteSavedMessage}
-        </div>
-      )}
-
-      {/* ADD NOTE MODAL */}
-      {isAddNoteOpen && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 px-3 py-5 backdrop-blur-[3px] sm:px-5"
-          onClick={closeAddNoteModal}
-          role="presentation"
-        >
-          <div
-            className="flex max-h-[92vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[16px] border border-white/60 bg-white shadow-[0_22px_60px_rgba(31,25,39,0.16)]"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Add progress note"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#eeeef2] px-5 py-5 sm:px-6">
-              <div>
-                <SectionEyebrow>Clinical Collaboration</SectionEyebrow>
-
-                <h2 className="text-[20px] font-semibold text-[#202027]">
-                  Add Progress Note
-                </h2>
-
-                <p className="mt-2 text-[13px] leading-5 text-[#757580]">
-                  Record an observation or recommendation for {fullName}.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeAddNoteModal}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#f6f6f8] text-[#71717a] transition hover:bg-[#f3eff8] hover:text-[#7456a3]"
-                aria-label="Close add note modal"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleAddNote}
-              className="min-h-0 flex-1 overflow-y-auto"
-            >
-              <div className="space-y-5 px-5 py-5 sm:px-7 sm:py-6">
-                <div className="flex items-center gap-3 rounded-[10px] border border-[#eeeef2] bg-[#fafafd] p-3.5">
-                  <Avatar
-                    name={fullName}
-                    image={selectedPatient.profilePicture}
-                  />
-
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-[#202027]">
-                      {fullName}
-                    </p>
-
-                    <p className="mt-0.5 text-[10px] text-[#9898a3]">
-                      {selectedPatient.age} years old • Note date: Today
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-[12px] font-semibold text-[#555560]">
-                      Note Category
-                    </span>
-
-                    <select
-                      value={draftNoteCategory}
-                      onChange={(event) =>
-                        setDraftNoteCategory(
-                          event.target.value as NoteCategory,
-                        )
-                      }
-                      className="mt-2 h-[44px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] px-3.5 text-[13px] text-[#202027] outline-none transition focus:border-[#cfc4df] focus:bg-white"
-                    >
-                      <option value="Observation">Observation</option>
-                      <option value="Recommendation">
-                        Recommendation
-                      </option>
-                      <option value="Follow-up">Follow-up</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-[12px] font-semibold text-[#555560]">
-                      Note Title{" "}
-                      <span className="font-normal text-[#9898a3]">
-                        (optional)
-                      </span>
-                    </span>
-
-                    <input
-                      type="text"
-                      value={draftNoteTitle}
-                      onChange={(event) =>
-                        setDraftNoteTitle(event.target.value)
-                      }
-                      maxLength={80}
-                      placeholder="e.g. Improved turn-taking"
-                      className="mt-2 h-[44px] w-full rounded-[9px] border border-[#e8e8ed] bg-[#fafafd] px-3.5 text-[13px] text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
-                    />
-                  </label>
-                </div>
-
-                <label className="block">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[12px] font-semibold text-[#555560]">
-                      Progress Note
-                    </span>
-
-                    <span className="text-[10px] text-[#9898a3]">
-                      {draftNote.length}/1200
-                    </span>
-                  </div>
-
-                  <textarea
-                    id="progress-note"
-                    value={draftNote}
-                    onChange={(event) =>
-                      setDraftNote(event.target.value)
-                    }
-                    rows={7}
-                    maxLength={1200}
-                    placeholder="Describe the learner's response, observed progress, support needed, and relevant clinical details..."
-                    className="mt-2 w-full resize-none rounded-[10px] border border-[#e8e8ed] bg-[#fafafd] px-4 py-3.5 text-[13px] leading-6 text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
-                    autoFocus
-                    required
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-[12px] font-semibold text-[#555560]">
-                    Recommended Next Steps{" "}
-                    <span className="font-normal text-[#9898a3]">
-                      (optional)
-                    </span>
-                  </span>
-
-                  <textarea
-                    value={draftNextSteps}
-                    onChange={(event) =>
-                      setDraftNextSteps(event.target.value)
-                    }
-                    rows={3}
-                    maxLength={500}
-                    placeholder="Add a follow-up plan, suggested activity, or instruction for the care team..."
-                    className="mt-2 w-full resize-none rounded-[10px] border border-[#e8e8ed] bg-[#fafafd] px-4 py-3.5 text-[13px] leading-6 text-[#202027] outline-none transition placeholder:text-[#aaa9b3] focus:border-[#cfc4df] focus:bg-white"
-                  />
-                </label>
-              </div>
-
-              <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[#eeeef2] bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-                <button
-                  type="button"
-                  onClick={closeAddNoteModal}
-                  className="min-h-[40px] rounded-[8px] border border-[#e8e8ed] bg-white px-4 text-[12px] font-semibold text-[#666672] transition hover:bg-[#f7f7f9]"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={!draftNote.trim()}
-                  className="min-h-[40px] rounded-[8px] bg-[#7456a3] px-4 text-[12px] font-semibold text-white transition hover:bg-[#5f4588] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Save Progress Note
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

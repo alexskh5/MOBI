@@ -4,9 +4,15 @@
 import { Router } from "express";
 import multer from "multer";
 import {
+  assignLearnerDoctor,
   enrollLearner,
   getLearnerById,
+  getLearnerDoctor,
   getLearners,
+  createLearnerCollaborationNote,
+  getLearnerCollaborationNotes,
+  assignLearnerTherapists,
+  getLearnerTherapists,
 } from "../controllers/learnerController";
 import {
   getAdaptationSettings,

@@ -24,6 +24,8 @@
 
 // app.use("/api/super-admin", superAdminRoutes);
 
+app.use("/api/schedules", scheduleRoutes);
+
 
 // app.get("/", (_req, res) => {
 //   res.status(200).send("MOBI backend is running");

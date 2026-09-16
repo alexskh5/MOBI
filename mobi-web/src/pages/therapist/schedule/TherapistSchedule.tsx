@@ -1,995 +1,1584 @@
-import { useMemo, useRef, useState } from "react";
 import {
-    CalendarDays,
-    Check,
-    CheckCircle2,
-    ChevronLeft,
-    ChevronRight,
-    Search,
-    UserRound,
-    X,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  ArrowRightLeft,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Home,
+  LoaderCircle,
+  MapPin,
+  RefreshCw,
+  Search,
+  UserRound,
+  X,
 } from "lucide-react";
 
 import TherapistLayout from "../../../layouts/TherapistLayout";
 
-type ScheduleStatus =
-    | "pending"
-    | "confirmed"
-    | "declined"
-    | "cancelled";
+import {
+  confirmTherapistSchedule,
+  getScheduleLearners,
+  getTherapistSchedules,
+  requestTherapistReschedule,
+} from "../../../services/scheduleApi";
 
-type ScheduleItem = {
-    id: string;
-    dateKey: string;
-    time: string;
-    therapistId: string;
-    learnerId: string;
-    durationMinutes: number;
-    status: ScheduleStatus;
-    notes?: string;
-    assignedBy?: string;
-};
+import type {
+  ScheduleLearner,
+  ScheduledSession,
+} from "../../../services/scheduleApi";
 
-type Learner = {
-    id: string;
-    name: string;
-};
+/* =========================================================
+   PHILIPPINE TIME HELPERS
+========================================================= */
 
-const CURRENT_THERAPIST_ID = "therapist-anna-reyes";
+const MANILA_TIME_ZONE = "Asia/Manila";
 
-const learners: Learner[] = [
+const pad = (value: number) =>
+  String(value).padStart(2, "0");
+
+const getManilaParts = (date: Date) => {
+  const parts = new Intl.DateTimeFormat(
+    "en-US",
     {
-        id: "learner-lea-sarsoza",
-        name: "Lea Sarsoza",
+      timeZone: MANILA_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
     },
-    {
-        id: "learner-albus-severus",
-        name: "Albus Severus",
-    },
-];
+  ).formatToParts(date);
 
-const pad = (value: number) => {
-    return String(value).padStart(2, "0");
+  const read = (type: string) =>
+    parts.find(
+      (part) => part.type === type,
+    )?.value ?? "";
+
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute"),
+  };
 };
 
-const getDateKey = (date: Date) => {
-    return `${date.getFullYear()}-${pad(
-        date.getMonth() + 1
-    )}-${pad(date.getDate())}`;
-};
-
-const dateFromKey = (dateKey: string) => {
-    const [year, month, day] = dateKey
-        .split("-")
-        .map(Number);
-
-    return new Date(year, month - 1, day);
-};
-
-const addDays = (date: Date, days: number) => {
-    const nextDate = new Date(date);
-
-    nextDate.setDate(nextDate.getDate() + days);
-
-    return nextDate;
-};
-
-const formatFullDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    });
-};
-
-const formatTime = (time: string) => {
-    if (!time) {
-        return "No time set";
-    }
-
-    const [hourValue, minute] = time.split(":");
-    const hour = Number(hourValue);
-    const period = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour % 12 || 12;
-
-    return `${displayHour}:${minute} ${period}`;
-};
-
-const getStatusLabel = (
-    status: ScheduleStatus
+const getManilaDateKey = (
+  value: string | Date,
 ) => {
-    switch (status) {
-        case "pending":
-            return "Pending Approval";
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value);
 
-        case "confirmed":
-            return "Confirmed";
+  const parts = getManilaParts(date);
 
-        case "declined":
-            return "Declined";
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
 
-        case "cancelled":
-            return "Cancelled";
+const getManilaDateTimeInput = (
+  iso: string,
+) => {
+  const parts =
+    getManilaParts(new Date(iso));
 
-        default:
-            return "Pending Approval";
-    }
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+};
+
+const manilaInputToIso = (
+  value: string,
+) => {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(
+    `${value}:00+08:00`,
+  ).toISOString();
+};
+
+const addDaysToDateKey = (
+  dateKey: string,
+  amount: number,
+) => {
+  const [year, month, day] =
+    dateKey.split("-").map(Number);
+
+  const date = new Date(
+    Date.UTC(year, month - 1, day),
+  );
+
+  date.setUTCDate(
+    date.getUTCDate() + amount,
+  );
+
+  return `${date.getUTCFullYear()}-${pad(
+    date.getUTCMonth() + 1,
+  )}-${pad(date.getUTCDate())}`;
+};
+
+const formatDateKey = (
+  dateKey: string,
+) => {
+  return new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone: MANILA_TIME_ZONE,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    },
+  ).format(
+    new Date(`${dateKey}T00:00:00+08:00`),
+  );
+};
+
+const formatTime = (iso: string) => {
+  return new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone: MANILA_TIME_ZONE,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    },
+  ).format(new Date(iso));
+};
+
+const getDurationMinutes = (
+  schedule: ScheduledSession,
+) => {
+  const start =
+    new Date(
+      schedule.scheduled_start,
+    ).getTime();
+
+  const end =
+    new Date(
+      schedule.scheduled_end,
+    ).getTime();
+
+  return Math.max(
+    Math.round(
+      (end - start) / 60000,
+    ),
+    0,
+  );
+};
+
+/* =========================================================
+   DISPLAY HELPERS
+========================================================= */
+
+const getLearnerName = (
+  learner?: ScheduleLearner,
+) => {
+  if (!learner) {
+    return "Learner";
+  }
+
+  return [
+    learner.firstName,
+    learner.middleName,
+    learner.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ");
+};
+
+const getInitials = (
+  learner?: ScheduleLearner,
+) => {
+  if (!learner) {
+    return "L";
+  }
+
+  return [
+    learner.firstName,
+    learner.lastName,
+  ]
+    .filter(Boolean)
+    .map((name) =>
+      String(name)
+        .trim()
+        .charAt(0)
+        .toUpperCase(),
+    )
+    .join("");
+};
+
+const getSessionTypeLabel = (
+  type: ScheduledSession["session_type"],
+) => {
+  return type === "social_readiness"
+    ? "Social Readiness"
+    : "Speech Training";
+};
+
+const getResponseLabel = (
+  schedule: ScheduledSession,
+) => {
+  if (schedule.status === "cancelled") {
+    return "Cancelled";
+  }
+
+  if (schedule.status === "completed") {
+    return "Completed";
+  }
+
+  if (
+    schedule.guardian_response ===
+    "declined"
+  ) {
+    return "Guardian declined";
+  }
+
+  if (
+    schedule.therapist_response ===
+    "reschedule_requested"
+  ) {
+    return "Reschedule requested";
+  }
+
+  if (
+    schedule.status === "confirmed"
+  ) {
+    return "Confirmed";
+  }
+
+  if (
+    schedule.therapist_response ===
+    "confirmed" &&
+    schedule.guardian_response ===
+      "pending"
+  ) {
+    return "Awaiting guardian";
+  }
+
+  if (
+    schedule.therapist_response ===
+    "pending"
+  ) {
+    return "Needs response";
+  }
+
+  return "Scheduled";
 };
 
 const getStatusStyle = (
-    status: ScheduleStatus
+  schedule: ScheduledSession,
 ) => {
-    switch (status) {
-        case "pending":
-            return "text-amber-700";
+  if (schedule.status === "cancelled") {
+    return {
+      dot: "bg-gray-400",
+      text: "text-gray-500",
+      bg: "bg-gray-50",
+    };
+  }
 
-        case "confirmed":
-            return "text-emerald-700";
+  if (schedule.status === "completed") {
+    return {
+      dot: "bg-slate-500",
+      text: "text-slate-600",
+      bg: "bg-slate-50",
+    };
+  }
 
-        case "declined":
-            return "text-red-600";
+  if (
+    schedule.guardian_response ===
+    "declined"
+  ) {
+    return {
+      dot: "bg-rose-400",
+      text: "text-rose-700",
+      bg: "bg-rose-50",
+    };
+  }
 
-        case "cancelled":
-            return "text-gray-500";
+  if (
+    schedule.therapist_response ===
+    "reschedule_requested"
+  ) {
+    return {
+      dot: "bg-violet-400",
+      text: "text-violet-700",
+      bg: "bg-violet-50",
+    };
+  }
 
-        default:
-            return "text-amber-700";
-    }
+  if (
+    schedule.status === "confirmed"
+  ) {
+    return {
+      dot: "bg-emerald-500",
+      text: "text-emerald-700",
+      bg: "bg-emerald-50",
+    };
+  }
+
+  if (
+    schedule.therapist_response ===
+    "confirmed"
+  ) {
+    return {
+      dot: "bg-blue-400",
+      text: "text-blue-700",
+      bg: "bg-blue-50",
+    };
+  }
+
+  return {
+    dot: "bg-amber-400",
+    text: "text-amber-700",
+    bg: "bg-amber-50",
+  };
 };
 
-const getStatusDotStyle = (
-    status: ScheduleStatus
+const getErrorMessage = (
+  error: any,
+  fallback: string,
 ) => {
-    switch (status) {
-        case "pending":
-            return "bg-amber-400";
-
-        case "confirmed":
-            return "bg-emerald-500";
-
-        case "declined":
-            return "bg-red-500";
-
-        case "cancelled":
-            return "bg-gray-400";
-
-        default:
-            return "bg-amber-400";
-    }
+  return (
+    error?.response?.data?.message ||
+    error?.message ||
+    fallback
+  );
 };
+
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 const TherapistSchedule = () => {
-    const dateInputRef =
-        useRef<HTMLInputElement | null>(null);
+  const dateInputRef =
+    useRef<HTMLInputElement | null>(
+      null,
+    );
 
-    const [selectedDate, setSelectedDate] =
-        useState<Date>(new Date());
+  const therapistId =
+    localStorage.getItem(
+      "mobi_staff_profile_id",
+    ) ?? "";
 
-    const [searchTerm, setSearchTerm] =
-        useState("");
+  const [selectedDateKey, setSelectedDateKey] =
+    useState(() =>
+      getManilaDateKey(new Date()),
+    );
 
-    const [approvalTarget, setApprovalTarget] =
-        useState<ScheduleItem | null>(null);
+  const [searchTerm, setSearchTerm] =
+    useState("");
 
-    const [actionMessage, setActionMessage] =
-        useState("");
+  const [schedules, setSchedules] =
+    useState<ScheduledSession[]>([]);
 
-    const selectedDateKey =
-        getDateKey(selectedDate);
+  const [learners, setLearners] =
+    useState<ScheduleLearner[]>([]);
 
-    const [schedules, setSchedules] =
-        useState<ScheduleItem[]>(() => {
-            const today = new Date();
-            const todayKey = getDateKey(today);
+  const [isLoading, setIsLoading] =
+    useState(true);
 
-            const tomorrowKey = getDateKey(
-                addDays(today, 1)
+  const [isRefreshing, setIsRefreshing] =
+    useState(false);
+
+  const [pageError, setPageError] =
+    useState("");
+
+  const [actionMessage, setActionMessage] =
+    useState("");
+
+  const [actionScheduleId, setActionScheduleId] =
+    useState<string | null>(null);
+
+  const [
+    rescheduleTarget,
+    setRescheduleTarget,
+  ] =
+    useState<ScheduledSession | null>(
+      null,
+    );
+
+  const [
+    rescheduleReason,
+    setRescheduleReason,
+  ] = useState("");
+
+  const [
+    proposedStart,
+    setProposedStart,
+  ] = useState("");
+
+  const [
+    proposedEnd,
+    setProposedEnd,
+  ] = useState("");
+
+  const [
+    rescheduleError,
+    setRescheduleError,
+  ] = useState("");
+
+  /* =======================================================
+     LOAD REAL DATA
+  ======================================================= */
+
+  const loadScheduleData =
+    useCallback(
+      async (
+        showMainLoader = false,
+      ) => {
+        if (!therapistId) {
+          setPageError(
+            "Your Therapist account could not be identified. Please sign in again.",
+          );
+
+          setIsLoading(false);
+          setIsRefreshing(false);
+          return;
+        }
+
+        try {
+          if (showMainLoader) {
+            setIsLoading(true);
+          } else {
+            setIsRefreshing(true);
+          }
+
+          setPageError("");
+
+          const [
+            scheduleResponse,
+            learnerResponse,
+          ] = await Promise.all([
+            getTherapistSchedules(
+              therapistId,
+            ),
+            getScheduleLearners(),
+          ]);
+
+          setSchedules(
+            scheduleResponse.data ?? [],
+          );
+
+          setLearners(
+            learnerResponse ?? [],
+          );
+        } catch (error: any) {
+          console.error(
+            "Unable to load Therapist schedule:",
+            error,
+          );
+
+          setPageError(
+            getErrorMessage(
+              error,
+              "Unable to load your schedule right now.",
+            ),
+          );
+        } finally {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
+      },
+      [therapistId],
+    );
+
+  useEffect(() => {
+    void loadScheduleData(true);
+  }, [loadScheduleData]);
+
+  /* =======================================================
+     LOOKUPS
+  ======================================================= */
+
+  const learnerMap = useMemo(() => {
+    return new Map(
+      learners.map((learner) => [
+        learner.id,
+        learner,
+      ]),
+    );
+  }, [learners]);
+
+  const schedulesForSelectedDate =
+    useMemo(() => {
+      return schedules
+        .filter(
+          (schedule) =>
+            getManilaDateKey(
+              schedule.scheduled_start,
+            ) === selectedDateKey,
+        )
+        .sort(
+          (first, second) =>
+            new Date(
+              first.scheduled_start,
+            ).getTime() -
+            new Date(
+              second.scheduled_start,
+            ).getTime(),
+        );
+    }, [
+      schedules,
+      selectedDateKey,
+    ]);
+
+  const filteredSchedules =
+    useMemo(() => {
+      const query =
+        searchTerm
+          .trim()
+          .toLowerCase();
+
+      if (!query) {
+        return schedulesForSelectedDate;
+      }
+
+      return schedulesForSelectedDate.filter(
+        (schedule) => {
+          const learner =
+            learnerMap.get(
+              schedule.learner_id,
             );
 
-            return [
-                {
-                    id: "schedule-001",
-                    dateKey: todayKey,
-                    time: "08:00",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-lea-sarsoza",
-                    durationMinutes: 45,
-                    status: "confirmed",
-                    notes:
-                        "Speech warm-up followed by guided word practice.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-002",
-                    dateKey: todayKey,
-                    time: "09:30",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-albus-severus",
-                    durationMinutes: 40,
-                    status: "pending",
-                    notes:
-                        "Word-level activity focusing on familiar objects.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-003",
-                    dateKey: todayKey,
-                    time: "11:00",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-lea-sarsoza",
-                    durationMinutes: 50,
-                    status: "pending",
-                    notes:
-                        "Practice greetings, turn-taking, and simple conversation.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-004",
-                    dateKey: todayKey,
-                    time: "13:30",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-albus-severus",
-                    durationMinutes: 45,
-                    status: "cancelled",
-                    notes:
-                        "Session cancelled by the center.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-005",
-                    dateKey: tomorrowKey,
-                    time: "10:00",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-lea-sarsoza",
-                    durationMinutes: 50,
-                    status: "pending",
-                    notes:
-                        "Continue practicing social greetings and responses.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-            ];
-        });
+          const searchableText = [
+            getLearnerName(learner),
+            getSessionTypeLabel(
+              schedule.session_type,
+            ),
+            schedule.delivery_mode,
+            getResponseLabel(schedule),
+            schedule.notes ?? "",
+            formatTime(
+              schedule.scheduled_start,
+            ),
+          ]
+            .join(" ")
+            .toLowerCase();
 
-    const getLearner = (
-        learnerId: string
+          return searchableText.includes(
+            query,
+          );
+        },
+      );
+    }, [
+      learnerMap,
+      schedulesForSelectedDate,
+      searchTerm,
+    ]);
+
+  const confirmedCount =
+    schedulesForSelectedDate.filter(
+      (schedule) =>
+        schedule.status ===
+          "confirmed" ||
+        schedule.therapist_response ===
+          "confirmed",
+    ).length;
+
+  const needsResponseCount =
+    schedulesForSelectedDate.filter(
+      (schedule) =>
+        schedule.status !==
+          "cancelled" &&
+        schedule.status !==
+          "completed" &&
+        schedule.therapist_response ===
+          "pending",
+    ).length;
+
+  /* =======================================================
+     DATE CONTROLS
+  ======================================================= */
+
+  const openDatePicker = () => {
+    const input =
+      dateInputRef.current as
+        | (HTMLInputElement & {
+            showPicker?: () => void;
+          })
+        | null;
+
+    if (input?.showPicker) {
+      input.showPicker();
+      return;
+    }
+
+    input?.click();
+  };
+
+  const goToToday = () => {
+    setSelectedDateKey(
+      getManilaDateKey(new Date()),
+    );
+  };
+
+  const goToPreviousDay = () => {
+    setSelectedDateKey(
+      (current) =>
+        addDaysToDateKey(
+          current,
+          -1,
+        ),
+    );
+  };
+
+  const goToNextDay = () => {
+    setSelectedDateKey(
+      (current) =>
+        addDaysToDateKey(
+          current,
+          1,
+        ),
+    );
+  };
+
+  /* =======================================================
+     CONFIRM SESSION
+  ======================================================= */
+
+  const handleConfirm =
+    async (
+      schedule: ScheduledSession,
     ) => {
-        return learners.find(
-            (learner) =>
-                learner.id === learnerId
-        );
-    };
+      if (!therapistId) {
+        return;
+      }
 
-    const schedulesForSelectedDate =
-        useMemo(() => {
-            return schedules
-                .filter(
-                    (schedule) =>
-                        schedule.therapistId ===
-                            CURRENT_THERAPIST_ID &&
-                        schedule.dateKey ===
-                            selectedDateKey
-                )
-                .sort(
-                    (
-                        firstSchedule,
-                        secondSchedule
-                    ) =>
-                        firstSchedule.time.localeCompare(
-                            secondSchedule.time
-                        )
-                );
-        }, [schedules, selectedDateKey]);
-
-    const filteredSchedules =
-        useMemo(() => {
-            const normalizedSearch =
-                searchTerm
-                    .trim()
-                    .toLowerCase();
-
-            return schedulesForSelectedDate.filter(
-                (schedule) => {
-                    const learner =
-                        getLearner(
-                            schedule.learnerId
-                        );
-
-                    const searchableText = [
-                        formatTime(
-                            schedule.time
-                        ),
-                        learner?.name ?? "",
-                        `${schedule.durationMinutes} minutes`,
-                        schedule.notes ?? "",
-                        schedule.assignedBy ??
-                            "",
-                        getStatusLabel(
-                            schedule.status
-                        ),
-                    ]
-                        .join(" ")
-                        .toLowerCase();
-
-                    return searchableText.includes(
-                        normalizedSearch
-                    );
-                }
-            );
-        }, [
-            schedulesForSelectedDate,
-            searchTerm,
-        ]);
-
-    const openDatePicker = () => {
-        const input =
-            dateInputRef.current as
-                | (HTMLInputElement & {
-                      showPicker?: () => void;
-                  })
-                | null;
-
-        if (input?.showPicker) {
-            input.showPicker();
-            return;
-        }
-
-        input?.click();
-    };
-
-    const goToToday = () => {
-        setSelectedDate(new Date());
-    };
-
-    const goToPreviousDay = () => {
-        setSelectedDate(
-            (currentDate) =>
-                addDays(currentDate, -1)
-        );
-    };
-
-    const goToNextDay = () => {
-        setSelectedDate(
-            (currentDate) =>
-                addDays(currentDate, 1)
-        );
-    };
-
-    const openApprovalModal = (
-        schedule: ScheduleItem
-    ) => {
-        if (schedule.status !== "pending") {
-            return;
-        }
-
-        setApprovalTarget(schedule);
-    };
-
-    const closeApprovalModal = () => {
-        setApprovalTarget(null);
-    };
-
-    const handleApproveSchedule = () => {
-        if (!approvalTarget) {
-            return;
-        }
-
-        setSchedules(
-            (currentSchedules) =>
-                currentSchedules.map(
-                    (schedule) =>
-                        schedule.id ===
-                        approvalTarget.id
-                            ? {
-                                  ...schedule,
-                                  status:
-                                      "confirmed",
-                              }
-                            : schedule
-                )
+      try {
+        setActionScheduleId(
+          schedule.id,
         );
 
-        setApprovalTarget(null);
+        setPageError("");
+
+        await confirmTherapistSchedule(
+          schedule.id,
+          therapistId,
+        );
 
         setActionMessage(
-            "Schedule approved successfully."
+          "Availability confirmed.",
         );
 
-        window.setTimeout(() => {
-            setActionMessage("");
-        }, 2500);
+        await loadScheduleData();
 
-        /*
-         * Later backend call:
-         *
-         * PATCH /api/therapist/schedules/:scheduleId/approve
-         *
-         * The backend should verify:
-         * 1. The schedule belongs to the logged-in therapist.
-         * 2. The schedule is still pending.
-         * 3. The therapist is allowed to approve it.
-         */
+        window.setTimeout(() => {
+          setActionMessage("");
+        }, 2500);
+      } catch (error: any) {
+        setPageError(
+          getErrorMessage(
+            error,
+            "Unable to confirm this session.",
+          ),
+        );
+      } finally {
+        setActionScheduleId(null);
+      }
     };
 
-    return (
-        <TherapistLayout>
-            {(
-                sidebarOpen,
-                setSidebarOpen
-            ) => (
-                <div className="inter relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] bg-[#E4C9E5]/80 p-4 sm:p-6 lg:p-8">
-                    {/* PAGE HEADER */}
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex items-center gap-4">
-                            {!sidebarOpen && (
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setSidebarOpen(
-                                            true
-                                        )
-                                    }
-                                    className="text-3xl leading-none"
-                                    aria-label="Open sidebar"
-                                >
-                                    ☰
-                                </button>
-                            )}
+  /* =======================================================
+     RESCHEDULE MODAL
+  ======================================================= */
 
-                            <h1 className="itim text-4xl font-medium sm:text-5xl">
-                                Schedule
-                            </h1>
-                        </div>
+  const openRescheduleModal = (
+    schedule: ScheduledSession,
+  ) => {
+    setRescheduleTarget(schedule);
 
-                        {/* SEARCH */}
-                        <div className="flex w-full items-center rounded-xl border border-white/80 bg-[#F8F3F8] px-4 py-2.5 xl:w-[360px]">
-                            <Search
-                                size={19}
-                                className="mr-3 shrink-0 text-gray-400"
-                            />
+    setRescheduleReason("");
 
-                            <input
-                                type="search"
-                                placeholder="Search schedule"
-                                value={
-                                    searchTerm
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setSearchTerm(
-                                        event.target
-                                            .value
-                                    )
-                                }
-                                className="w-full bg-transparent text-sm outline-none sm:text-base"
-                            />
-
-                            {searchTerm && (
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setSearchTerm(
-                                            ""
-                                        )
-                                    }
-                                    className="ml-2 rounded-lg p-1 text-gray-400 transition hover:bg-white hover:text-gray-700"
-                                    aria-label="Clear search"
-                                >
-                                    <X
-                                        size={15}
-                                    />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="my-5 border-b border-gray-400/50" />
-
-                    {/* PAGE CONTENT */}
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <section className="overflow-hidden rounded-[20px] bg-white">
-                            {/* DATE HEADER */}
-                            <div className="flex flex-col gap-4 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-                                        {formatFullDate(
-                                            selectedDate
-                                        )}
-                                    </h2>
-
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        {
-                                            schedulesForSelectedDate.length
-                                        }{" "}
-                                        session
-                                        {schedulesForSelectedDate.length ===
-                                        1
-                                            ? ""
-                                            : "s"}
-                                    </p>
-                                </div>
-
-                                {/* DATE CONTROLS */}
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white">
-                                        <button
-                                            type="button"
-                                            onClick={
-                                                openDatePicker
-                                            }
-                                            className="flex h-10 items-center gap-2 border-r border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-                                        >
-                                            <CalendarDays
-                                                size={
-                                                    17
-                                                }
-                                            />
-
-                                            <span className="hidden sm:inline">
-                                                Calendar
-                                            </span>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={
-                                                goToPreviousDay
-                                            }
-                                            className="flex h-10 w-10 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
-                                            aria-label="Previous day"
-                                        >
-                                            <ChevronLeft
-                                                size={
-                                                    18
-                                                }
-                                            />
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={
-                                                goToNextDay
-                                            }
-                                            className="flex h-10 w-10 items-center justify-center text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
-                                            aria-label="Next day"
-                                        >
-                                            <ChevronRight
-                                                size={
-                                                    18
-                                                }
-                                            />
-                                        </button>
-                                    </div>
-
-                                    <input
-                                        ref={
-                                            dateInputRef
-                                        }
-                                        type="date"
-                                        value={
-                                            selectedDateKey
-                                        }
-                                        onChange={(
-                                            event
-                                        ) => {
-                                            if (
-                                                !event
-                                                    .target
-                                                    .value
-                                            ) {
-                                                return;
-                                            }
-
-                                            setSelectedDate(
-                                                dateFromKey(
-                                                    event
-                                                        .target
-                                                        .value
-                                                )
-                                            );
-                                        }}
-                                        className="sr-only"
-                                    />
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            goToToday
-                                        }
-                                        className="h-10 rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
-                                    >
-                                        Today
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* TABLE HEADER */}
-                            <div className="hidden border-y border-gray-100 bg-[#FAF8FA] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-400 md:grid md:grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)_145px_minmax(0,1fr)_110px] md:gap-4">
-                                <span>
-                                    Time
-                                </span>
-
-                                <span>
-                                    Learner
-                                </span>
-
-                                <span>
-                                    Duration
-                                </span>
-
-                                <span>
-                                    Status
-                                </span>
-
-                                <span>
-                                    Notes
-                                </span>
-
-                                <span className="text-right">
-                                    Action
-                                </span>
-                            </div>
-
-                            {/* SCHEDULE ROWS */}
-                            {filteredSchedules.length >
-                            0 ? (
-                                <div>
-                                    {filteredSchedules.map(
-                                        (
-                                            schedule
-                                        ) => {
-                                            const learner =
-                                                getLearner(
-                                                    schedule.learnerId
-                                                );
-
-                                            return (
-                                                <article
-                                                    key={
-                                                        schedule.id
-                                                    }
-                                                    className="border-b border-gray-100 bg-white px-5 py-4 transition last:border-b-0 hover:bg-gray-50/70 md:grid md:grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)_145px_minmax(0,1fr)_110px] md:items-center md:gap-4"
-                                                >
-                                                    {/* TIME */}
-                                                    <div className="mb-3 md:mb-0">
-                                                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
-                                                            Time
-                                                        </p>
-
-                                                        <p className="text-sm font-bold text-gray-900">
-                                                            {formatTime(
-                                                                schedule.time
-                                                            )}
-                                                        </p>
-                                                    </div>
-
-                                                    {/* LEARNER */}
-                                                    <div className="mb-3 min-w-0 md:mb-0">
-                                                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
-                                                            Learner
-                                                        </p>
-
-                                                        <p className="truncate text-sm font-semibold text-gray-900">
-                                                            {learner?.name ??
-                                                                "Unknown learner"}
-                                                        </p>
-                                                    </div>
-
-                                                    {/* DURATION */}
-                                                    <div className="mb-3 min-w-0 md:mb-0">
-                                                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
-                                                            Duration
-                                                        </p>
-
-                                                        <p className="text-sm font-semibold text-gray-900">
-                                                            {
-                                                                schedule.durationMinutes
-                                                            }{" "}
-                                                            minutes
-                                                        </p>
-                                                    </div>
-
-                                                    {/* STATUS */}
-                                                    <div className="mb-3 md:mb-0">
-                                                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
-                                                            Status
-                                                        </p>
-
-                                                        <div className="inline-flex items-center gap-2">
-                                                            <span
-                                                                className={`h-2 w-2 shrink-0 rounded-full ${getStatusDotStyle(
-                                                                    schedule.status
-                                                                )}`}
-                                                            />
-
-                                                            <span
-                                                                className={`text-sm font-semibold ${getStatusStyle(
-                                                                    schedule.status
-                                                                )}`}
-                                                            >
-                                                                {getStatusLabel(
-                                                                    schedule.status
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* NOTES */}
-                                                    <div className="mb-4 min-w-0 md:mb-0">
-                                                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">
-                                                            Notes
-                                                        </p>
-
-                                                        <p className="line-clamp-2 text-sm leading-5 text-gray-500">
-                                                            {schedule.notes ||
-                                                                "No notes added"}
-                                                        </p>
-                                                    </div>
-
-                                                    {/* ACTION */}
-                                                    <div className="flex justify-start md:justify-end">
-                                                        {schedule.status ===
-                                                        "pending" ? (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    openApprovalModal(
-                                                                        schedule
-                                                                    )
-                                                                }
-                                                                className="flex items-center justify-center gap-1.5 rounded-lg border border-[#D9C7DD] bg-white px-3 py-2 text-sm font-semibold text-[#82548C] transition hover:bg-[#F7F1F8]"
-                                                                aria-label={`Approve ${
-                                                                    learner?.name ??
-                                                                    "learner"
-                                                                }'s session`}
-                                                            >
-                                                                <Check
-                                                                    size={
-                                                                        16
-                                                                    }
-                                                                />
-
-                                                                Approve
-                                                            </button>
-                                                        ) : schedule.status ===
-                                                          "confirmed" ? (
-                                                            <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                                                                <CheckCircle2
-                                                                    size={
-                                                                        17
-                                                                    }
-                                                                />
-
-                                                                Approved
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-sm text-gray-400">
-                                                                No
-                                                                action
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </article>
-                                            );
-                                        }
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F5EEF6] text-[#82548C]">
-                                        <CalendarDays
-                                            size={
-                                                26
-                                            }
-                                        />
-                                    </div>
-
-                                    <h3 className="mt-4 text-xl font-bold text-gray-900">
-                                        No assigned
-                                        sessions
-                                    </h3>
-
-                                    <p className="mt-2 max-w-md text-sm leading-6 text-gray-500">
-                                        You do not have
-                                        any assigned
-                                        sessions matching
-                                        this date or
-                                        search.
-                                    </p>
-                                </div>
-                            )}
-                        </section>
-                    </div>
-
-                    {/* SUCCESS MESSAGE */}
-                    {actionMessage && (
-                        <div
-                            role="status"
-                            className="fixed right-4 top-4 z-[100] flex items-center gap-2 rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-lg"
-                        >
-                            <CheckCircle2
-                                size={18}
-                            />
-
-                            {actionMessage}
-                        </div>
-                    )}
-
-                    {/* APPROVAL MODAL */}
-                    {approvalTarget && (
-                        <div
-                            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-[2px]"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-labelledby="approve-session-title"
-                        >
-                            <div className="w-full max-w-md overflow-hidden rounded-[24px] bg-white shadow-2xl">
-                                {/* MODAL HEADER */}
-                                <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-[#95609F]">
-                                            Schedule
-                                            approval
-                                        </p>
-
-                                        <h2
-                                            id="approve-session-title"
-                                            className="mt-1 text-xl font-bold text-gray-900"
-                                        >
-                                            Approve this
-                                            session?
-                                        </h2>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            closeApprovalModal
-                                        }
-                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                                        aria-label="Close approval modal"
-                                    >
-                                        <X
-                                            size={
-                                                19
-                                            }
-                                        />
-                                    </button>
-                                </div>
-
-                                {/* SESSION DETAILS */}
-                                <div className="px-6 py-5">
-                                    <div className="border-b border-gray-100 pb-5">
-                                        <div className="flex items-start gap-3">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5EEF6] text-[#82548C]">
-                                                <UserRound
-                                                    size={
-                                                        18
-                                                    }
-                                                />
-                                            </div>
-
-                                            <div className="min-w-0">
-                                                <p className="truncate font-bold text-gray-900">
-                                                    {getLearner(
-                                                        approvalTarget.learnerId
-                                                    )
-                                                        ?.name ??
-                                                        "Unknown learner"}
-                                                </p>
-
-                                                <p className="mt-2 text-sm font-medium text-[#82548C]">
-                                                    {formatFullDate(
-                                                        dateFromKey(
-                                                            approvalTarget.dateKey
-                                                        )
-                                                    )}{" "}
-                                                    at{" "}
-                                                    {formatTime(
-                                                        approvalTarget.time
-                                                    )}
-                                                </p>
-
-                                                <p className="mt-1 text-xs text-gray-500">
-                                                    {
-                                                        approvalTarget.durationMinutes
-                                                    }{" "}
-                                                    minutes
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <p className="mt-5 text-sm leading-6 text-gray-600">
-                                        Approving confirms
-                                        that you are
-                                        available and
-                                        accepting this
-                                        assigned session.
-                                    </p>
-
-                                    {approvalTarget.assignedBy && (
-                                        <div className="mt-4">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                                Assigned
-                                                by
-                                            </p>
-
-                                            <p className="mt-1 text-sm text-gray-600">
-                                                {
-                                                    approvalTarget.assignedBy
-                                                }
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {approvalTarget.notes && (
-                                        <div className="mt-4">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                                Session
-                                                notes
-                                            </p>
-
-                                            <p className="mt-1 text-sm leading-6 text-gray-600">
-                                                {
-                                                    approvalTarget.notes
-                                                }
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* MODAL ACTIONS */}
-                                <div className="flex flex-col-reverse gap-3 border-t border-gray-100 px-6 py-5 sm:flex-row sm:justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            closeApprovalModal
-                                        }
-                                        className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-                                    >
-                                        Cancel
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            handleApproveSchedule
-                                        }
-                                        className="flex items-center justify-center gap-2 rounded-xl bg-[#82548C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#704578]"
-                                    >
-                                        <Check
-                                            size={
-                                                17
-                                            }
-                                        />
-
-                                        Confirm Approval
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-        </TherapistLayout>
+    setProposedStart(
+      getManilaDateTimeInput(
+        schedule.scheduled_start,
+      ),
     );
+
+    setProposedEnd(
+      getManilaDateTimeInput(
+        schedule.scheduled_end,
+      ),
+    );
+
+    setRescheduleError("");
+  };
+
+  const closeRescheduleModal = () => {
+    if (actionScheduleId) {
+      return;
+    }
+
+    setRescheduleTarget(null);
+    setRescheduleReason("");
+    setProposedStart("");
+    setProposedEnd("");
+    setRescheduleError("");
+  };
+
+  const submitReschedule =
+    async () => {
+      if (
+        !rescheduleTarget ||
+        !therapistId
+      ) {
+        return;
+      }
+
+      if (!rescheduleReason.trim()) {
+        setRescheduleError(
+          "Please provide a reason for the schedule change.",
+        );
+
+        return;
+      }
+
+      const startIso =
+        proposedStart
+          ? manilaInputToIso(
+              proposedStart,
+            )
+          : null;
+
+      const endIso =
+        proposedEnd
+          ? manilaInputToIso(
+              proposedEnd,
+            )
+          : null;
+
+      if (
+        (startIso && !endIso) ||
+        (!startIso && endIso)
+      ) {
+        setRescheduleError(
+          "Please provide both the proposed start and end time.",
+        );
+
+        return;
+      }
+
+      if (
+        startIso &&
+        endIso &&
+        new Date(startIso) >=
+          new Date(endIso)
+      ) {
+        setRescheduleError(
+          "The proposed end time must be after the start time.",
+        );
+
+        return;
+      }
+
+      try {
+        setActionScheduleId(
+          rescheduleTarget.id,
+        );
+
+        setRescheduleError("");
+
+        await requestTherapistReschedule(
+          rescheduleTarget.id,
+          {
+            therapistId,
+            reason:
+              rescheduleReason.trim(),
+            proposedStart: startIso,
+            proposedEnd: endIso,
+          },
+        );
+
+        setRescheduleTarget(null);
+
+        setActionMessage(
+          "Reschedule request sent to the Center.",
+        );
+
+        await loadScheduleData();
+
+        window.setTimeout(() => {
+          setActionMessage("");
+        }, 2800);
+      } catch (error: any) {
+        setRescheduleError(
+          getErrorMessage(
+            error,
+            "Unable to submit the reschedule request.",
+          ),
+        );
+      } finally {
+        setActionScheduleId(null);
+      }
+    };
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
+  return (
+    <TherapistLayout>
+      {(
+        sidebarOpen,
+        setSidebarOpen,
+      ) => (
+        <div className="inter relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] bg-[#E4C9E5]/80 p-4 sm:p-6 lg:p-8">
+          {/* HEADER */}
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="flex items-start gap-4">
+              {!sidebarOpen && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSidebarOpen(true)
+                  }
+                  className="mt-1 text-3xl leading-none text-gray-800"
+                  aria-label="Open sidebar"
+                >
+                  ☰
+                </button>
+              )}
+
+              <div>
+                <h1 className="itim text-4xl font-medium text-gray-900 sm:text-5xl">
+                  Schedule
+                </h1>
+
+                <p className="mt-1.5 text-sm text-gray-600">
+                  Review your assigned MOBI
+                  sessions and respond to
+                  clinic appointments.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+              <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/80 bg-[#F8F3F8] px-4 py-2.5 xl:w-[330px]">
+                <Search
+                  size={18}
+                  className="mr-3 shrink-0 text-gray-400"
+                />
+
+                <input
+                  type="search"
+                  placeholder="Search learner or session"
+                  value={searchTerm}
+                  onChange={(event) =>
+                    setSearchTerm(
+                      event.target.value,
+                    )
+                  }
+                  className="w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
+                />
+
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSearchTerm("")
+                    }
+                    className="ml-2 rounded-md p-1 text-gray-400 transition hover:bg-white hover:text-gray-700"
+                    aria-label="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadScheduleData()
+                }
+                disabled={isRefreshing}
+                className="flex h-[42px] items-center justify-center gap-2 rounded-xl border border-white/80 bg-white/75 px-4 text-sm font-semibold text-gray-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw
+                  size={16}
+                  className={
+                    isRefreshing
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <div className="my-5 border-b border-gray-400/40" />
+
+          {/* CONTENT */}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* DATE + SMALL SUMMARY */}
+            <section className="mb-4 rounded-[20px] border border-white/80 bg-white/75 px-4 py-4 sm:px-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#82548C]">
+                    Assigned sessions
+                  </p>
+
+                  <h2 className="mt-1 text-xl font-bold text-gray-900">
+                    {formatDateKey(
+                      selectedDateKey,
+                    )}
+                  </h2>
+
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-gray-500">
+                    <span>
+                      {
+                        schedulesForSelectedDate.length
+                      }{" "}
+                      total
+                    </span>
+
+                    <span>
+                      {confirmedCount} responded
+                    </span>
+
+                    <span>
+                      {needsResponseCount} need
+                      your response
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={
+                        openDatePicker
+                      }
+                      className="flex h-10 items-center gap-2 border-r border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                    >
+                      <CalendarDays
+                        size={16}
+                      />
+                      <span className="hidden sm:inline">
+                        Calendar
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        goToPreviousDay
+                      }
+                      className="flex h-10 w-10 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50"
+                      aria-label="Previous day"
+                    >
+                      <ChevronLeft
+                        size={18}
+                      />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        goToNextDay
+                      }
+                      className="flex h-10 w-10 items-center justify-center text-gray-500 transition hover:bg-gray-50"
+                      aria-label="Next day"
+                    >
+                      <ChevronRight
+                        size={18}
+                      />
+                    </button>
+                  </div>
+
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={selectedDateKey}
+                    onChange={(event) => {
+                      if (
+                        event.target.value
+                      ) {
+                        setSelectedDateKey(
+                          event.target.value,
+                        );
+                      }
+                    }}
+                    className="sr-only"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={goToToday}
+                    className="h-10 rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                  >
+                    Today
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* ERROR */}
+            {pageError && (
+              <div className="mb-4 flex items-start justify-between gap-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+                <p className="text-sm font-medium text-rose-700">
+                  {pageError}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPageError("")
+                  }
+                  className="shrink-0 text-rose-400 hover:text-rose-700"
+                  aria-label="Dismiss error"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* SCHEDULE */}
+            <section className="overflow-hidden rounded-[20px] border border-gray-100 bg-white shadow-sm">
+              {/* TABLE HEADER */}
+              <div className="hidden border-b border-gray-100 bg-[#FBF9FB] px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400 lg:grid lg:grid-cols-[115px_minmax(170px,1fr)_minmax(160px,1fr)_180px_185px] lg:gap-5">
+                <span>Time</span>
+                <span>Learner</span>
+                <span>Session</span>
+                <span>Status</span>
+                <span className="text-right">
+                  Action
+                </span>
+              </div>
+
+              {isLoading ? (
+                <div className="flex min-h-[330px] flex-col items-center justify-center px-6 text-center">
+                  <LoaderCircle
+                    size={28}
+                    className="animate-spin text-[#82548C]"
+                  />
+
+                  <p className="mt-3 text-sm font-medium text-gray-500">
+                    Loading your schedule...
+                  </p>
+                </div>
+              ) : filteredSchedules.length ===
+                0 ? (
+                <div className="flex min-h-[330px] flex-col items-center justify-center px-6 py-10 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F5EEF6] text-[#82548C]">
+                    <CalendarDays
+                      size={25}
+                    />
+                  </div>
+
+                  <h3 className="mt-4 text-lg font-bold text-gray-900">
+                    No assigned sessions
+                  </h3>
+
+                  <p className="mt-1.5 max-w-sm text-sm leading-6 text-gray-500">
+                    You do not have a
+                    session matching this
+                    date or search.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  {filteredSchedules.map(
+                    (schedule) => {
+                      const learner =
+                        learnerMap.get(
+                          schedule.learner_id,
+                        );
+
+                      const style =
+                        getStatusStyle(
+                          schedule,
+                        );
+
+                      const isBusy =
+                        actionScheduleId ===
+                        schedule.id;
+
+                      const isActive =
+                        schedule.status !==
+                          "cancelled" &&
+                        schedule.status !==
+                          "completed";
+
+                      const canConfirm =
+                        isActive &&
+                        schedule.delivery_mode ===
+                          "clinic" &&
+                        schedule.therapist_response ===
+                          "pending";
+
+                      const canRequestChange =
+                        isActive &&
+                        schedule.delivery_mode ===
+                          "clinic" &&
+                        schedule.guardian_response !==
+                          "declined" &&
+                        schedule.therapist_response !==
+                          "reschedule_requested";
+
+                      return (
+                        <article
+                          key={
+                            schedule.id
+                          }
+                          className="border-b border-gray-100 px-5 py-4 last:border-b-0 hover:bg-[#FCFBFC] lg:grid lg:grid-cols-[115px_minmax(170px,1fr)_minmax(160px,1fr)_180px_185px] lg:items-center lg:gap-5"
+                        >
+                          {/* TIME */}
+                          <div className="mb-4 lg:mb-0">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 lg:hidden">
+                              Time
+                            </p>
+
+                            <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-gray-900 lg:mt-0">
+                              <Clock3
+                                size={15}
+                                className="text-[#95609F]"
+                              />
+
+                              {formatTime(
+                                schedule.scheduled_start,
+                              )}
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-400">
+                              {
+                                getDurationMinutes(
+                                  schedule,
+                                )
+                              }{" "}
+                              min
+                            </p>
+                          </div>
+
+                          {/* LEARNER */}
+                          <div className="mb-4 flex min-w-0 items-center gap-3 lg:mb-0">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E4D6E7] bg-[#F8F3F8] text-xs font-bold text-[#82548C]">
+                              {getInitials(
+                                learner,
+                              )}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 lg:hidden">
+                                Learner
+                              </p>
+
+                              <p className="truncate text-sm font-semibold text-gray-900">
+                                {getLearnerName(
+                                  learner,
+                                )}
+                              </p>
+
+                              {learner?.nickname && (
+                                <p className="mt-0.5 truncate text-xs text-gray-400">
+                                  Goes by{" "}
+                                  {
+                                    learner.nickname
+                                  }
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* SESSION */}
+                          <div className="mb-4 min-w-0 lg:mb-0">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 lg:hidden">
+                              Session
+                            </p>
+
+                            <p className="mt-1 truncate text-sm font-semibold text-gray-800 lg:mt-0">
+                              {getSessionTypeLabel(
+                                schedule.session_type,
+                              )}
+                            </p>
+
+                            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                              {schedule.delivery_mode ===
+                              "home" ? (
+                                <Home
+                                  size={
+                                    13
+                                  }
+                                />
+                              ) : (
+                                <MapPin
+                                  size={
+                                    13
+                                  }
+                                />
+                              )}
+
+                              {schedule.delivery_mode ===
+                              "home"
+                                ? "Home Practice"
+                                : "Clinic"}
+                            </div>
+
+                            {schedule.notes && (
+                              <p className="mt-1.5 line-clamp-1 text-xs text-gray-400">
+                                {
+                                  schedule.notes
+                                }
+                              </p>
+                            )}
+                          </div>
+
+                          {/* STATUS */}
+                          <div className="mb-4 lg:mb-0">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 lg:hidden">
+                              Status
+                            </p>
+
+                            <div
+                              className={`mt-1 inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 lg:mt-0 ${style.bg}`}
+                            >
+                              <span
+                                className={`h-2 w-2 rounded-full ${style.dot}`}
+                              />
+
+                              <span
+                                className={`text-xs font-semibold ${style.text}`}
+                              >
+                                {getResponseLabel(
+                                  schedule,
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* ACTIONS */}
+                          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                            {canConfirm && (
+                              <button
+                                type="button"
+                                disabled={
+                                  isBusy
+                                }
+                                onClick={() =>
+                                  void handleConfirm(
+                                    schedule,
+                                  )
+                                }
+                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#82548C] px-3.5 text-xs font-semibold text-white transition hover:bg-[#704578] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isBusy ? (
+                                  <LoaderCircle
+                                    size={
+                                      14
+                                    }
+                                    className="animate-spin"
+                                  />
+                                ) : (
+                                  <Check
+                                    size={
+                                      14
+                                    }
+                                  />
+                                )}
+
+                                Confirm
+                              </button>
+                            )}
+
+                            {canRequestChange && (
+                              <button
+                                type="button"
+                                disabled={
+                                  isBusy
+                                }
+                                onClick={() =>
+                                  openRescheduleModal(
+                                    schedule,
+                                  )
+                                }
+                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#D9C7DD] bg-white px-3 text-xs font-semibold text-[#82548C] transition hover:bg-[#F8F3F8] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <ArrowRightLeft
+                                  size={
+                                    14
+                                  }
+                                />
+                                Request change
+                              </button>
+                            )}
+
+                            {!canConfirm &&
+                              !canRequestChange && (
+                                <span className="text-xs font-medium text-gray-400">
+                                  {schedule.therapist_response ===
+                                  "reschedule_requested"
+                                    ? "Waiting for Center"
+                                    : schedule.guardian_response ===
+                                        "declined"
+                                      ? "Center will follow up"
+                                      : schedule.status ===
+                                          "completed"
+                                        ? "Session completed"
+                                        : schedule.status ===
+                                            "cancelled"
+                                          ? "No action required"
+                                          : "No action required"}
+                                </span>
+                              )}
+                          </div>
+                        </article>
+                      );
+                    },
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* SUCCESS TOAST */}
+          {actionMessage && (
+            <div
+              role="status"
+              className="fixed right-4 top-4 z-[100] flex items-center gap-2 rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-lg"
+            >
+              <CheckCircle2
+                size={17}
+              />
+
+              {actionMessage}
+            </div>
+          )}
+
+          {/* RESCHEDULE MODAL */}
+          {rescheduleTarget && (
+            <div
+              className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[2px]"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reschedule-title"
+            >
+              <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-[22px] border border-gray-100 bg-white shadow-2xl">
+                {/* MODAL HEADER */}
+                <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#95609F]">
+                      Schedule request
+                    </p>
+
+                    <h2
+                      id="reschedule-title"
+                      className="mt-1 text-xl font-bold text-gray-900"
+                    >
+                      Request a change
+                    </h2>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      The Center will review
+                      your request before the
+                      appointment is changed.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      closeRescheduleModal
+                    }
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* CURRENT SESSION */}
+                <div className="mx-6 mt-5 rounded-xl border border-[#E8DEE9] bg-[#FAF7FA] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#82548C]">
+                      <UserRound
+                        size={17}
+                      />
+                    </div>
+
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {getLearnerName(
+                          learnerMap.get(
+                            rescheduleTarget.learner_id,
+                          ),
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        {formatDateKey(
+                          getManilaDateKey(
+                            rescheduleTarget.scheduled_start,
+                          ),
+                        )}{" "}
+                        ·{" "}
+                        {formatTime(
+                          rescheduleTarget.scheduled_start,
+                        )}{" "}
+                        –{" "}
+                        {formatTime(
+                          rescheduleTarget.scheduled_end,
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FORM */}
+                <div className="space-y-5 px-6 py-5">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Reason{" "}
+                      <span className="text-rose-500">
+                        *
+                      </span>
+                    </label>
+
+                    <textarea
+                      rows={3}
+                      value={
+                        rescheduleReason
+                      }
+                      onChange={(event) =>
+                        setRescheduleReason(
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Briefly explain why you need a schedule change."
+                      className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-[#82548C] focus:ring-2 focus:ring-[#82548C]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-gray-700">
+                        Suggested new time
+                      </p>
+
+                      <p className="mt-0.5 text-xs leading-5 text-gray-400">
+                        Optional. The Center
+                        makes the final
+                        scheduling decision.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-gray-500">
+                          Start
+                        </label>
+
+                        <input
+                          type="datetime-local"
+                          value={
+                            proposedStart
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            setProposedStart(
+                              event.target
+                                .value,
+                            )
+                          }
+                          className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-[#82548C] focus:ring-2 focus:ring-[#82548C]/10"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-gray-500">
+                          End
+                        </label>
+
+                        <input
+                          type="datetime-local"
+                          value={
+                            proposedEnd
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            setProposedEnd(
+                              event.target
+                                .value,
+                            )
+                          }
+                          className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-[#82548C] focus:ring-2 focus:ring-[#82548C]/10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {rescheduleError && (
+                    <p className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                      {
+                        rescheduleError
+                      }
+                    </p>
+                  )}
+                </div>
+
+                {/* MODAL ACTIONS */}
+                <div className="flex flex-col-reverse gap-2 border-t border-gray-100 px-6 py-5 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={
+                      closeRescheduleModal
+                    }
+                    disabled={
+                      Boolean(
+                        actionScheduleId,
+                      )
+                    }
+                    className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void submitReschedule()
+                    }
+                    disabled={
+                      Boolean(
+                        actionScheduleId,
+                      )
+                    }
+                    className="flex items-center justify-center gap-2 rounded-xl bg-[#82548C] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#704578] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {actionScheduleId ? (
+                      <LoaderCircle
+                        size={16}
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <ArrowRightLeft
+                        size={16}
+                      />
+                    )}
+
+                    Send Request
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </TherapistLayout>
+  );
 };
 
 export default TherapistSchedule;
