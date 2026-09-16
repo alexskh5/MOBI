@@ -128,6 +128,15 @@ export default function ActivitySessionScreen() {
 
   const steps = fullActivity?.steps || fullActivity?.activity_steps || [];
   const currentStep = steps[currentStepIndex];
+  const useSensoryFriendlyTheme =
+    sessionEffectiveSettings?.visualTheme === 'sensory_friendly' ||
+    sessionEffectiveSettings?.visualTheme === 'low_contrast' ||
+    sessionEffectiveSettings?.lowContrastEnabled === true ||
+    sessionEffectiveSettings?.softPastelEnabled === true ||
+    sessionEffectiveSettings?.matteUiEnabled === true;
+
+  const reduceMotionEnabled =
+    sessionEffectiveSettings?.reduceMotionEnabled === true;
 
   const [
   nextRecommendedActivity,
@@ -307,7 +316,7 @@ export default function ActivitySessionScreen() {
   }, [fullActivity?.id]);
 
   useEffect(() => {
-    if (speakerStatus === 'idle') {
+    if (speakerStatus === 'idle' || reduceMotionEnabled) {
       animationRef.current?.stop();
       pulse.setValue(0);
       return;
@@ -333,7 +342,7 @@ export default function ActivitySessionScreen() {
     return () => {
       animationRef.current?.stop();
     };
-  }, [speakerStatus]);
+  }, [pulse, reduceMotionEnabled, speakerStatus]);
 
   const scale = pulse.interpolate({
     inputRange: [0, 1],
@@ -1726,7 +1735,19 @@ const handleActionComplete = async () => {
 
   if (loading) {
     return (
-      <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
+      <ImageBackground
+        source={bgImage}
+        style={[
+          styles.background,
+          useSensoryFriendlyTheme && styles.sensoryBackground,
+        ]}
+        imageStyle={
+          useSensoryFriendlyTheme
+            ? styles.hiddenBackgroundImage
+            : undefined
+        }
+        resizeMode="cover"
+      >
         <SafeAreaView style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8759D6" />
           <Text style={styles.loadingText}>Loading activity...</Text>
@@ -1737,7 +1758,19 @@ const handleActionComplete = async () => {
 
   if (sessionStatus === 'completed') {
     return (
-      <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
+      <ImageBackground
+        source={bgImage}
+        style={[
+          styles.background,
+          useSensoryFriendlyTheme && styles.sensoryBackground,
+        ]}
+        imageStyle={
+          useSensoryFriendlyTheme
+            ? styles.hiddenBackgroundImage
+            : undefined
+        }
+        resizeMode="cover"
+      >
         <SafeAreaView style={styles.container}>
           <View style={styles.completedCard}>
             <Ionicons name="star" size={48} color="#8759D6" />
@@ -1762,7 +1795,19 @@ const handleActionComplete = async () => {
 
   if (sessionStatus === 'intro') {
     return (
-      <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
+      <ImageBackground
+        source={bgImage}
+        style={[
+          styles.background,
+          useSensoryFriendlyTheme && styles.sensoryBackground,
+        ]}
+        imageStyle={
+          useSensoryFriendlyTheme
+            ? styles.hiddenBackgroundImage
+            : undefined
+        }
+        resizeMode="cover"
+      >
         <SafeAreaView style={styles.container}>
           <View style={styles.topBar}>
             <Pressable style={styles.iconButton} onPress={handleExitSession}>
@@ -1817,7 +1862,19 @@ const handleActionComplete = async () => {
   }
 
   return (
-    <ImageBackground source={bgImage} style={styles.background} resizeMode="cover">
+    <ImageBackground
+      source={bgImage}
+      style={[
+        styles.background,
+        useSensoryFriendlyTheme && styles.sensoryBackground,
+      ]}
+      imageStyle={
+        useSensoryFriendlyTheme
+          ? styles.hiddenBackgroundImage
+          : undefined
+      }
+      resizeMode="cover"
+    >
       <SafeAreaView style={styles.container}>
         <View style={styles.topBar}>
           <View style={styles.sessionBadge}>
@@ -1847,7 +1904,11 @@ const handleActionComplete = async () => {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.activityPanel}
+          contentContainerStyle={[
+            styles.activityPanel,
+            useSensoryFriendlyTheme &&
+              styles.sensoryActivityPanel,
+          ]}
         >
           {renderCurrentStep()}
 
@@ -1906,6 +1967,12 @@ const handleActionComplete = async () => {
 
 const styles = StyleSheet.create({
   background: { flex: 1, width: '100%', height: '100%' },
+  sensoryBackground: {
+    backgroundColor: '#F4F1EC',
+  },
+  hiddenBackgroundImage: {
+    opacity: 0,
+  },
   container: { flex: 1 },
 
   loadingContainer: {
@@ -2097,6 +2164,12 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     alignItems: 'center',
     gap: 18,
+  },
+
+  sensoryActivityPanel: {
+    backgroundColor: '#F8F5EF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
 
   disabledButton: {

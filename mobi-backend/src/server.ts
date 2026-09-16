@@ -82,6 +82,7 @@ const apiRoutePrefixes = [
   "/activities",
   "/speech",
   "/api/learners",
+  "/api/center/staff",
   "/api/activity-sessions",
   "/api/progress",
   "/api/learning-sessions",
@@ -150,6 +151,11 @@ async function loadRoutes() {
     "./routes/super_admin/superAdmin.routes",
   );
   await loadAndMountRoute("learner", "/api/learners", "./routes/learnerRoutes");
+  await loadAndMountRoute(
+    "center staff",
+    "/api/center/staff",
+    "./routes/centerStaffRoutes",
+  );
   await loadAndMountRoute(
     "activity session",
     "/api/activity-sessions",

@@ -77,6 +77,82 @@ export async function archiveActivity(id: string) {
   return result;
 }
 
+export async function getSubmittedActivities() {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/reviews/submissions`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !Array.isArray(result?.activities)) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to fetch submitted activities",
+    );
+  }
+
+  return result.activities;
+}
+
+export async function approveSubmittedActivity(
+  id: string,
+  feedback = "",
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/${id}/review/publish`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ feedback }),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to approve activity",
+    );
+  }
+
+  return result;
+}
+
+export async function declineSubmittedActivity(
+  id: string,
+  reason: string,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/${id}/review/decline`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to decline activity",
+    );
+  }
+
+  return result;
+}
+
 export type ActivityAssetCategory =
   | "thumbnail"
   | "step-media"

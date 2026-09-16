@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "seed:pilot-activities": "tsx scripts/seedPilotActivities.ts",
+    "seed:pilot-learners": "tsx scripts/seedRealisticPilotLearners.ts",
     "proof:adaptive": "tsx scripts/proveAdaptiveRecommendation.ts",
     "test:adaptive": "TS_NODE_TRANSPILE_ONLY=1 node --test -r ts-node/register src/tests/adaptiveEngine.test.ts"
   },

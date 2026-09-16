@@ -1,5 +1,21 @@
 import { supabase } from "../../config/supabase";
 
+const MISSING_TABLE_CODES = new Set([
+  "42P01",
+  "PGRST205",
+]);
+
+function isMissingSafetyTable(error: unknown) {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+
+  return MISSING_TABLE_CODES.has(code);
+}
+
 export async function getLearnerChildSafetySettings(
   learnerId: string,
   centerId: string,
@@ -12,6 +28,10 @@ export async function getLearnerChildSafetySettings(
     .maybeSingle();
 
   if (error) {
+    if (isMissingSafetyTable(error)) {
+      return null;
+    }
+
     throw error;
   }
 
@@ -54,6 +74,12 @@ export async function updateLearnerChildSafetySettings(
     .single();
 
   if (error) {
+    if (isMissingSafetyTable(error)) {
+      throw new Error(
+        "Learner child-safety settings table is missing. Run the latest Supabase migration first.",
+      );
+    }
+
     throw error;
   }
 

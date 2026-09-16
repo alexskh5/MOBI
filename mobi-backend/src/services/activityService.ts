@@ -34,6 +34,11 @@ export async function createActivityWithSteps(payload: any) {
       
       activity_domain,
 
+      submitted_at:
+        activityData.status === "pending_review"
+          ? new Date().toISOString()
+          : activityData.submitted_at ?? null,
+
     })
     .select()
     .single();
@@ -109,6 +114,80 @@ export async function getActivities() {
     .from("activities")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getSubmittedActivities(centerId: string) {
+  const { data, error } = await supabase
+    .from("activities")
+    .select("*")
+    .eq("center_id", centerId)
+    .eq("status", "pending_review")
+    .is("archived_at", null)
+    .order("submitted_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function publishSubmittedActivity({
+  activityId,
+  centerId,
+  reviewedBy,
+  feedback,
+}: {
+  activityId: string;
+  centerId: string;
+  reviewedBy: string;
+  feedback?: string | null;
+}) {
+  const { data, error } = await supabase
+    .from("activities")
+    .update({
+      status: "published",
+      reviewed_by_center_admin_id: reviewedBy,
+      reviewed_at: new Date().toISOString(),
+      review_feedback: feedback || null,
+      decline_reason: null,
+    })
+    .eq("id", activityId)
+    .eq("center_id", centerId)
+    .eq("status", "pending_review")
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function declineSubmittedActivity({
+  activityId,
+  centerId,
+  reviewedBy,
+  reason,
+}: {
+  activityId: string;
+  centerId: string;
+  reviewedBy: string;
+  reason: string;
+}) {
+  const { data, error } = await supabase
+    .from("activities")
+    .update({
+      status: "declined",
+      reviewed_by_center_admin_id: reviewedBy,
+      reviewed_at: new Date().toISOString(),
+      review_feedback: reason,
+      decline_reason: reason,
+    })
+    .eq("id", activityId)
+    .eq("center_id", centerId)
+    .eq("status", "pending_review")
+    .select()
+    .single();
 
   if (error) throw error;
   return data;

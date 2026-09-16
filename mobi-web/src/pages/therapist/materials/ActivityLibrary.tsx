@@ -14,6 +14,10 @@ interface ActivityData {
   created_at: string;
   thumbnail_url: string | null;
   activity_type: string;
+  status?: string | null;
+  archived_at?: string | null;
+  decline_reason?: string | null;
+  review_feedback?: string | null;
 }
 
 const fallbackImage =
@@ -97,6 +101,11 @@ const ActivityLibrary = () => {
   const filteredActivities = activities.filter((activity) => {
     const search = searchTerm.toLowerCase();
     const uploadedBy = activity.uploaded_by || "Center Admin";
+    const status = activity.status || "published";
+
+    if (activity.archived_at) {
+      return false;
+    }
 
     const matchesSearch =
       activity.title.toLowerCase().includes(search) ||
@@ -111,10 +120,10 @@ const ActivityLibrary = () => {
     }
 
     if (filterBy === "Center") {
-      return uploadedBy === "Center Admin";
+      return uploadedBy === "Center Admin" && status === "published";
     }
 
-    return true;
+    return status === "published";
   });
 
   const sortedActivities = [...filteredActivities].sort((a, b) => {
@@ -413,6 +422,12 @@ const ActivityLibrary = () => {
                         <p className="text-xs font-semibold">
                           Uploaded by:{" "}
                           {activity.uploaded_by || "Center Admin"}
+                        </p>
+
+                        <p className="mt-2 inline-flex rounded-full bg-[#F5EEF6] px-3 py-1 text-xs font-semibold text-[#7A5D7F]">
+                          {(activity.status || "published")
+                            .replace("_", " ")
+                            .toUpperCase()}
                         </p>
 
                         <p className="text-xs text-gray-500 mt-2">

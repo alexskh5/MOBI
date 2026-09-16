@@ -1,7 +1,7 @@
 // MOBI/mobi-web/src/pages/center/dashboard/EditLearner.tsx
 
 import { useNavigate } from "react-router-dom";
-import { Pencil } from "lucide-react";
+import { Pencil, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import CenterLayout from "../../../layouts/CenterLayout";
 
@@ -144,6 +144,19 @@ const AddLearner = () => {
                     </button>
                 )}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    alert(
+                      "Doctor assignment will be connected after therapist assignment testing.",
+                    )
+                  }
+                  className="mt-5 inline-flex items-center gap-2 bg-[#F5EEF6] px-4 py-2 rounded-xl shadow hover:bg-[#EBD7EC] transition w-fit"
+                >
+                  <Stethoscope size={18} />
+                  Assign Doctor
+                </button>
               </div>
             </div>
 

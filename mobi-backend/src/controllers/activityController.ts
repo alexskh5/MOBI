@@ -6,6 +6,9 @@ import {
   createActivityWithSteps,
   getActivities,
   getActivityById,
+  getSubmittedActivities,
+  declineSubmittedActivity,
+  publishSubmittedActivity,
 } from "../services/activityService";
 import {
   AuthUser,
@@ -160,6 +163,123 @@ export async function listActivities(_req: Request, res: Response) {
   } catch (error: any) {
     res.status(500).json({
       message: "Failed to fetch activities",
+      error: error.message,
+    });
+  }
+}
+
+export async function listSubmittedActivityReviews(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityAuthor = await getActivityAuthor(req);
+
+    if (activityAuthor.role !== "center_admin") {
+      return res.status(403).json({
+        message:
+          "Only center admins can review therapist-submitted activities.",
+      });
+    }
+
+    const activities = await getSubmittedActivities(
+      activityAuthor.centerId!,
+    );
+
+    return res.status(200).json({
+      activities,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: "Failed to fetch submitted activities",
+      error: error.message,
+    });
+  }
+}
+
+export async function approveActivityReview(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityAuthor = await getActivityAuthor(req);
+
+    if (activityAuthor.role !== "center_admin") {
+      return res.status(403).json({
+        message:
+          "Only center admins can approve therapist-submitted activities.",
+      });
+    }
+
+    const id = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+
+    const activity = await publishSubmittedActivity({
+      activityId: id,
+      centerId: activityAuthor.centerId!,
+      reviewedBy: activityAuthor.actorId,
+      feedback:
+        typeof req.body?.feedback === "string"
+          ? req.body.feedback.trim()
+          : null,
+    });
+
+    return res.status(200).json({
+      message: "Activity approved and published.",
+      activity,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      message: "Failed to approve activity",
+      error: error.message,
+    });
+  }
+}
+
+export async function declineActivityReview(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityAuthor = await getActivityAuthor(req);
+
+    if (activityAuthor.role !== "center_admin") {
+      return res.status(403).json({
+        message:
+          "Only center admins can decline therapist-submitted activities.",
+      });
+    }
+
+    const reason =
+      typeof req.body?.reason === "string"
+        ? req.body.reason.trim()
+        : "";
+
+    if (!reason) {
+      return res.status(400).json({
+        message: "A decline reason is required.",
+      });
+    }
+
+    const id = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+
+    const activity = await declineSubmittedActivity({
+      activityId: id,
+      centerId: activityAuthor.centerId!,
+      reviewedBy: activityAuthor.actorId,
+      reason,
+    });
+
+    return res.status(200).json({
+      message: "Activity declined with feedback.",
+      activity,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      message: "Failed to decline activity",
       error: error.message,
     });
   }
