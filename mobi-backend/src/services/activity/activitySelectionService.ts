@@ -28,6 +28,10 @@ import {
   getLearnerPreferences,
 } from "./learnerPreferenceService";
 
+import {
+  getDailyScreenTimeStatus,
+} from "./screenTimeService";
+
 
 
 /* =========================================================
@@ -42,6 +46,7 @@ export type ActivitySelectionSource =
 export interface SelectNextActivityInput {
   centerId: string;
   learnerId: string;
+  excludeActivityIds?: string[];
 }
 
 export interface SelectedActivityResult {
@@ -90,7 +95,12 @@ export async function selectNextActivity(
   const {
     centerId,
     learnerId,
+    excludeActivityIds = [],
   } = input;
+
+  const excludedActivityIds = new Set(
+    excludeActivityIds.filter(Boolean),
+  );
 
   /* =======================================================
      1. VERIFY LEARNER
@@ -139,6 +149,16 @@ export async function selectNextActivity(
     );
   }
 
+  const screenTimeStatus =
+    await getDailyScreenTimeStatus({
+      centerId,
+      learnerId,
+    });
+
+  if (screenTimeStatus.limitReached) {
+    return null;
+  }
+
   /* =======================================================
      2. CHECK ASSIGNED ACTIVITIES FIRST
   ======================================================= */
@@ -168,7 +188,11 @@ export async function selectNextActivity(
     );
 
   const highestPriorityAssignment =
-    assignments.find((assignment) => assignment.activity?.id) ?? null;
+    assignments.find(
+      (assignment: any) =>
+        assignment.activity?.id &&
+        !excludedActivityIds.has(String(assignment.activity.id)),
+    ) ?? null;
 
   if (highestPriorityAssignment) {
     const activity = highestPriorityAssignment.activity!;
@@ -586,10 +610,7 @@ const learnerPreferences =
      already passed these rules.
   ======================================================= */
 
-  const {
-    data: eligibleActivities,
-    error: activitiesError,
-  } = await supabase
+  let eligibleActivitiesQuery = supabase
     .from("activities")
     .select(`
         id,
@@ -632,6 +653,10 @@ const learnerPreferences =
       "status",
       "published",
     )
+    .is(
+      "archived_at",
+      null,
+    )
     .eq(
       "access_scope",
       "center_library",
@@ -640,6 +665,19 @@ const learnerPreferences =
       "speech_ladder_level",
       learnerSpeechLevel.toLowerCase(),
     );
+
+  if (excludedActivityIds.size > 0) {
+    eligibleActivitiesQuery = eligibleActivitiesQuery.not(
+      "id",
+      "in",
+      `(${Array.from(excludedActivityIds).join(",")})`,
+    );
+  }
+
+  const {
+    data: eligibleActivities,
+    error: activitiesError,
+  } = await eligibleActivitiesQuery;
 
   if (activitiesError) {
     console.error(
@@ -689,8 +727,14 @@ const adaptationEligibleActivities =
             .minimumNormalizedScore!,
       );
 
+  // Adaptation is a ranking signal, not an availability gate. A newly
+  // enrolled learner can have sparse profile evidence, and older activities
+  // may not yet contain every adaptation field. In that case retain the safe
+  // same-center, published, same-ladder pool and let its scores rank choices.
   const finalEligibleActivities =
-    adaptationEligibleActivities;
+    adaptationEligibleActivities.length > 0
+      ? adaptationEligibleActivities
+      : scoredActivities;
 
   if (finalEligibleActivities.length === 0) {
     return null;

@@ -34,16 +34,15 @@ import * as Speech from "expo-speech";
 import { 
   transcribeAndEvaluateAudio, 
   generateTTSAudio, 
+  getActivities,
   startActivitySession,  
   respondToActivitySession,
   skipActivitySessionStep,
   finishActivitySession,
   getNextRecommendedActivity,
+  getActiveLearner,
 } from '../../services/api';
 
-
-const TEST_LEARNER_ID =
-  "6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc";
 
 const INTERACTIVE_STEP_TYPES =
   new Set([
@@ -52,6 +51,33 @@ const INTERACTIVE_STEP_TYPES =
     "show_choose",
     "do_it",
   ]);
+
+// Use the same backend voice engine as web preview whenever an activity does
+// not yet have pre-generated audio. The microphone remains locked until the
+// prompt finishes, so delayed speech cannot be recorded as the learner answer.
+const USE_NETWORK_TTS_FOR_SESSION = true;
+
+const PILOT_FEEDBACK_CORRECT = [
+  "Nice talking.",
+  "I heard you.",
+  "That worked.",
+  "Good try using your voice.",
+];
+
+const PILOT_FEEDBACK_TRY_AGAIN = [
+  "Let's try one more time.",
+  "Try it with me.",
+  "You're close. One more try.",
+  "I heard you try.",
+];
+
+const pickFeedbackLine = (
+  options: string[],
+  attemptNumber: number,
+) => options[
+  Math.max(0, attemptNumber - 1) %
+  options.length
+];
 
 const bgImage = require('../../../assets/images/background.jpg');
 const fallbackImage = require('../../../assets/images/cow.jpg');
@@ -64,13 +90,22 @@ export default function ActivitySessionScreen() {
   const navigation = useNavigation<NavigationProp<'ActivitySession'>>();
   const route = useRoute<RoutePropType<'ActivitySession'>>();
   const { activity } = route.params as any;
+  const activeLearner = getActiveLearner();
+  const activeLearnerId = activeLearner?.id ?? "";
 
   // for audio
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const [isRecordingBusy, setIsRecordingBusy] = useState(false);
+  const micPressBusyRef = useRef(false);
+  const therapistAcceptBusyRef = useRef(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const [activeFeedbackText, setActiveFeedbackText] = useState("");
+  const [isPromptLoading, setIsPromptLoading] = useState(false);
+  const [
+    activityReadyToFinish,
+    setActivityReadyToFinish,
+  ] = useState(false);
 
   const { width, height } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -126,8 +161,92 @@ export default function ActivitySessionScreen() {
     height: isTablet ? 250 : isSmallPhone ? 145 : 185,
   };
 
-  const steps = fullActivity?.steps || fullActivity?.activity_steps || [];
-  const currentStep = steps[currentStepIndex];
+  const isRegulatoryActivity =
+    String(
+      fullActivity?.activity_type ??
+      fullActivity?.category ??
+      "",
+    )
+      .toLowerCase()
+      .includes("regulat");
+
+  const buildActivitySteps = (activityData: any) => {
+    const activityRawSteps =
+      activityData?.steps ||
+      activityData?.activity_steps ||
+      [];
+
+    const activityIsRegulatory =
+      String(
+        activityData?.activity_type ??
+        activityData?.category ??
+        "",
+      )
+        .toLowerCase()
+        .includes("regulat");
+
+    if (
+      Array.isArray(activityRawSteps) &&
+      activityRawSteps.length > 0
+    ) {
+      return activityRawSteps;
+    }
+
+    if (!activityIsRegulatory) {
+      return [];
+    }
+
+    return [
+      {
+        id: "regulatory-preview",
+        step_order: 1,
+        step_type: "teach",
+        prompt:
+          activityData?.description ||
+          activityData?.teach_prompt ||
+          activityData?.title ||
+          "Regulation activity",
+        lesson:
+          activityData?.description ||
+          "Follow the regulation activity with your therapist.",
+        media:
+          activityData?.thumbnail_url ||
+          activityData?.activity_image_url
+            ? [
+                {
+                  id: 1,
+                  type: String(
+                    activityData?.thumbnail_url ||
+                    activityData?.activity_image_url,
+                  )
+                    .toLowerCase()
+                    .match(/\.(mp4|mov|webm)(\?|$)/)
+                    ? "video"
+                    : "image",
+                  url:
+                    activityData?.thumbnail_url ||
+                    activityData?.activity_image_url,
+                  name:
+                    activityData?.title ||
+                    "Regulation media",
+                },
+              ]
+            : [],
+      },
+    ];
+  };
+
+  const steps =
+    buildActivitySteps(fullActivity);
+
+  const renderedCurrentStep = steps[currentStepIndex];
+  // During an adaptive activity switch, React may render the new activity a
+  // moment after the backend session has already started. Runtime handlers
+  // must use the synchronously activated step, not the previous render's step.
+  const currentStep = currentStepRef.current ?? renderedCurrentStep;
+  const currentStepManualScoringEnabled =
+    currentStep?.manual_scoring_enabled === true ||
+    currentStep?.metadata?.manual_scoring_enabled === true;
   const useSensoryFriendlyTheme =
     sessionEffectiveSettings?.visualTheme === 'sensory_friendly' ||
     sessionEffectiveSettings?.visualTheme === 'low_contrast' ||
@@ -142,11 +261,39 @@ export default function ActivitySessionScreen() {
   nextRecommendedActivity,
   setNextRecommendedActivity,
   ] = useState<any>(null);
+  const [
+    recommendationOptions,
+    setRecommendationOptions,
+  ] = useState<any[]>([]);
+  const [
+    recommendationOptionIndex,
+    setRecommendationOptionIndex,
+  ] = useState(0);
+  const [
+    recommendationLoading,
+    setRecommendationLoading,
+  ] = useState(false);
+  const [
+    recommendationMessage,
+    setRecommendationMessage,
+  ] = useState("");
+  const [
+    startingNextActivity,
+    setStartingNextActivity,
+  ] = useState(false);
+  const [
+    lastCompletedActivityTitle,
+    setLastCompletedActivityTitle,
+  ] = useState("");
+  const completedActivityIdsRef =
+    useRef<Set<string>>(new Set());
 
   const [
     finishingSession,
     setFinishingSession,
   ] = useState(false);
+  const [, setCanTherapistAcceptResponse] =
+    useState(false);
 
   const getNextAttemptNumbers = () => {
     const nextAttemptOrder =
@@ -186,6 +333,7 @@ export default function ActivitySessionScreen() {
   const resetStepAttemptNumbers = () => {
     attemptsRef.current = 0;
     setAttempts(0);
+    setCanTherapistAcceptResponse(false);
   };
 
   const getPromptText = (step?: any, customText?: string) =>
@@ -195,14 +343,78 @@ export default function ActivitySessionScreen() {
     step?.question ||
     "";
 
+  const getFeedbackLines = (value: unknown): string[] => {
+    if (Array.isArray(value)) {
+      return value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      return [value.trim()];
+    }
+
+    return [];
+  };
+
   const getVoiceStyle = (step?: any, customText?: string) =>
     typeof step?.ai_voice_style === "string"
       ? step.ai_voice_style
-      : customText === step?.correct_feedback?.[0]
+      : customText && getFeedbackLines(step?.correct_feedback).includes(customText)
       ? step?.ai_voice_style?.correct || "Celebratory"
-      : customText === step?.wrong_feedback?.[0]
+      : customText &&
+        (
+          getFeedbackLines(step?.wrong_feedback).includes(customText) ||
+          getFeedbackLines(step?.max_attempts_feedback).includes(customText)
+        )
       ? step?.ai_voice_style?.wrong || "Encouraging"
       : "Teaching";
+
+  const getDeviceVoiceSettings = (step?: any, customText?: string) => {
+    const style =
+      String(getVoiceStyle(step, customText))
+        .toLowerCase();
+
+    const isFeedback =
+      Boolean(customText);
+
+    if (
+      style.includes("celebr") ||
+      style.includes("happy")
+    ) {
+      return {
+        rate: 0.86,
+        pitch: 1.12,
+      };
+    }
+
+    if (
+      style.includes("story") ||
+      style.includes("narr")
+    ) {
+      return {
+        rate: 0.78,
+        pitch: 1.04,
+      };
+    }
+
+    if (
+      isFeedback ||
+      style.includes("encourag") ||
+      style.includes("gentle")
+    ) {
+      return {
+        rate: 0.8,
+        pitch: 1.06,
+      };
+    }
+
+    return {
+      rate: 0.82,
+      pitch: 1.02,
+    };
+  };
 
   const isInteractiveStep = (step?: any) =>
     INTERACTIVE_STEP_TYPES.has(
@@ -226,10 +438,29 @@ export default function ActivitySessionScreen() {
     setAutoAdvanceLabel("");
   };
 
+  const stopAppAudio = async () => {
+    Speech.stop();
+
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+      } catch {}
+
+      try {
+        await soundRef.current.unloadAsync();
+      } catch {}
+
+      soundRef.current = null;
+    }
+
+    setIsPromptLoading(false);
+    setSpeakerStatus("idle");
+  };
+
   useEffect(() => {
-    currentStepRef.current = currentStep;
+    currentStepRef.current = renderedCurrentStep;
     currentStepIndexRef.current = currentStepIndex;
-  }, [currentStep, currentStepIndex]);
+  }, [renderedCurrentStep, currentStepIndex]);
 
   useEffect(() => {
     return () => {
@@ -263,6 +494,10 @@ export default function ActivitySessionScreen() {
       [];
 
     if (!Array.isArray(activitySteps) || activitySteps.length === 0) {
+      return;
+    }
+
+    if (!USE_NETWORK_TTS_FOR_SESSION) {
       return;
     }
 
@@ -349,7 +584,8 @@ export default function ActivitySessionScreen() {
     outputRange: [0.55, 1.45],
   });
 
-  const handleExitSession = () => {
+  const handleExitSession = async () => {
+    await stopAppAudio();
     setShowExitModal(true);
   };
 
@@ -409,18 +645,87 @@ export default function ActivitySessionScreen() {
     }
   };
 
-  const handleStartSession = async () => {
+  const resetActivityRunState = () => {
+    clearAutoAdvanceTimer();
+    totalAttemptOrderRef.current = 0;
+    attemptsRef.current = 0;
+    sessionStartedAtRef.current = null;
+    currentStepIndexRef.current = 0;
+    currentStepRef.current = null;
+
+    setActivitySessionId(null);
+    setSessionEffectiveSettings(null);
+    setTotalAttemptOrder(0);
+    setAttempts(0);
+    setCurrentStepIndex(0);
+    setSelectedChoiceId(null);
+    setLastLearnerResponse("");
+    setLastResultCorrect(null);
+    setActiveFeedbackText("");
+    setActivityReadyToFinish(false);
+    setAutoAdvanceLabel("");
+    setCanTherapistAcceptResponse(false);
+    setIsSessionPaused(false);
+    isSessionPausedRef.current = false;
+  };
+
+  const getSessionSourceFromSelection = (selection?: any) => {
+    if (selection?.source === "assigned_required") {
+      return "assigned_required";
+    }
+
+    if (selection?.source === "assigned_recommended") {
+      return "assigned_recommended";
+    }
+
+    if (selection?.source === "adaptive_fallback") {
+      return "adaptive";
+    }
+
+    return "manual";
+  };
+
+  const startActivityRun = async ({
+    activityToStart,
+    selection = null,
+  }: {
+    activityToStart: any;
+    selection?: any;
+  }) => {
+    if (!activeLearnerId) {
+      navigation.navigate("LearnerSelect");
+      return;
+    }
+
     try {
+      await cleanupRecording().catch((error) => {
+        console.log("Activity switch cleanup failed:", error);
+      });
+
+      resetActivityRunState();
+
+      const activitySteps =
+        buildActivitySteps(activityToStart);
+
       const session =
         await startActivitySession({
           learnerId:
-            TEST_LEARNER_ID,
+            activeLearnerId,
 
           activityId:
-            String(fullActivity.id),
+            String(activityToStart.id),
+
+          assignmentId:
+            selection?.assignmentId ?? null,
 
           sessionSource:
-            "manual",
+            getSessionSourceFromSelection(selection),
+
+          selectionAlgorithm:
+            selection?.selectionAlgorithm ?? null,
+
+          selectionReason:
+            selection?.selectionReason ?? {},
         });
 
       console.log(
@@ -428,6 +733,13 @@ export default function ActivitySessionScreen() {
         session,
       );
 
+      // Activate the new activity context synchronously before TTS playback or
+      // learner input can run. This prevents the previous activity's prompt
+      // and expected answers from leaking into an adaptive follow-up.
+      currentStepIndexRef.current = 0;
+      currentStepRef.current = activitySteps[0] ?? null;
+      setCurrentStepIndex(0);
+      setFullActivity(activityToStart);
       setActivitySessionId(
           session.session.id,
       );
@@ -440,9 +752,9 @@ export default function ActivitySessionScreen() {
       sessionStartedAtRef.current =
         Date.now();
 
-      await playAppPrompt(steps[0]);
+      await playAppPrompt(activitySteps[0]);
 
-      if (!isInteractiveStep(steps[0])) {
+      if (!isInteractiveStep(activitySteps[0])) {
         scheduleAutoAdvance();
       }
     } catch (error) {
@@ -451,6 +763,12 @@ export default function ActivitySessionScreen() {
         error,
       );
     }
+  };
+
+  const handleStartSession = async () => {
+    await startActivityRun({
+      activityToStart: fullActivity,
+    });
   };
 
   const playAppPrompt = async (stepToRead?: any, customText?: string) => {
@@ -466,6 +784,87 @@ export default function ActivitySessionScreen() {
       }
 
       clearAutoAdvanceTimer();
+
+      const correctFeedbackLines = getFeedbackLines(
+        step?.correct_feedback,
+      );
+      const wrongFeedbackLines = getFeedbackLines(
+        step?.wrong_feedback,
+      );
+      const maxAttemptsFeedbackLines = getFeedbackLines(
+        step?.max_attempts_feedback,
+      );
+
+      const savedAudioUrl =
+        customText &&
+        maxAttemptsFeedbackLines.includes(customText)
+          ? step?.feedback_audio_urls?.max_attempts
+          : customText &&
+            correctFeedbackLines.includes(customText)
+          ? step?.feedback_audio_urls?.correct
+          : customText &&
+            wrongFeedbackLines.includes(customText)
+          ? step?.feedback_audio_urls?.wrong
+          : !customText
+          ? step?.prompt_audio_url
+          : null;
+
+      if (savedAudioUrl) {
+        setIsPromptLoading(false);
+        setSpeakerStatus("appSpeaking");
+
+        if (soundRef.current) {
+          await stopAppAudio();
+        }
+
+        const { sound } = await Audio.Sound.createAsync({
+          uri: savedAudioUrl,
+        });
+
+        soundRef.current = sound;
+
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+
+          const finishPlayback = () => {
+            if (resolved) {
+              return;
+            }
+
+            resolved = true;
+            setSpeakerStatus("idle");
+            sound.unloadAsync().catch(() => {});
+
+            if (soundRef.current === sound) {
+              soundRef.current = null;
+            }
+
+            resolve();
+          };
+
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (!status.isLoaded) return;
+
+            if (status.didJustFinish) {
+              finishPlayback();
+            }
+          });
+
+          sound.playAsync().catch((error) => {
+            console.log("Saved prompt audio error:", error);
+            finishPlayback();
+          });
+        });
+
+        return;
+      }
+
+      if (!USE_NETWORK_TTS_FOR_SESSION) {
+        await speakWithDeviceFallback(text, step, customText);
+        return;
+      }
+
+      setIsPromptLoading(true);
       setSpeakerStatus("appSpeaking");
 
       const audioUri = await generateTTSAudio({
@@ -476,8 +875,7 @@ export default function ActivitySessionScreen() {
       });
 
       if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
+        await stopAppAudio();
       }
 
       const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
@@ -493,6 +891,7 @@ export default function ActivitySessionScreen() {
           }
 
           resolved = true;
+          setIsPromptLoading(false);
           setSpeakerStatus("idle");
           sound.unloadAsync().catch(() => {});
 
@@ -518,18 +917,24 @@ export default function ActivitySessionScreen() {
       });
     } catch (error) {
       console.log("TTS playback error:", error);
+      setIsPromptLoading(false);
 
-      await speakWithDeviceFallback(text);
+      await speakWithDeviceFallback(text, step, customText);
     }
   };
 
-  const speakWithDeviceFallback = async (text: string) => {
+  const speakWithDeviceFallback = async (
+    text: string,
+    stepToRead?: any,
+    customText?: string,
+  ) => {
     if (!text.trim() || isSessionPausedRef.current) {
       setSpeakerStatus("idle");
       return;
     }
 
     setSpeakerStatus("appSpeaking");
+    setIsPromptLoading(false);
 
     await new Promise<void>((resolve) => {
       let finished = false;
@@ -539,6 +944,7 @@ export default function ActivitySessionScreen() {
         if (!finished) {
           finished = true;
           Speech.stop();
+          setIsPromptLoading(false);
           setSpeakerStatus("idle");
           resolve();
         }
@@ -551,14 +957,21 @@ export default function ActivitySessionScreen() {
 
         finished = true;
         clearTimeout(timeoutId);
+        setIsPromptLoading(false);
         setSpeakerStatus("idle");
         resolve();
       };
 
+      const voiceSettings =
+        getDeviceVoiceSettings(
+          stepToRead,
+          customText,
+        );
+
       Speech.speak(text, {
         language: "en-US",
-        rate: 0.82,
-        pitch: 1.0,
+        rate: voiceSettings.rate,
+        pitch: voiceSettings.pitch,
         onDone: finish,
         onStopped: finish,
         onError: finish,
@@ -629,6 +1042,222 @@ export default function ActivitySessionScreen() {
     replayCurrentStepForRetry();
   };
 
+  const getTherapistAcceptedTranscript = () => {
+    const expected =
+      Array.isArray(currentStep?.expected_answers)
+        ? currentStep.expected_answers.find(
+            (value: unknown) =>
+              typeof value === "string" &&
+              value.trim().length > 0,
+          )
+        : null;
+
+    const variation =
+      Array.isArray(currentStep?.accepted_variations)
+        ? currentStep.accepted_variations.find(
+            (value: unknown) =>
+              typeof value === "string" &&
+              value.trim().length > 0,
+          )
+        : null;
+
+    return (
+      expected ||
+      variation ||
+      "Therapist accepted response"
+    );
+  };
+
+  const getManualResponsePayload = () => {
+    if (currentStep?.step_type === "show_choose") {
+      const correctChoice = Array.isArray(currentStep?.choices)
+        ? currentStep.choices.find((choice: any) => choice?.is_correct === true)
+        : null;
+
+      return {
+        responseType: "choice" as const,
+        transcript:
+          correctChoice?.label ||
+          getTherapistAcceptedTranscript(),
+        selectedChoiceId:
+          correctChoice?.id ?? null,
+        actionCompleted: null,
+      };
+    }
+
+    if (currentStep?.step_type === "do_it") {
+      return {
+        responseType: "action" as const,
+        transcript: "Therapist accepted completed action",
+        selectedChoiceId: null,
+        actionCompleted: true,
+      };
+    }
+
+    return {
+      responseType:
+        currentStep?.step_type === "conversation"
+          ? ("conversation" as const)
+          : ("speech" as const),
+      transcript:
+        getTherapistAcceptedTranscript(),
+      selectedChoiceId: null,
+      actionCompleted: null,
+    };
+  };
+
+  const scoreResponseByAdult = async (isCorrect: boolean) => {
+    if (therapistAcceptBusyRef.current) {
+      return;
+    }
+
+    if (
+      isSessionPausedRef.current ||
+      !activitySessionId ||
+      !currentStep?.id
+    ) {
+      return;
+    }
+
+    therapistAcceptBusyRef.current = true;
+
+    const {
+      nextAttemptOrder,
+      nextStepAttemptNumber,
+    } = getNextAttemptNumbers();
+
+    const manualResponse =
+      getManualResponsePayload();
+
+    try {
+      const adaptiveResult =
+        await respondToActivitySession({
+          sessionId:
+            activitySessionId,
+
+          learnerId:
+            activeLearnerId,
+
+          attemptOrder:
+            nextAttemptOrder,
+
+          stepAttemptNumber:
+            nextStepAttemptNumber,
+
+          activityStepId:
+            String(currentStep.id),
+
+          responseType:
+            manualResponse.responseType,
+
+          transcript:
+            manualResponse.transcript,
+
+          selectedChoiceId:
+            manualResponse.selectedChoiceId,
+
+          actionCompleted:
+            manualResponse.actionCompleted,
+
+          adultScoringOverride:
+            isCorrect ? "correct" : "incorrect",
+
+          expectedAnswers:
+            currentStep.expected_answers ??
+            [],
+
+          acceptedVariations:
+            currentStep.accepted_variations ??
+            [],
+
+          responseTimeMs:
+            null,
+
+          gazeDetectionAvailable:
+            false,
+
+          gazePresent:
+            null,
+
+          gazeAwaySeconds:
+            0,
+
+          inactivitySeconds:
+            0,
+
+          reachedMaximumAttempts:
+            isCorrect || nextStepAttemptNumber >= getMaxAttempts(),
+
+          activityCompleted:
+            false,
+
+          therapistRequestedStop:
+            false,
+
+          parentRequestedStop:
+            false,
+
+          adaptiveSettings: {
+            inactivityBreakSeconds:
+              30,
+
+            inactivityAutoStopSeconds:
+              120,
+
+            oneMoreTryEnabled:
+              false,
+
+            allowBreakSuggestion:
+              true,
+          },
+        });
+
+      commitAttemptNumbers({
+        nextAttemptOrder,
+        nextStepAttemptNumber,
+      });
+
+      setLastLearnerResponse(
+        isCorrect
+          ? "Adult marked this response correct"
+          : "Adult marked this response incorrect",
+      );
+      setLastResultCorrect(isCorrect);
+      setCanTherapistAcceptResponse(false);
+
+      const reachedMaximumAttempts =
+        !isCorrect && nextStepAttemptNumber >= getMaxAttempts();
+
+      await showFeedbackForResult(
+        isCorrect,
+        reachedMaximumAttempts,
+      );
+
+      continueAfterResponse({
+        targetAchieved:
+          isCorrect,
+        reachedMaximumAttempts:
+          isCorrect || reachedMaximumAttempts,
+      });
+    } catch (error) {
+      console.log(
+        "Adult scoring override failed:",
+        error,
+      );
+      setActiveFeedbackText(
+        "Unable to save yet. Please check the backend connection, then try again.",
+      );
+    } finally {
+      therapistAcceptBusyRef.current = false;
+    }
+  };
+
+  const acceptResponseByTherapist = () =>
+    scoreResponseByAdult(true);
+
+  const rejectResponseByTherapist = () =>
+    scoreResponseByAdult(false);
+
     
     const getNextFeedbackStep = () => {
       const nextStep = steps[currentStepIndex + 1];
@@ -652,15 +1281,33 @@ export default function ActivitySessionScreen() {
 
     //   setActiveFeedbackText(feedbackText);
     // };
-      const showFeedbackForResult = async (isCorrect: boolean | null) => {
+      const showFeedbackForResult = async (
+        isCorrect: boolean | null,
+        reachedMaximumAttempts = false,
+      ) => {
         const feedbackStep = getNextFeedbackStep();
 
         if (!feedbackStep) return;
 
+        const authoredFeedback =
+          reachedMaximumAttempts && isCorrect !== true
+            ? getFeedbackLines(feedbackStep.max_attempts_feedback)
+            : isCorrect === true
+            ? getFeedbackLines(feedbackStep.correct_feedback)
+            : getFeedbackLines(feedbackStep.wrong_feedback);
+
         const feedbackText =
-          isCorrect === true
-            ? feedbackStep.correct_feedback?.[0] || "Great job!"
-            : feedbackStep.wrong_feedback?.[0] || "Good try.";
+          authoredFeedback.length > 0
+            ? pickFeedbackLine(
+                authoredFeedback,
+                totalAttemptOrderRef.current + 1,
+              )
+            : pickFeedbackLine(
+                isCorrect === true
+                  ? PILOT_FEEDBACK_CORRECT
+                  : PILOT_FEEDBACK_TRY_AGAIN,
+                totalAttemptOrderRef.current + 1,
+              );
 
         setActiveFeedbackText(feedbackText);
 
@@ -673,8 +1320,24 @@ export default function ActivitySessionScreen() {
 
         console.log("MIC BUTTON PRESSED");
       if (isSessionPausedRef.current) return;
-      if (isRecordingBusy) return;
+      if (isRecordingBusy || micPressBusyRef.current) return;
+      if (activityReadyToFinish) {
+        await completeCurrentActivity({
+          status: "completed",
+        });
+        return;
+      }
+      if (
+        speakerStatus === "appSpeaking" ||
+        isPromptLoading
+      ) {
+        setActiveFeedbackText(
+          "Wait until MOBI is done speaking, then tap the microphone.",
+        );
+        return;
+      }
 
+      micPressBusyRef.current = true;
       setIsRecordingBusy(true);
 
       try {
@@ -716,115 +1379,18 @@ export default function ActivitySessionScreen() {
           } catch (sttError) {
             console.log("STT fallback used:", sttError);
 
-            if (!activitySessionId) {
-              return;
-            }
-
-            const {
-              nextAttemptOrder,
-              nextStepAttemptNumber,
-            } = getNextAttemptNumbers();
-
-            await respondToActivitySession({
-              sessionId:
-                activitySessionId,
-
-              learnerId:
-                TEST_LEARNER_ID,
-
-              attemptOrder:
-                nextAttemptOrder,
-
-              stepAttemptNumber:
-                nextStepAttemptNumber,
-
-              activityStepId:
-                String(currentStep.id),
-
-              responseType:
-                currentStep.step_type === "conversation"
-                  ? "conversation"
-                  : "speech",
-
-              transcript:
-                "",
-
-              expectedAnswers:
-                currentStep.expected_answers ??
-                [],
-
-              acceptedVariations:
-                currentStep.accepted_variations ??
-                [],
-
-              responseTimeMs:
-                null,
-
-              gazeDetectionAvailable:
-                false,
-
-              gazePresent:
-                null,
-
-              gazeAwaySeconds:
-                0,
-
-              inactivitySeconds:
-                0,
-
-              reachedMaximumAttempts:
-                true,
-
-              activityCompleted:
-                false,
-
-              therapistRequestedStop:
-                false,
-
-              parentRequestedStop:
-                false,
-
-              adaptiveSettings: {
-                inactivityBreakSeconds:
-                  30,
-
-                inactivityAutoStopSeconds:
-                  120,
-
-                oneMoreTryEnabled:
-                  false,
-
-                allowBreakSuggestion:
-                  true,
-              },
-            }).catch((saveError) => {
-              console.log(
-                "Unable to save STT fallback attempt:",
-                saveError,
-              );
-            });
-
-            commitAttemptNumbers({
-              nextStepAttemptNumber,
-              nextAttemptOrder,
-            });
-
             setLastLearnerResponse(
-              "Speech was not clear enough to transcribe.",
+              "Speech was not transcribed.",
             );
             setLastResultCorrect(null);
+            setCanTherapistAcceptResponse(true);
             setActiveFeedbackText(
-              "I heard you try. Let's keep going.",
+              "I heard you try. Please try again, or the therapist can accept the response.",
             );
 
             await speakWithDeviceFallback(
-              "I heard you try. Let's keep going.",
+              "I heard you try. Let's try again.",
             );
-
-            continueAfterResponse({
-              targetAchieved: false,
-              reachedMaximumAttempts: true,
-            });
 
             return;
           }
@@ -883,7 +1449,7 @@ export default function ActivitySessionScreen() {
           activitySessionId,
 
         learnerId:
-          TEST_LEARNER_ID,
+          activeLearnerId,
 
         attemptOrder:
           nextAttemptOrder,
@@ -963,6 +1529,19 @@ export default function ActivitySessionScreen() {
       adaptiveResult,
     );
 
+    const nextState =
+      adaptiveResult.adaptiveDecision
+        ?.nextState;
+
+    const shouldFinishActivity =
+      nextState === "next_activity_ready" ||
+      adaptiveResult.adaptiveDecision
+        ?.action === "recommend_next_activity";
+
+    if (shouldFinishActivity) {
+      setActivityReadyToFinish(true);
+    }
+
     commitAttemptNumbers({
       nextStepAttemptNumber,
       nextAttemptOrder,
@@ -987,6 +1566,9 @@ export default function ActivitySessionScreen() {
     setLastResultCorrect(
       targetAchieved,
     );
+    setCanTherapistAcceptResponse(
+      targetAchieved !== true,
+    );
 
     /*
       For this first integration, continue using the activity's
@@ -997,7 +1579,15 @@ export default function ActivitySessionScreen() {
     */
     await showFeedbackForResult(
       targetAchieved,
+      reachedMaximumAttempts,
     );
+
+    if (shouldFinishActivity) {
+      await completeCurrentActivity({
+        status: "completed",
+      });
+      return;
+    }
 
     continueAfterResponse({
       targetAchieved,
@@ -1007,6 +1597,8 @@ export default function ActivitySessionScreen() {
     return;
     }
     console.log("STARTING NEW RECORDING");
+    await stopAppAudio();
+
     const permission = await Audio.requestPermissionsAsync();
     console.log(
       "MIC PERMISSION:",
@@ -1044,6 +1636,7 @@ export default function ActivitySessionScreen() {
     setRecording(null);
     setSpeakerStatus("idle");
   } finally {
+    micPressBusyRef.current = false;
     setIsRecordingBusy(false);
   }
 };
@@ -1059,11 +1652,7 @@ const cleanupRecording = async () => {
 
   recordingRef.current = null;
   setRecording(null);
-  if (soundRef.current) {
-    await soundRef.current.unloadAsync();
-    soundRef.current = null;
-  }
-  setSpeakerStatus("idle");
+  await stopAppAudio();
 };
 
 const skipCurrentStepIfNeeded = async ({
@@ -1093,7 +1682,7 @@ const skipCurrentStepIfNeeded = async ({
         activitySessionId,
 
       learnerId:
-        TEST_LEARNER_ID,
+        activeLearnerId,
 
       activityStepId:
         String(currentStep.id),
@@ -1130,6 +1719,228 @@ const skipCurrentStepIfNeeded = async ({
     );
 
     return false;
+  }
+};
+
+const loadNextRecommendation = async () => {
+  if (!activeLearnerId) {
+    setNextRecommendedActivity(null);
+    setRecommendationOptions([]);
+    setRecommendationOptionIndex(0);
+    setRecommendationMessage(
+      "No learner profile is selected.",
+    );
+    return;
+  }
+
+  try {
+    setRecommendationLoading(true);
+    setRecommendationMessage(
+      "Finding the best next activity...",
+    );
+
+    const recommendation =
+      await getNextRecommendedActivity(
+        activeLearnerId,
+        String(fullActivity.id),
+      );
+
+    console.log(
+      "Next adaptive recommendation:",
+      recommendation,
+    );
+
+    const nextActivity =
+      recommendation.nextActivity ?? null;
+
+    const completedIds =
+      completedActivityIdsRef.current;
+
+    const fallbackActivities =
+      await getActivities()
+        .then((items: any[]) =>
+          items
+            .filter((item: any) =>
+              item.status === "published" &&
+              !item.archived_at &&
+              item.id !== fullActivity.id &&
+              !completedIds.has(String(item.id)) &&
+              (
+                !fullActivity?.speech_ladder_level ||
+                String(item.speech_ladder_level ?? "")
+                  .toLowerCase() ===
+                  String(fullActivity.speech_ladder_level)
+                    .toLowerCase()
+              ) &&
+              String(item.activity_type ?? "")
+                .toLowerCase()
+                .includes("regulat") === false
+            )
+            .slice(0, 8)
+            .map((item: any) => ({
+              activityId: item.id,
+              assignmentId: null,
+              source: "adaptive_fallback",
+              selectionAlgorithm: "mobile_backup_queue",
+              selectionReason: {
+                reason:
+                  "Backup option shown so the adult can skip the first recommendation without returning to the dashboard.",
+              },
+              activity: item,
+            })),
+        )
+        .catch((error) => {
+          console.log(
+            "Failed to load backup recommendations:",
+            error,
+          );
+          return [];
+        });
+
+    const combinedOptions = [
+      nextActivity,
+      ...fallbackActivities,
+    ]
+      .filter(Boolean)
+      .filter((option: any, index, list) => {
+        const id = String(
+          option.activityId ??
+          option.activity?.id ??
+          "",
+        );
+
+        return (
+          id &&
+          id !== String(fullActivity.id) &&
+          !completedIds.has(id) &&
+          list.findIndex((item: any) =>
+            String(
+              item.activityId ??
+              item.activity?.id ??
+              "",
+            ) === id
+          ) === index
+        );
+      });
+
+    const selectedOption =
+      combinedOptions[0] ?? null;
+
+    setRecommendationOptions(combinedOptions);
+    setRecommendationOptionIndex(0);
+    setNextRecommendedActivity(selectedOption);
+
+    setRecommendationMessage(
+      selectedOption
+        ? getRecommendationReason(selectedOption)
+        : "No next activity is available right now. The adult may end the session or try again.",
+    );
+  } catch (recommendationError) {
+    console.log(
+      "Failed to load next recommendation:",
+      recommendationError,
+    );
+
+    setNextRecommendedActivity(null);
+    setRecommendationOptions([]);
+    setRecommendationOptionIndex(0);
+    setRecommendationMessage(
+      "MOBI could not load the next activity quickly. You can try again, or end for now so the child is not kept waiting.",
+    );
+  } finally {
+    setRecommendationLoading(false);
+  }
+};
+
+const showAnotherRecommendation = () => {
+  if (recommendationOptions.length <= 1) {
+    setRecommendationMessage(
+      "No other suggestion is ready yet. You can retry recommendations or end for now.",
+    );
+    return;
+  }
+
+  const nextIndex =
+    (recommendationOptionIndex + 1) %
+    recommendationOptions.length;
+
+  const nextOption =
+    recommendationOptions[nextIndex];
+
+  setRecommendationOptionIndex(nextIndex);
+  setNextRecommendedActivity(nextOption);
+  setRecommendationMessage(
+    getRecommendationReason(nextOption),
+  );
+};
+
+const getRecommendationReason = (recommendation: any) => {
+  if (recommendation?.source === "assigned_required") {
+    return "Assigned activity first: this learner still has a required activity from the therapist.";
+  }
+
+  if (recommendation?.source === "assigned_recommended") {
+    return "Assigned activity first: this is recommended by the therapist for this learner.";
+  }
+
+  const learnerState =
+    recommendation?.selectionReason?.learnerState;
+
+  if (learnerState === "needs_support") {
+    return "Adaptive pick: MOBI selected a supportive activity based on the learner's recent attempts.";
+  }
+
+  if (learnerState === "ready_to_progress") {
+    return "Adaptive pick: MOBI selected the next activity because the learner is doing well.";
+  }
+
+  return "Adaptive pick: MOBI matched this activity to the learner's current level and recent progress.";
+};
+
+const startRecommendedActivity = async () => {
+  if (!nextRecommendedActivity || startingNextActivity) {
+    return;
+  }
+
+  try {
+    setStartingNextActivity(true);
+    setRecommendationMessage(
+      "Preparing the next activity...",
+    );
+
+    const selectedRecommendation =
+      nextRecommendedActivity;
+
+    const activityDetails =
+      await getActivityById(
+        String(
+          selectedRecommendation.activityId ??
+          selectedRecommendation.activity?.id,
+        ),
+      );
+
+	    setNextRecommendedActivity(null);
+	    setRecommendationOptions([]);
+	    setRecommendationOptionIndex(0);
+	    setRecommendationMessage("");
+    setCompletionText("");
+    setCompletionTitle("Activity Complete!");
+
+    await startActivityRun({
+      activityToStart: activityDetails,
+      selection: selectedRecommendation,
+    });
+  } catch (error) {
+    console.log(
+      "Failed to start recommended activity:",
+      error,
+    );
+
+    setRecommendationMessage(
+      "The next activity could not start. Check the connection, then try again.",
+    );
+  } finally {
+    setStartingNextActivity(false);
   }
 };
 
@@ -1179,7 +1990,7 @@ const completeCurrentActivity = async ({
           activitySessionId,
 
         learnerId:
-          TEST_LEARNER_ID,
+          activeLearnerId,
 
         status:
           status,
@@ -1210,6 +2021,16 @@ const completeCurrentActivity = async ({
       finishResult,
     );
 
+    if (status === "completed") {
+      completedActivityIdsRef.current.add(
+        String(fullActivity.id),
+      );
+    }
+
+    setLastCompletedActivityTitle(
+      fullActivity.title,
+    );
+
     setCompletionTitle(
       status === "completed"
         ? "Activity Complete!"
@@ -1226,28 +2047,13 @@ const completeCurrentActivity = async ({
       "completed",
     );
 
-    try {
-      const recommendation =
-        await getNextRecommendedActivity(
-          TEST_LEARNER_ID,
-        );
-
-      console.log(
-        "Next adaptive recommendation:",
-        recommendation,
-      );
-
-      setNextRecommendedActivity(
-        recommendation.nextActivity ??
-          null,
-      );
-    } catch (recommendationError) {
-      console.log(
-        "Failed to load next recommendation:",
-        recommendationError,
-      );
-
+    if (status === "completed") {
+      await loadNextRecommendation();
+    } else {
       setNextRecommendedActivity(null);
+      setRecommendationMessage(
+        "The activity was stopped. End the session for now or choose another activity from the dashboard when the learner is ready.",
+      );
     }
   } catch (error) {
     console.log(
@@ -1287,10 +2093,11 @@ const completeCurrentActivity = async ({
         return false;
       });
 
-    setSelectedChoiceId(null);
-    setLastLearnerResponse("");
-    setLastResultCorrect(null);
-    setActiveFeedbackText("");
+      setSelectedChoiceId(null);
+      setLastLearnerResponse("");
+      setLastResultCorrect(null);
+      setActiveFeedbackText("");
+      setCanTherapistAcceptResponse(false);
 
     let nextIndex =
       currentStepIndexRef.current + 1;
@@ -1306,6 +2113,8 @@ const completeCurrentActivity = async ({
       const nextStep =
         steps[nextIndex];
 
+      currentStepIndexRef.current = nextIndex;
+      currentStepRef.current = nextStep;
       setCurrentStepIndex(
         nextIndex,
       );
@@ -1382,7 +2191,7 @@ const handleChoiceSelect = async (id: number) => {
           activitySessionId,
 
         learnerId:
-          TEST_LEARNER_ID,
+          activeLearnerId,
 
         attemptOrder:
           nextAttemptOrder,
@@ -1467,7 +2276,10 @@ const handleChoiceSelect = async (id: number) => {
       isCorrect;
 
     setLastResultCorrect(runtimeCorrect);
-    await showFeedbackForResult(runtimeCorrect);
+    await showFeedbackForResult(
+      runtimeCorrect,
+      reachedMaximumAttempts,
+    );
 
     continueAfterResponse({
       targetAchieved: runtimeCorrect === true,
@@ -1508,7 +2320,7 @@ const handleActionComplete = async () => {
           activitySessionId,
 
         learnerId:
-          TEST_LEARNER_ID,
+          activeLearnerId,
 
         attemptOrder:
           nextAttemptOrder,
@@ -1603,7 +2415,11 @@ const handleActionComplete = async () => {
 };
 
   const currentStatusText =
-    speakerStatus === 'appSpeaking'
+    activityReadyToFinish
+      ? 'Activity complete. Preparing what comes next...'
+      : isPromptLoading
+      ? 'Preparing MOBI voice...'
+      : speakerStatus === 'appSpeaking'
       ? 'MOBI is speaking...'
       : speakerStatus === 'userSpeaking'
       ? 'Listening to you...'
@@ -1623,6 +2439,22 @@ const handleActionComplete = async () => {
     currentStep?.expected_answers,
   ) &&
   currentStep.expected_answers.length > 0;
+
+  const shouldShowManualAcceptButton =
+    (
+      currentStepManualScoringEnabled ||
+      isInteractiveStep(currentStep)
+    ) &&
+    !isSessionPaused &&
+    currentStep?.id &&
+    INTERACTIVE_STEP_TYPES.has(
+      String(currentStep.step_type),
+    );
+
+  const currentStepLabel =
+    currentStep?.step_type === "conversation"
+      ? "social prompt"
+      : currentStep?.step_type?.replace('_', ' ') || 'Activity';
   
   const renderCurrentStep = () => {
     if (!currentStep) {
@@ -1674,6 +2506,14 @@ const handleActionComplete = async () => {
         );
 
       default:
+        if (isRegulatoryActivity) {
+          return (
+            <TeachSessionStepScreen
+              {...commonProps}
+            />
+          );
+        }
+
         return (
           <View style={styles.emptyStepCard}>
             <Text style={styles.emptyStepText}>
@@ -1757,6 +2597,10 @@ const handleActionComplete = async () => {
   }
 
   if (sessionStatus === 'completed') {
+    const recommendationActivity =
+      nextRecommendedActivity?.activity ??
+      null;
+
     return (
       <ImageBackground
         source={bgImage}
@@ -1771,8 +2615,8 @@ const handleActionComplete = async () => {
         }
         resizeMode="cover"
       >
-        <SafeAreaView style={styles.container}>
-          <View style={styles.completedCard}>
+        <SafeAreaView style={styles.completedContainer}>
+          <View style={styles.completedSummaryCard}>
             <Ionicons name="star" size={48} color="#8759D6" />
 
             <Text style={styles.completedTitle}>{completionTitle}</Text>
@@ -1780,12 +2624,140 @@ const handleActionComplete = async () => {
             <Text style={styles.completedText}>
               {completionText || `Great job finishing ${fullActivity.title}.`}
             </Text>
+          </View>
+
+          <View style={styles.recommendationDrawer}>
+            <View style={styles.drawerHandle} />
+
+            <Text style={styles.drawerEyebrow}>
+              Up next for {activeLearner?.firstName || "learner"}
+            </Text>
+
+            <Text style={styles.drawerTitle}>
+              Keep the session flowing
+            </Text>
+
+            <Text style={styles.drawerSubtitle}>
+              {lastCompletedActivityTitle
+                ? `After ${lastCompletedActivityTitle}, MOBI checks assignments, progress, and today's session limit before suggesting the next activity.`
+                : "MOBI checks assignments, progress, and today's session limit before suggesting the next activity."}
+            </Text>
+
+            {recommendationLoading ? (
+              <View style={styles.recommendationLoadingCard}>
+                <ActivityIndicator size="small" color="#8759D6" />
+                <Text style={styles.recommendationLoadingText}>
+                  {recommendationMessage || "Finding the best next activity..."}
+                </Text>
+              </View>
+            ) : recommendationActivity ? (
+              <View style={styles.nextActivityCard}>
+                <View style={styles.nextActivityIcon}>
+                  <Ionicons
+                    name={
+                      nextRecommendedActivity?.source?.startsWith("assigned")
+                        ? "clipboard"
+                        : "sparkles"
+                    }
+                    size={22}
+                    color="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.nextActivityTextGroup}>
+                  <Text style={styles.nextActivityLabel}>
+                    {nextRecommendedActivity?.source?.startsWith("assigned")
+                      ? "Assigned first"
+                      : "Adaptive recommendation"}
+                  </Text>
+
+                  <Text style={styles.nextActivityTitle}>
+                    {recommendationActivity.title}
+                  </Text>
+
+                  <Text style={styles.nextActivityReason}>
+                    {recommendationMessage}
+                  </Text>
+
+                  <View style={styles.nextMetaRow}>
+                    <Text style={styles.nextMetaPill}>
+                      {recommendationActivity.speech_ladder_level || "level"}
+                    </Text>
+                    <Text style={styles.nextMetaPill}>
+                      {recommendationActivity.estimated_minutes || 5} min
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.recommendationLoadingCard}>
+                <Ionicons name="wifi" size={20} color="#8759D6" />
+                <Text style={styles.recommendationLoadingText}>
+                  {recommendationMessage ||
+                    "No recommended activity is available right now."}
+                </Text>
+              </View>
+            )}
+
+	            <Pressable
+	              style={[
+	                styles.startNextButton,
+                (!nextRecommendedActivity ||
+                  recommendationLoading ||
+                  startingNextActivity) &&
+                  styles.disabledButton,
+              ]}
+              disabled={
+                !nextRecommendedActivity ||
+                recommendationLoading ||
+                startingNextActivity
+              }
+              onPress={startRecommendedActivity}
+            >
+              {startingNextActivity ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="play" size={18} color="#FFFFFF" />
+              )}
+	              <Text style={styles.startNextText}>
+	                {startingNextActivity ? "Starting..." : "Start Next Activity"}
+	              </Text>
+	            </Pressable>
+
+	            {recommendationOptions.length > 1 ? (
+	              <Pressable
+	                style={styles.skipSuggestionButton}
+	                onPress={showAnotherRecommendation}
+	                disabled={
+	                  recommendationLoading ||
+	                  startingNextActivity
+	                }
+	              >
+	                <Ionicons name="play-skip-forward" size={17} color="#6F5278" />
+	                <Text style={styles.skipSuggestionText}>
+	                  Show Another Suggestion
+	                </Text>
+	              </Pressable>
+	            ) : null}
+
+	            {!recommendationLoading && !nextRecommendedActivity ? (
+              <Pressable
+                style={styles.retryRecommendationButton}
+                onPress={loadNextRecommendation}
+              >
+                <Text style={styles.retryRecommendationText}>
+                  Try Recommendation Again
+                </Text>
+              </Pressable>
+            ) : null}
 
             <Pressable
-              style={styles.startButton}
+              style={styles.endSessionButton}
               onPress={() => navigation.navigate('ChildDashboard')}
             >
-              <Text style={styles.startText}>Back to Dashboard</Text>
+              <Text style={styles.endSessionText}>
+                End for Now
+              </Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -1885,12 +2857,11 @@ const handleActionComplete = async () => {
 
           <Pressable
             style={styles.adultHoldButton}
-            onLongPress={handleExitSession}
-            delayLongPress={800}
+            onPress={handleExitSession}
           >
             <Ionicons name="shield-checkmark" size={17} color="#6F5278" />
             <Text style={styles.adultHoldText}>
-              Hold
+              Stop
             </Text>
           </Pressable>
         </View>
@@ -1898,7 +2869,7 @@ const handleActionComplete = async () => {
         <View style={styles.headerTextGroup}>
           <Text style={styles.pageTitle}>{fullActivity.title}</Text>
           <Text style={styles.pageSubtitle}>
-            {currentStep?.step_type?.replace('_', ' ') || 'Activity'}
+            {currentStepLabel}
           </Text>
         </View>
 
@@ -1927,8 +2898,39 @@ const handleActionComplete = async () => {
               statusText={currentStatusText}
               onMicPress={handleMicPress}
               learnerResponse={lastLearnerResponse}
+              disabled={
+                isPromptLoading ||
+                speakerStatus === "appSpeaking" ||
+                activityReadyToFinish ||
+                isSessionPaused
+              }
             />
           )}
+
+          {shouldShowManualAcceptButton &&
+            !isSessionPaused && (
+              <View style={styles.adultScoringRow}>
+                <Pressable
+                  style={styles.therapistAcceptButton}
+                  onPress={acceptResponseByTherapist}
+                >
+                  <Ionicons name="checkmark" size={19} color="#FFFFFF" />
+                  <Text style={styles.therapistAcceptText}>
+                    Mark Correct
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.therapistRejectButton}
+                  onPress={rejectResponseByTherapist}
+                >
+                  <Ionicons name="close" size={19} color="#FFFFFF" />
+                  <Text style={styles.therapistAcceptText}>
+                    Mark Incorrect
+                  </Text>
+                </Pressable>
+              </View>
+            )}
 
           {currentStep?.step_type === 'do_it' && !activeFeedbackText && !isSessionPaused && (
             <Pressable
@@ -2227,14 +3229,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  completedCard: {
-    margin: 24,
+  completedContainer: {
     flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: 18,
+  },
+
+  completedSummaryCard: {
+    marginTop: 18,
     borderRadius: 28,
     backgroundColor: 'rgba(255,255,255,0.96)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 22,
   },
 
   completedTitle: {
@@ -2251,6 +3260,207 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#666',
     textAlign: 'center',
+  },
+
+  recommendationDrawer: {
+    width: '100%',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.98)',
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+
+  drawerHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 5,
+    borderRadius: 99,
+    backgroundColor: '#DFC7E9',
+    marginBottom: 12,
+  },
+
+  drawerEyebrow: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#9B73AB',
+    textTransform: 'uppercase',
+  },
+
+  drawerTitle: {
+    marginTop: 4,
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#161216',
+  },
+
+  drawerSubtitle: {
+    marginTop: 7,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+    color: '#6C6070',
+  },
+
+  recommendationLoadingCard: {
+    marginTop: 14,
+    minHeight: 76,
+    borderRadius: 20,
+    backgroundColor: '#F6EFF8',
+    borderWidth: 1,
+    borderColor: '#E8D3F0',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  recommendationLoadingText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+    color: '#5A4A61',
+  },
+
+  nextActivityCard: {
+    marginTop: 14,
+    borderRadius: 22,
+    backgroundColor: '#F7F1F8',
+    borderWidth: 1,
+    borderColor: '#E7C6F0',
+    padding: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  nextActivityIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#8759D6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  nextActivityTextGroup: {
+    flex: 1,
+  },
+
+  nextActivityLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#8C6298',
+    textTransform: 'uppercase',
+  },
+
+  nextActivityTitle: {
+    marginTop: 4,
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#141014',
+  },
+
+  nextActivityReason: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+    color: '#5F5364',
+  },
+
+  nextMetaRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  nextMetaPill: {
+    overflow: 'hidden',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#72507B',
+    textTransform: 'capitalize',
+  },
+
+  startNextButton: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: '#8759D6',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+	  startNextText: {
+	    color: '#FFFFFF',
+	    fontSize: 14,
+	    fontWeight: '900',
+	  },
+
+	  skipSuggestionButton: {
+	    marginTop: 10,
+	    minHeight: 46,
+	    borderRadius: 16,
+	    backgroundColor: '#FFFFFF',
+	    borderWidth: 1,
+	    borderColor: '#E3C9EC',
+	    paddingHorizontal: 14,
+	    flexDirection: 'row',
+	    alignItems: 'center',
+	    justifyContent: 'center',
+	    gap: 8,
+	  },
+
+	  skipSuggestionText: {
+	    fontSize: 13,
+	    fontWeight: '900',
+	    color: '#6F5278',
+	  },
+
+	  retryRecommendationButton: {
+    marginTop: 12,
+    minHeight: 44,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E3C9EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  retryRecommendationText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#6F5278',
+  },
+
+  endSessionButton: {
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 38,
+  },
+
+  endSessionText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#7A707E',
   },
 
   exitOverlay: {
@@ -2337,6 +3547,44 @@ feedbackBubbleText: {
   color: "#4B3A5A",
   textAlign: "center",
 },
+
+  adultScoringRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  therapistAcceptButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: '#5E8C61',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  therapistRejectButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: '#A75B67',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  therapistAcceptText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
 
   doneActionButton: {
     minWidth: 180,

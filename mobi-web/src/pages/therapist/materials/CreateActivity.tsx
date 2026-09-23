@@ -1,6 +1,6 @@
 // MOBI/mobi-web/src/pages/therapist/materials/CreateActivity.tsx
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -26,15 +26,25 @@ import ActivityAssignLearner from "../../../components/center/materials/Activity
 import ActivityLimits from "../../../components/center/materials/ActivityLimits";
 import StepDropZone from "../../../components/center/materials/StepDropZone";
 
-import { createActivity } from "../../../services/activityApi";
+import {
+  createActivity,
+  getActivityById,
+  resubmitActivityForReview,
+} from "../../../services/activityApi";
+import { getStoredAuthUser } from "../../../services/auth";
 
 function CreateActivity() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // TEMP ONLY.
-  // Later, get this from logged-in therapist account.
-  const currentTherapistName = "Anna Reyes";
+  const authUser = getStoredAuthUser();
+  const currentTherapistName = authUser
+    ? `${authUser.firstName} ${authUser.lastName}`.trim()
+    : "Therapist";
+  const editingActivityId = location.state?.activityId as
+    | string
+    | undefined;
+  const isEditingExistingActivity = Boolean(editingActivityId);
 
   const [title, setTitle] = useState("");
 
@@ -57,6 +67,9 @@ function CreateActivity() {
   const [highlightedSection, setHighlightedSection] = useState("");
 
   const [customSteps, setCustomSteps] = useState<string[]>([]);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [loadingExistingActivity, setLoadingExistingActivity] =
+    useState(false);
 
   const speechLadderRef = useRef<HTMLDivElement>(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
@@ -96,6 +109,38 @@ function CreateActivity() {
   const addStep = (stepType: string) => {
     setCustomSteps([...customSteps, stepType]);
   };
+
+  useEffect(() => {
+    async function loadExistingActivity() {
+      if (!editingActivityId) {
+        return;
+      }
+
+      try {
+        setLoadingExistingActivity(true);
+        const activity = await getActivityById(editingActivityId);
+        setTitle(activity.title || "");
+        setDescription(activity.description || "");
+        setThumbnail(activity.thumbnail_url || null);
+        setMaxAttempts(activity.max_attempts || 3);
+        setEstimatedMinutes(activity.estimated_minutes || 5);
+        setAiVoiceGender(activity.ai_voice_gender || "girl");
+        setAiVoiceSpeed(activity.ai_voice_speed || "moderate");
+        setReviewFeedback(
+          activity.decline_reason ||
+            activity.review_feedback ||
+            "",
+        );
+      } catch (error) {
+        console.error(error);
+        alert("Failed to load declined activity.");
+      } finally {
+        setLoadingExistingActivity(false);
+      }
+    }
+
+    void loadExistingActivity();
+  }, [editingActivityId]);
 
   const handleSaveDraft = async () => {
     try {
@@ -175,7 +220,7 @@ function CreateActivity() {
                 `Learn by doing step for ${title}.`
               : step === "Conversation"
               ? savedStepData.topics?.[0] ||
-                `Conversation step for ${title}.`
+                `Social prompt step for ${title}.`
               : `This is a ${step} step for ${title}.`,
 
           lesson:
@@ -226,6 +271,8 @@ function CreateActivity() {
           can_repeat: true,
           can_give_hint: true,
           can_skip: true,
+          manual_scoring_enabled:
+            savedStepData.manual_scoring_enabled === true,
 
           ai_voice_style:
             step === "Feedback"
@@ -267,8 +314,7 @@ function CreateActivity() {
         ai_voice_gender: aiVoiceGender,
         ai_voice_speed: aiVoiceSpeed,
 
-        // Therapist-created activities should be checked by center admin first.
-        status: "pending_review",
+        status: "published",
 
         uploaded_by: currentTherapistName,
         steps: formattedSteps,
@@ -280,13 +326,21 @@ function CreateActivity() {
       console.log("Payload:");
       console.dir(payload, { depth: null });
 
-      await createActivity(payload);
+      if (editingActivityId) {
+        await resubmitActivityForReview(editingActivityId, payload);
+      } else {
+        await createActivity(payload);
+      }
 
-      alert("Activity submitted for center review!");
+      alert(
+        editingActivityId
+          ? "Activity revised and published!"
+          : "Activity published!",
+      );
       navigate("/therapist/materials");
     } catch (error) {
       console.error(error);
-      alert("Failed to submit activity for review.");
+      alert("Failed to publish activity.");
     }
   };
 
@@ -353,10 +407,29 @@ function CreateActivity() {
             onClick={handleSubmitForReview}
             className="text-[#E37D4A]"
           >
-            Submit for Review
+            {isEditingExistingActivity
+              ? "Publish Revision"
+              : "Publish"}
           </button>
         </div>
       </header>
+
+      {loadingExistingActivity && (
+        <div className="bg-[#FFF8E8] px-10 py-3 text-sm font-semibold text-[#8A5B00]">
+          Loading activity for revision...
+        </div>
+      )}
+
+      {reviewFeedback && (
+        <div className="mx-6 mt-4 rounded-2xl border border-red-100 bg-red-50 px-5 py-4">
+          <p className="text-sm font-bold text-red-700">
+            Center admin feedback
+          </p>
+          <p className="mt-1 text-sm leading-6 text-red-700">
+            {reviewFeedback}
+          </p>
+        </div>
+      )}
 
       {/* BODY */}
       <div className="flex flex-1 gap-6 p-6 overflow-hidden">

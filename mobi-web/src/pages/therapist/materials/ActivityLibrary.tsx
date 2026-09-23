@@ -5,6 +5,7 @@ import { Search, ArrowUp, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TherapistLayout from "../../../layouts/TherapistLayout";
 import { getActivities } from "../../../services/activityApi";
+import { getStoredAuthUser } from "../../../services/auth";
 
 interface ActivityData {
   id: string;
@@ -14,6 +15,7 @@ interface ActivityData {
   created_at: string;
   thumbnail_url: string | null;
   activity_type: string;
+  created_by_therapist_id?: string | null;
   status?: string | null;
   archived_at?: string | null;
   decline_reason?: string | null;
@@ -48,11 +50,12 @@ const ActivityLibrary = () => {
   const [error, setError] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // TEMP ONLY.
-  // Later this should come from logged-in therapist profile/auth.
+  const authUser = getStoredAuthUser();
   const currentUser = {
-    id: "therapist-1",
-    name: "Anna Reyes",
+    id: authUser?.actorId ?? "",
+    name: authUser
+      ? `${authUser.firstName} ${authUser.lastName}`.trim()
+      : "Therapist",
     role: "therapist",
   };
 
@@ -116,7 +119,10 @@ const ActivityLibrary = () => {
     if (!matchesSearch) return false;
 
     if (filterBy === "Mine") {
-      return uploadedBy === currentUser.name;
+      return (
+        activity.created_by_therapist_id === currentUser.id ||
+        uploadedBy === currentUser.name
+      );
     }
 
     if (filterBy === "Center") {
@@ -153,7 +159,10 @@ const ActivityLibrary = () => {
 
   const canModifyActivity = (activity: ActivityData) => {
     const uploadedBy = activity.uploaded_by || "Center Admin";
-    return uploadedBy === currentUser.name;
+    return (
+      activity.created_by_therapist_id === currentUser.id ||
+      uploadedBy === currentUser.name
+    );
   };
 
   return (
@@ -191,7 +200,7 @@ const ActivityLibrary = () => {
                     {[
                       "Teach & Practice",
                       "Check & Answer",
-                      "Conversation",
+                      "Social Prompt",
                       "Story",
                       "Turn Taking",
                       "Life Skills",
@@ -429,6 +438,37 @@ const ActivityLibrary = () => {
                             .replace("_", " ")
                             .toUpperCase()}
                         </p>
+
+                        {activity.status === "declined" && (
+                          <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 px-3 py-2">
+                            <p className="text-xs font-bold text-red-700">
+                              Center feedback
+                            </p>
+                            <p className="mt-1 line-clamp-3 text-xs leading-5 text-red-700">
+                              {activity.decline_reason ||
+                                activity.review_feedback ||
+                                "No feedback was added."}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                navigate(
+                                  "/therapist/materials/CreateActivity",
+                                  {
+                                    state: {
+                                      mode: "edit",
+                                      activityId: activity.id,
+                                    },
+                                  },
+                                );
+                              }}
+                              className="mt-2 rounded-lg bg-white px-3 py-1 text-xs font-semibold text-red-700"
+                            >
+                              Revise
+                            </button>
+                          </div>
+                        )}
 
                         <p className="text-xs text-gray-500 mt-2">
                           {new Date(activity.created_at).toLocaleDateString()}

@@ -52,6 +52,7 @@ export type ActivitySessionStep = {
 
   correct_feedback?: string;
   wrong_feedback?: string;
+  max_attempts_feedback?: string | string[];
 
   ai_voice_style?: string;
 

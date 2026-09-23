@@ -345,12 +345,14 @@ import {
 
 import VoiceStyleModal from "./VoiceStyleModal";
 import StepMenu from "./StepMenu";
+import ManualScoringToggle from "./ManualScoringToggle";
 import { previewTTS } from "../../../services/activityApi";
 
 type DoItStepData = {
   instruction: string;
   materials_needed: string[];
   ai_voice_style: string,
+  manual_scoring_enabled?: boolean;
   media_file?: File | null;
   prompt_audio_file?: File | null;
 };
@@ -398,6 +400,8 @@ function DoItStep({
 
   const [materials, setMaterials] =
     useState<string[]>(initialData?.materials_needed || []);
+  const [manualScoringEnabled, setManualScoringEnabled] =
+    useState(initialData?.manual_scoring_enabled ?? false);
 
     // for tts
     const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
@@ -407,12 +411,14 @@ function DoItStep({
     nextMaterials = materials,
     nextVoiceStyle = voiceStyle,
     nextMediaFile = selectedFile,
-    nextPromptAudioFile = promptAudioFile
+    nextPromptAudioFile = promptAudioFile,
+    nextManualScoringEnabled = manualScoringEnabled
   ) => {
     onChange(stepKey, {
       instruction: nextInstruction,
       materials_needed: nextMaterials,
       ai_voice_style: nextVoiceStyle,
+      manual_scoring_enabled: nextManualScoringEnabled,
       media_file: nextMediaFile,
       prompt_audio_file: nextPromptAudioFile,
     });
@@ -701,6 +707,21 @@ function DoItStep({
             )}
 
           </div>
+
+          <ManualScoringToggle
+            enabled={manualScoringEnabled}
+            onChange={(enabled) => {
+              setManualScoringEnabled(enabled);
+              updateParent(
+                instruction,
+                materials,
+                voiceStyle,
+                selectedFile,
+                promptAudioFile,
+                enabled,
+              );
+            }}
+          />
 
           {/* MATERIALS */}
           <div>

@@ -9,6 +9,7 @@ import {
   getSubmittedActivities,
   declineSubmittedActivity,
   publishSubmittedActivity,
+  resubmitTherapistActivity,
 } from "../services/activityService";
 import {
   AuthUser,
@@ -156,9 +157,10 @@ export async function uploadActivityAsset(
   }
 }
 
-export async function listActivities(_req: Request, res: Response) {
+export async function listActivities(req: Request, res: Response) {
   try {
-    const activities = await getActivities();
+    const activityAuthor = await getActivityAuthor(req);
+    const activities = await getActivities(activityAuthor.centerId!);
     res.status(200).json(activities);
   } catch (error: any) {
     res.status(500).json({
@@ -285,10 +287,50 @@ export async function declineActivityReview(
   }
 }
 
+export async function resubmitActivityReview(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityAuthor = await getActivityAuthor(req);
+
+    if (activityAuthor.role !== "therapist") {
+      return res.status(403).json({
+        message: "Only therapists can resubmit declined activities.",
+      });
+    }
+
+    const id = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+
+    const activity = await resubmitTherapistActivity({
+      activityId: id,
+      centerId: activityAuthor.centerId!,
+      therapistId: activityAuthor.actorId,
+      payload: req.body,
+    });
+
+    return res.status(200).json({
+      message:
+        activity.status === "published"
+          ? "Activity published."
+          : "Activity resubmitted for center review.",
+      activity,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      message: "Failed to resubmit activity",
+      error: error.message,
+    });
+  }
+}
+
 export async function readActivity(req: Request, res: Response) {
   try {
+    const activityAuthor = await getActivityAuthor(req);
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const activity = await getActivityById(id);
+    const activity = await getActivityById(id, activityAuthor.centerId!);
     res.status(200).json(activity);
   } catch (error: any) {
     res.status(404).json({

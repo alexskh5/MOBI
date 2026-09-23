@@ -18,19 +18,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../types';
 import {
+  getActiveLearner,
   getLearnerProfileSettings,
   updateLearnerProfileSettings,
 } from '../../services/api';
 
 const bgImage = require('../../../assets/images/background.jpg');
 const mobiLogo = require('../../../assets/images/mobi_logo.png');
-const TEST_LEARNER_ID =
-  '6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc';
 
 type SettingsTab = 'time' | 'pin';
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp<'Settings'>>();
+  const activeLearner = getActiveLearner();
+  const activeLearnerId = activeLearner?.id ?? "";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('time');
   const [dailyLimit, setDailyLimit] = useState('01:30');
@@ -50,9 +51,13 @@ export default function SettingsScreen() {
 
     async function loadSettings() {
       try {
+        if (!activeLearnerId) {
+          return;
+        }
+
         const settings =
           await getLearnerProfileSettings(
-            TEST_LEARNER_ID,
+            activeLearnerId,
           );
 
         const seconds =
@@ -86,7 +91,7 @@ export default function SettingsScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [activeLearnerId]);
 
   const goToChildDashboard = () => {
     navigation.dispatch(
@@ -130,8 +135,13 @@ export default function SettingsScreen() {
       Math.round((hours * 60 + minutes) * 60);
 
     try {
+      if (!activeLearnerId) {
+        navigation.navigate('LearnerSelect');
+        return;
+      }
+
       await updateLearnerProfileSettings({
-        learnerId: TEST_LEARNER_ID,
+        learnerId: activeLearnerId,
         childSafetySettings: {
           dailyScreenTimeLimitSeconds:
             totalSeconds > 0 ? totalSeconds : null,

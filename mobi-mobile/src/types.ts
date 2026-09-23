@@ -132,6 +132,7 @@ export type RootStackParamList = {
   LogIn: undefined;
 
   // Child-Mode
+  LearnerSelect: undefined;
   ChildDashboard: undefined;
   ActivitySession: {
     activity: Activity;

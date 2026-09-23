@@ -11,7 +11,7 @@ export const ACTIVITY_TEMPLATES = {
     "Feedback",
   ],
 
-  "Conversation": [
+  "Social Prompt": [
     "Conversation",
     "Feedback",
   ],

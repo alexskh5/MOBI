@@ -17,9 +17,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { Activity, NavigationProp } from '../../types';
-import { getActivities, getNextRecommendedActivity, } from '../../services/api';
+import {
+  getActivities,
+  getActiveLearner,
+  getCurrentAuthUser,
+  getNextRecommendedActivity,
+} from '../../services/api';
 
 const logo = require('../../../assets/images/mobi_logo.png');
 const bgImage = require('../../../assets/images/background.jpg');
@@ -31,14 +36,12 @@ const sample3 = require('../../../assets/images/sample3.jpg');
 const sample4 = require('../../../assets/images/sample4.jpg');
 
 const ADULT_MAGIC_CODE = '1234';
-const TEST_LEARNER_ID =
-  '6cf9a9ff-2ad9-49ec-b71b-dec0451fd5bc';
 
 const filterOptions = [
   { id: 'all', label: 'All options', value: 'all' },
   { id: 'beginner', label: 'Beginner', value: 'beginner' },
   { id: 'word', label: 'Word Level', value: 'word' },
-  { id: 'conversation', label: 'Conversation', value: 'conversation' },
+  { id: 'social_prompt', label: 'Social Prompt', value: 'conversation' },
 ];
 
 const getLocalImage = (index: number) => {
@@ -66,9 +69,22 @@ const getPhoneSafeImageUrl = (value: unknown) => {
   return /^https?:\/\//i.test(url) ? url : '';
 };
 
+const isRegulatoryActivity = (activity: Activity) =>
+  activity.category.toLowerCase().includes('regulatory') ||
+  activity.category.toLowerCase().includes('regulation');
+
 export default function ChildDashboardScreen() {
   const navigation = useNavigation<NavigationProp<'ChildDashboard'>>();
   const { width } = useWindowDimensions();
+  const activeLearner = getActiveLearner();
+  const currentUser = getCurrentAuthUser();
+  const activeLearnerId = activeLearner?.id ?? "";
+  const learnerDisplayName =
+    activeLearner?.nickname?.trim() ||
+    activeLearner?.firstName ||
+    "Learner";
+  const recommendedLabel =
+    `Recommended for ${learnerDisplayName}`;
 
   const isTablet = width >= 768;
   const isSmallPhone = width < 380;
@@ -93,33 +109,44 @@ export default function ChildDashboardScreen() {
   const cardHeight = isTablet ? 230 : 190;
 
   useEffect(() => {
+    if (!activeLearnerId && currentUser?.role === "therapist") {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "LearnerSelect" }],
+        }),
+      );
+      return;
+    }
+
     async function loadActivities() {
       try {
         const data = await getActivities();
 
-        try {
-          const recommendation =
-            await getNextRecommendedActivity(
-              TEST_LEARNER_ID,
-            );
+        if (activeLearnerId) {
+          try {
+            const recommendation =
+              await getNextRecommendedActivity(
+                activeLearnerId,
+              );
 
-          setRecommendedActivityId(
-            recommendation.nextActivity?.activityId ??
-              null,
-          );
-        } catch (recommendationError) {
-          console.log(
-            'Failed to load recommendation:',
-            recommendationError,
-          );
-          setRecommendedActivityId(null);
+            setRecommendedActivityId(
+              recommendation.nextActivity?.activityId ??
+                null,
+            );
+          } catch (recommendationError) {
+            console.log(
+              'Failed to load recommendation:',
+              recommendationError,
+            );
+            setRecommendedActivityId(null);
+          }
         }
 
         const mappedActivities: Activity[] = data
           .filter((item: any) =>
             item.status === 'published' &&
-            !item.archived_at &&
-            item.activity_type !== 'Regulatory Activity'
+            !item.archived_at
           )
           .map((item: any) => ({
           id: item.id as any,
@@ -157,15 +184,23 @@ export default function ChildDashboardScreen() {
     }
 
     loadActivities();
-  }, []);
+  }, [activeLearnerId, currentUser?.role, navigation]);
 
   const categories = useMemo(() => {
     const uniqueCategories = Array.from(
       new Set(activities.map((item) => item.category))
     );
 
-    return ["Recommended for Lexi’s needs", ...uniqueCategories];
-  }, [activities]);
+    return [
+      "Regulation first",
+      recommendedLabel,
+      ...uniqueCategories.filter(
+        (category) =>
+          !category.toLowerCase().includes('regulatory') &&
+          !category.toLowerCase().includes('regulation'),
+      ),
+    ];
+  }, [activities, recommendedLabel]);
 
   const filteredActivities = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -243,7 +278,10 @@ export default function ChildDashboardScreen() {
   const renderCategorySection = (category: string) => {
     const data =
       category ===
-      "Recommended for Lexi’s needs"
+      "Regulation first"
+        ? filteredActivities.filter(isRegulatoryActivity)
+        : category ===
+      recommendedLabel
         ? filteredActivities.filter(
             (item) =>
               String(item.id) ===
@@ -283,7 +321,7 @@ export default function ChildDashboardScreen() {
 
             <View style={styles.greetingGroup}>
               <Text style={[styles.greeting, isSmallPhone && styles.smallGreeting]}>
-                Hi, Lexi!
+                Hi, {learnerDisplayName}!
               </Text>
               <Text style={[styles.subGreeting, isSmallPhone && styles.smallSubGreeting]}>
                 We are happy to see you.
@@ -291,9 +329,20 @@ export default function ChildDashboardScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.lockButton} onPress={() => setShowAdultModal(true)}>
-            <Image source={locked} style={styles.lockIcon} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            {currentUser?.role === 'therapist' && (
+              <Pressable
+                style={styles.switchButton}
+                onPress={() => navigation.navigate('LearnerSelect')}
+              >
+                <Ionicons name="people-outline" size={18} color="#7B5B88" />
+              </Pressable>
+            )}
+
+            <Pressable style={styles.lockButton} onPress={() => setShowAdultModal(true)}>
+              <Image source={locked} style={styles.lockIcon} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.controlsRow}>
@@ -508,10 +557,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
 
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 10,
+  },
+
+  switchButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+
   lockButton: {
     width: 42,
     height: 42,
-    marginLeft: 10,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',

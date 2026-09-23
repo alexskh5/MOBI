@@ -1783,12 +1783,20 @@ export async function getNextActivity(
     const learnerId =
       learnerIdRaw.trim();
 
+    const excludeActivityId =
+      typeof req.query.excludeActivityId === "string"
+        ? req.query.excludeActivityId.trim()
+        : "";
+
     const selection =
       await selectNextActivity({
         centerId:
           getRequestCenterId(req)!,
 
         learnerId,
+        excludeActivityIds: excludeActivityId
+          ? [excludeActivityId]
+          : [],
       });
 
     /*
@@ -2373,6 +2381,7 @@ export async function respondToActivity(
       transcript = "",
       selectedChoiceId = null,
       actionCompleted = null,
+      adultScoringOverride = null,
 
       sttConfidence = null,
       sttProvider = null,
@@ -2390,6 +2399,28 @@ export async function respondToActivity(
       parentRequestedStop = false,
 
     } = req.body;
+
+    if (
+      adultScoringOverride !== null &&
+      adultScoringOverride !== "correct" &&
+      adultScoringOverride !== "incorrect"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "adultScoringOverride must be correct or incorrect.",
+      });
+    }
+
+    if (adultScoringOverride !== null) {
+      const actorRole = req.header("x-actor-role")?.trim().toLowerCase();
+
+      if (!actorRole || !["parent", "therapist", "center_admin"].includes(actorRole)) {
+        return res.status(403).json({
+          success: false,
+          message: "Only an adult account can manually score a response.",
+        });
+      }
+    }
 
     /* =====================================================
        1. VALIDATE REQUIRED INPUT
@@ -2937,6 +2968,8 @@ export async function respondToActivity(
 
           transcript,
 
+          adultScoringOverride,
+
           selectedChoiceId:
             normalizedSelectedChoiceId,
 
@@ -3103,8 +3136,11 @@ export async function respondToActivity(
               ? "encouragement"
               : "none";
 
-    const savedAttempt =
-      await saveActivityAttempt({
+    let savedAttempt;
+
+    try {
+      savedAttempt =
+        await saveActivityAttempt({
         sessionId,
 
         activityStepId:
@@ -3280,9 +3316,41 @@ export async function respondToActivity(
 
         feedbackType,
 
-        feedbackText:
-          null,
-      });
+          feedbackText:
+            null,
+        });
+    } catch (saveError: any) {
+      if (saveError?.code === "23505") {
+        return res.status(200).json({
+          success: true,
+
+          message:
+            "Duplicate learner response ignored because the attempt was already saved.",
+
+          duplicateAttempt:
+            true,
+
+          communication,
+
+          adaptiveDecision:
+            runtimeResult.decision,
+
+          updatedContext:
+            runtimeResult.updatedContext,
+
+          attempt:
+            null,
+
+          screenTime:
+            screenTimeStatus,
+
+          learningSessionEnded:
+            false,
+        });
+      }
+
+      throw saveError;
+    }
 
     let endedLearningSession = null;
     const systemAutoStop =

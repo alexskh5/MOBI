@@ -5,7 +5,7 @@ import {
   Paths,
 } from "expo-file-system";
 
-const API_BASE_URL = "http://192.168.254.129:5052";
+const API_BASE_URL = "http://192.168.254.130:5052";
 const STT_TIMEOUT_MS = 9000;
 const TTS_TIMEOUT_MS = 5500;
 
@@ -38,12 +38,10 @@ function getNetworkErrorMessage(error: unknown) {
 
   return message;
 }
-// >>>>>>> Stashed changes
-
 export type AuthRole =
   | "super_admin"
   | "center_admin"
-  | "therapist"
+  | "therapist"  
   | "doctor"
   | "parent";
 
@@ -61,7 +59,22 @@ export type AuthUser = {
   defaultMobileRoute: "ChildDashboard" | "AdultDashboard";
 };
 
+export type MobileLearner = {
+  id: string;
+  learnerCode: string | null;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  nickname?: string | null;
+  birthDate?: string | null;
+  sexAtBirth?: string | null;
+  profilePhotoUrl?: string | null;
+  currentSpeechLadder?: string | null;
+  suggestedSpeechLadder?: string | null;
+};
+
 let currentAuthUser: AuthUser | null = null;
+let activeLearner: MobileLearner | null = null;
 
 export function getCurrentAuthUser() {
   return currentAuthUser;
@@ -69,6 +82,22 @@ export function getCurrentAuthUser() {
 
 export function setCurrentAuthUser(user: AuthUser | null) {
   currentAuthUser = user;
+
+  if (!user) {
+    activeLearner = null;
+  }
+}
+
+export function getActiveLearner() {
+  return activeLearner;
+}
+
+export function setActiveLearner(learner: MobileLearner | null) {
+  activeLearner = learner;
+}
+
+export function getActiveLearnerId() {
+  return activeLearner?.id ?? "";
 }
 
 function getAuthHeaders() {
@@ -156,6 +185,42 @@ export async function getActivities() {
   return response.json();
 }
 
+export async function getMobileLearners({
+  search = "",
+}: {
+  search?: string;
+} = {}) {
+  const params = new URLSearchParams({
+    page: "1",
+    limit: "100",
+    sortBy: "last_name",
+    sortOrder: "asc",
+  });
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/learners?${params.toString()}`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !Array.isArray(result?.learners)) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to load assigned learners.",
+    );
+  }
+
+  return result.learners as MobileLearner[];
+}
+
 export async function getLearnerProfileSettings(
   learnerId: string,
 ) {
@@ -177,6 +242,35 @@ export async function getLearnerProfileSettings(
   }
 
   return result.settings;
+}
+
+export async function getLearnerProgressOverview({
+  learnerId,
+  period = "day",
+}: {
+  learnerId: string;
+  period?: "day" | "week" | "month" | "year";
+}) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/progress/overview?learnerId=${encodeURIComponent(
+      learnerId,
+    )}&period=${encodeURIComponent(period)}`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !result?.overview) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to load learner progress.",
+    );
+  }
+
+  return result.overview;
 }
 
 export async function updateLearnerProfileSettings({
@@ -451,16 +545,21 @@ export interface RecommendedActivityResponse {
 export async function getNextRecommendedActivity(
   learnerId:
     string,
+  excludeActivityId?: string,
 ) {
+  const timeout =
+    createTimeoutSignal(6500);
+
   const response =
     await fetch(
       `${API_BASE_URL}/api/activity-sessions/next?learnerId=${encodeURIComponent(
         learnerId,
-      )}`,
+      )}${excludeActivityId ? `&excludeActivityId=${encodeURIComponent(excludeActivityId)}` : ""}`,
       {
         headers: getAuthHeaders(),
+        signal: timeout.signal,
       },
-    );
+    ).finally(timeout.clear);
 
   if (!response.ok) {
     throw new Error(
@@ -570,6 +669,7 @@ export async function respondToActivitySession({
   transcript,
   selectedChoiceId = null,
   actionCompleted = null,
+  adultScoringOverride = null,
 
   expectedAnswers,
   acceptedVariations,
@@ -618,6 +718,11 @@ export async function respondToActivitySession({
 
   actionCompleted?:
     boolean | null;
+
+  adultScoringOverride?:
+    | "correct"
+    | "incorrect"
+    | null;
 
   expectedAnswers:
     string[];
@@ -696,6 +801,8 @@ export async function respondToActivitySession({
             selectedChoiceId,
 
             actionCompleted,
+
+            adultScoringOverride,
 
             expectedAnswers,
 

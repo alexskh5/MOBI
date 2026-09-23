@@ -1,17 +1,29 @@
-import { useState } from "react";
-
 const speechLevels = [
   "Sound",
   "Syllable",
   "Word",
   "Phrase",
   "Sentence",
-  "Conversation",
 ];
 
-function ActivitySpeechLadder() {
-  const [selectedLevel, setSelectedLevel] =
-    useState(0);
+type Props = {
+  value: string;
+  onChange: (value: string) => void;
+};
+
+function ActivitySpeechLadder({
+  value,
+  onChange,
+}: Props) {
+  const selectedLevel =
+    Math.max(
+      0,
+      speechLevels.findIndex(
+        (level) =>
+          level.toLowerCase() ===
+          value.toLowerCase(),
+      ),
+    );
 
   return (
     <div className="inter border border-[#AAB7DA] rounded-[25px] overflow-hidden">
@@ -38,15 +50,15 @@ function ActivitySpeechLadder() {
 
           <div className="absolute top-3 left-0 right-0 h-1 bg-gray-400 rounded-full"></div>
 
-          <div className="grid grid-cols-6 relative">
+          <div className="grid grid-cols-5 relative">
 
             {speechLevels.map(
               (level, index) => (
                 <button
-                  key={level}
-                  onClick={() =>
-                    setSelectedLevel(index)
-                  }
+	                  key={level}
+	                  onClick={() =>
+	                    onChange(level.toLowerCase())
+	                  }
                   className="flex flex-col items-center"
                 >
 

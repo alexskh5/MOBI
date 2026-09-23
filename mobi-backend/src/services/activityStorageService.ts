@@ -10,6 +10,7 @@ const ALLOWED_ACTIVITY_MIME_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
+  "image/avif",
   "video/mp4",
   "video/quicktime",
   "video/webm",

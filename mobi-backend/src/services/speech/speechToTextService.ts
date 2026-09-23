@@ -33,10 +33,12 @@ export async function transcribeAudio(filePath: string) {
   const transcription = await withTimeout(
     openai.audio.transcriptions.create({
       file: fs.createReadStream(filePath),
-      model: "gpt-4o-mini-transcribe",
+      // Previous model: "gpt-4o-mini-transcribe".
+      // Whisper is steadier for short, noisy pilot-test clips.
+      model: "whisper-1",
       language: "en",
       prompt:
-        "This is a child speech therapy app. The child may say short English words, approximations, repeated words, stretched sounds, or imperfect pronunciation such as doooog, caaaw, mama, water, flag, dog, cow. Transcribe in English only.",
+        "Child speech therapy app. Transcribe short English child speech, approximations, repeated words, stretched sounds, animal sounds, requests, greetings, and imperfect pronunciation. Examples: moo, woof, meow, bubble please, more bubbles please, hi Moby, I want bubbles. Transcribe in English only.",
     }),
     STT_PROVIDER_TIMEOUT_MS,
     "STT provider timed out.",

@@ -198,6 +198,9 @@ function determineSuggestedSpeechLadder(
     case "sounds_vocalizations":
       return "Sound";
 
+    case "gestures_sign_language":
+      return "Sound";
+
     case "single_words":
       return "Word";
 

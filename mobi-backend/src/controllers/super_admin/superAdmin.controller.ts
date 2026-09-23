@@ -1,10 +1,16 @@
 import { Request, Response } from "express";
+import { getAuthUserFromAccessToken } from "../../services/authService";
 import {
   getSuperAdminDashboardData,
   getCenterAccount,
+  getCenterAccounts,
+  updateCenterAccountStatus,
   getParentAccounts,
   getSubscriptionPlans,
   getSystemNotifications,
+  createCenterInvitation,
+  getCenterInvitationByCode,
+  completeCenterInvitation,
   createSystemNotification,
   updateSystemNotification,
   deleteSystemNotification,
@@ -23,6 +29,25 @@ const allowedReceivers: ReceiverType[] = [
   "Therapist",
   "All",
 ];
+
+async function requireSuperAdmin(req: Request) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : "";
+
+  if (!token) {
+    throw new Error("A valid super admin login is required.");
+  }
+
+  const user = await getAuthUserFromAccessToken(token);
+
+  if (user.role !== "super_admin") {
+    throw new Error("Only super admins can perform this action.");
+  }
+
+  return user;
+}
 
 function validateReceivers(receivers: unknown) {
   if (!Array.isArray(receivers) || receivers.length === 0) {
@@ -94,6 +119,55 @@ export async function getCenterAccountController(
   }
 }
 
+export async function getCenterAccountsController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    await requireSuperAdmin(req);
+
+    const data = await getCenterAccounts();
+
+    res.status(200).json({
+      success: true,
+      message: "Center accounts fetched successfully.",
+      data,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch center accounts.",
+    });
+  }
+}
+
+export async function updateCenterAccountStatusController(
+  req: Request<{ centerId: string }>,
+  res: Response
+): Promise<void> {
+  try {
+    await requireSuperAdmin(req);
+
+    const status = req.body?.status === "active" ? "active" : "suspended";
+
+    const data = await updateCenterAccountStatus({
+      centerId: req.params.centerId,
+      status,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Center account status updated successfully.",
+      data,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update center account.",
+    });
+  }
+}
+
 export async function getParentAccountsController(
   req: Request,
   res: Response
@@ -110,6 +184,73 @@ export async function getParentAccountsController(
     res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch parent accounts.",
+    });
+  }
+}
+
+export async function createCenterInvitationController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    await requireSuperAdmin(req);
+
+    const data = await createCenterInvitation(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Center invitation created successfully.",
+      data,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to create center invitation.",
+    });
+  }
+}
+
+export async function getCenterInvitationController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const magicCode =
+      typeof req.query.code === "string"
+        ? req.query.code
+        : "";
+
+    const data = await getCenterInvitationByCode(magicCode);
+
+    res.status(200).json({
+      success: true,
+      message: "Center invitation fetched successfully.",
+      data,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to fetch center invitation.",
+    });
+  }
+}
+
+export async function completeCenterInvitationController(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const data = await completeCenterInvitation(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Center account created successfully.",
+      data,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || "Failed to complete center invitation.",
     });
   }
 }

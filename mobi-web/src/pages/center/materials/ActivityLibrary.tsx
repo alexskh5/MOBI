@@ -114,12 +114,19 @@ const ActivityLibrary = () => {
     async function loadActivities() {
       try {
         setLoading(true);
-        const [data, submissions] = await Promise.all([
-          getActivities(),
-          getSubmittedActivities(),
-        ]);
+        setError("");
+        const data = await getActivities();
         setActivities(data);
-        setSubmittedActivities(submissions);
+
+        try {
+          setSubmittedActivities(await getSubmittedActivities());
+        } catch (submissionError) {
+          console.warn(
+            "Unable to load therapist submissions.",
+            submissionError,
+          );
+          setSubmittedActivities([]);
+        }
       } catch (err) {
         console.error(err);
         setError("Failed to load activities.");
@@ -326,7 +333,7 @@ const ActivityLibrary = () => {
                     {[
                       "Teach & Practice",
                       "Check & Answer",
-                      "Conversation",
+                      "Social Prompt",
                       "Story",
                       "Turn Taking",
                       "Life Skills",

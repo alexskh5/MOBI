@@ -28,6 +28,12 @@ import CenterLayout from "../../../layouts/CenterLayout";
 import {
   enrollLearner,
 } from "../../../services/learner/learnerApi";
+import {
+  getCenterStaff,
+} from "../../../services/centerStaffApi";
+import type {
+  CenterStaff,
+} from "../../../services/centerStaffApi";
 
 import type {
   EnrollLearnerRequest,
@@ -119,6 +125,11 @@ interface AttentionArea {
   code: string;
   title: string;
   description: string;
+}
+
+interface DoctorOption {
+  id: string;
+  name: string;
 }
 
 /* =========================================================
@@ -221,36 +232,6 @@ const profileSections: ProfileSection[] = [
   },
 ];
 
-/*
-  Placeholder data only.
-
-  Later replace this with doctors fetched from your backend:
-
-  GET /api/center/doctors
-*/
-const doctorList = [
-  {
-    id: "doctor-1",
-    name: "Dr. Andres Lou Mulach",
-  },
-  {
-    id: "doctor-2",
-    name: "Dr. Maria Santos",
-  },
-  {
-    id: "doctor-3",
-    name: "Dr. John Reyes",
-  },
-  {
-    id: "doctor-4",
-    name: "Dr. Sophia Garcia",
-  },
-  {
-    id: "other",
-    name: "Other doctor",
-  },
-];
-
 const initialForm: EnrollmentForm = {
   learner: {
     firstName: "",
@@ -349,6 +330,10 @@ const profileQuestions: ProfileQuestion[] = [
       {
         label: "Sounds / Vocalizations",
         value: "sounds_vocalizations",
+      },
+      {
+        label: "Gestures or sign language",
+        value: "gestures_sign_language",
       },
       {
         label: "Single words",
@@ -1055,8 +1040,29 @@ const AddLearner = () => {
   const [draftLoaded, setDraftLoaded] =
     useState(false);
 
+  const [centerDoctors, setCenterDoctors] =
+    useState<DoctorOption[]>([]);
+
+  const [doctorListError, setDoctorListError] =
+    useState("");
+
   const currentStepIndex = steps.findIndex(
     (step) => step.id === currentStep,
+  );
+
+  const doctorOptions = useMemo(
+    () => [
+      {
+        id: "",
+        name: "No assigned doctor",
+      },
+      ...centerDoctors,
+      {
+        id: "other",
+        name: "Other doctor",
+      },
+    ],
+    [centerDoctors],
   );
 
   const currentProfileSection =
@@ -1234,6 +1240,48 @@ const AddLearner = () => {
     otherAnswers,
     draftLoaded,
   ]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDoctors() {
+      try {
+        setDoctorListError("");
+
+        const staff =
+          await getCenterStaff("doctor");
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCenterDoctors(
+          staff
+            .filter((doctor: CenterStaff) => doctor.isActive)
+            .map((doctor: CenterStaff) => ({
+              id: doctor.id,
+              name:
+                `${doctor.firstName} ${doctor.lastName}`.trim() ||
+                doctor.email,
+            })),
+        );
+      } catch (error) {
+        if (isMounted) {
+          setDoctorListError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load doctors.",
+          );
+        }
+      }
+    }
+
+    loadDoctors();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1431,10 +1479,11 @@ const AddLearner = () => {
       !form.learner.firstName.trim() ||
       !form.learner.lastName.trim() ||
       !form.learner.birthDate ||
-      !form.learner.sexAtBirth
+      !form.learner.sexAtBirth ||
+      !form.learner.homeAddress.trim()
     ) {
       setFormError(
-        "Please complete the learner's first name, last name, birthday, and sex at birth.",
+        "Please complete the learner's first name, last name, birthday, sex at birth, and home address.",
       );
 
       return false;
@@ -1508,14 +1557,6 @@ const AddLearner = () => {
 };
 
   const validateDoctorStep = () => {
-    if (!form.doctor.doctorId) {
-      setFormError(
-        "Please select the learner's doctor.",
-      );
-
-      return false;
-    }
-
     if (
       form.doctor.doctorId ===
         "other" &&
@@ -1901,7 +1942,7 @@ const AddLearner = () => {
     setFormError("");
 
     const selectedDoctor =
-      doctorList.find(
+      doctorOptions.find(
         (doctor) =>
           doctor.id ===
           form.doctor.doctorId,
@@ -1973,11 +2014,13 @@ const AddLearner = () => {
 
       doctor: {
         doctorId:
-          form.doctor.doctorId,
+          form.doctor.doctorId || null,
 
         doctorName:
-          form.doctor.doctorId ===
-          "other"
+          !form.doctor.doctorId
+            ? null
+            : form.doctor.doctorId ===
+              "other"
             ? form.doctor
                 .otherDoctorName
             : selectedDoctor?.name ??
@@ -2552,7 +2595,7 @@ const AddLearner = () => {
       </div>
 
       <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
-        <FormField label="Learner home address">
+        <FormField label="Learner home address" required>
           <textarea
             rows={4}
             value={
@@ -2884,7 +2927,7 @@ const AddLearner = () => {
 
   const renderDoctorStep = () => {
     const selectedDoctor =
-      doctorList.find(
+      doctorOptions.find(
         (doctor) =>
           doctor.id ===
           form.doctor.doctorId,
@@ -2908,18 +2951,22 @@ const AddLearner = () => {
             </h2>
 
             <p className="mt-2 break-words text-sm leading-6 text-[#746B78]">
-              This doctor will later be
-              connected to learner reports
-              and center collaboration.
+              This is optional. Assign a
+              doctor only when the learner
+              already has one connected to
+              the center.
             </p>
           </div>
         </div>
 
         <div className="space-y-5">
-          <FormField
-            label="Assigned doctor"
-            required
-          >
+          {doctorListError && (
+            <div className="rounded-2xl border border-[#F0D4D4] bg-[#FFF6F6] p-4 text-sm font-semibold text-[#A34444]">
+              {doctorListError}
+            </div>
+          )}
+
+          <FormField label="Assigned doctor">
             <select
               value={
                 form.doctor.doctorId
@@ -2935,10 +2982,12 @@ const AddLearner = () => {
               }
             >
               <option value="">
-                Select doctor
+                No assigned doctor
               </option>
 
-              {doctorList.map(
+              {doctorOptions
+                .filter((doctor) => doctor.id !== "")
+                .map(
                 (doctor) => (
                   <option
                     key={doctor.id}
@@ -3215,7 +3264,7 @@ const AddLearner = () => {
 
   const renderEnrollStep = () => {
     const selectedDoctor =
-      doctorList.find(
+      doctorOptions.find(
         (doctor) =>
           doctor.id ===
           form.doctor.doctorId,

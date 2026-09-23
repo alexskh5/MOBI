@@ -74,7 +74,7 @@
 //             <div className="w-6 h-6 rounded-full bg-[#D88AD8]"></div>
 
 //             <h3 className="font-semibold text-xl">
-//               Conversation Step
+//               Social Prompt Step
 //             </h3>
 //           </div>
 
@@ -349,7 +349,7 @@ const handlePreviewTopic = async (index: number) => {
             <div className="w-6 h-6 rounded-full bg-[#D88AD8]"></div>
 
             <h3 className="font-semibold text-xl">
-              Conversation Step
+              Social Prompt Step
             </h3>
           </div>
 
@@ -380,7 +380,7 @@ const handlePreviewTopic = async (index: number) => {
         {/* BODY */}
         <div className="bg-[#E4C9E5]/70 p-6">
           <label className="block text-sm font-medium mb-3">
-            Add question or topics here to initiate conversation
+            Add a greeting, goodbye, or simple check-in question
           </label>
 
           <div className="space-y-3 w-full">
@@ -396,7 +396,7 @@ const handlePreviewTopic = async (index: number) => {
                     }}
                     rows={1}
                     value={topic}
-                    placeholder="Type here..."
+                    placeholder="Example: Hi, how are you today?"
                     onChange={(e) =>
                       handleTopicChange(
                         index,
@@ -456,7 +456,7 @@ const handlePreviewTopic = async (index: number) => {
           </button>
 
           <label className="mt-4 block text-sm font-medium">
-            Recorded voice for this conversation prompt (Optional)
+            Recorded voice for this social prompt (Optional)
           </label>
 
           <input

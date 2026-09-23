@@ -24,6 +24,7 @@ type Props = {
   statusText: string;
   onMicPress: () => void;
   learnerResponse?: string;
+  disabled?: boolean;
 };
 
 export default function SessionVoiceControl({
@@ -32,6 +33,7 @@ export default function SessionVoiceControl({
   statusText,
   onMicPress,
   learnerResponse,
+  disabled = false,
 }: Props) {
   return (
     <View style={styles.voiceCard}>
@@ -39,13 +41,21 @@ export default function SessionVoiceControl({
         style={[
           styles.micButton,
           speakerStatus === 'userSpeaking' && styles.activeMicButton,
+          disabled && styles.disabledMicButton,
         ]}
         onPress={onMicPress}
+        disabled={disabled}
       >
         <Ionicons
           name={speakerStatus === 'userSpeaking' ? 'stop' : 'mic'}
           size={34}
-          color={speakerStatus === 'userSpeaking' ? '#FFFFFF' : '#8759D6'}
+          color={
+            disabled
+              ? '#A59AAA'
+              : speakerStatus === 'userSpeaking'
+              ? '#FFFFFF'
+              : '#8759D6'
+          }
         />
       </Pressable>
 
@@ -131,6 +141,10 @@ const styles = StyleSheet.create({
 
   activeMicButton: {
     backgroundColor: '#8759D6',
+  },
+
+  disabledMicButton: {
+    backgroundColor: '#ECE7EF',
   },
 
   waveContainer: {

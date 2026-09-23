@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     CalendarDays,
     Check,
@@ -11,10 +11,16 @@ import {
 } from "lucide-react";
 
 import TherapistLayout from "../../../layouts/TherapistLayout";
+import {
+    getSchedules,
+    respondToSchedule,
+    type TherapySchedule,
+} from "../../../services/scheduleApi";
 
 type ScheduleStatus =
     | "pending"
     | "confirmed"
+    | "edit_requested"
     | "declined"
     | "cancelled";
 
@@ -24,29 +30,30 @@ type ScheduleItem = {
     time: string;
     therapistId: string;
     learnerId: string;
+    learnerName: string;
     durationMinutes: number;
     status: ScheduleStatus;
     notes?: string;
     assignedBy?: string;
+    therapistResponseNote?: string;
 };
 
-type Learner = {
-    id: string;
-    name: string;
-};
-
-const CURRENT_THERAPIST_ID = "therapist-anna-reyes";
-
-const learners: Learner[] = [
-    {
-        id: "learner-lea-sarsoza",
-        name: "Lea Sarsoza",
-    },
-    {
-        id: "learner-albus-severus",
-        name: "Albus Severus",
-    },
-];
+function mapSchedule(schedule: TherapySchedule): ScheduleItem {
+    return {
+        id: schedule.id,
+        dateKey: schedule.dateKey,
+        time: schedule.time,
+        therapistId: schedule.therapistId,
+        learnerId: schedule.learnerId,
+        learnerName: schedule.learnerName,
+        durationMinutes: schedule.durationMinutes,
+        status: schedule.status,
+        notes: schedule.notes,
+        assignedBy: "Center Admin",
+        therapistResponseNote:
+            schedule.therapistResponseNote,
+    };
+}
 
 const pad = (value: number) => {
     return String(value).padStart(2, "0");
@@ -106,6 +113,9 @@ const getStatusLabel = (
         case "confirmed":
             return "Confirmed";
 
+        case "edit_requested":
+            return "Edit Requested";
+
         case "declined":
             return "Declined";
 
@@ -127,6 +137,9 @@ const getStatusStyle = (
         case "confirmed":
             return "text-emerald-700";
 
+        case "edit_requested":
+            return "text-blue-700";
+
         case "declined":
             return "text-red-600";
 
@@ -147,6 +160,9 @@ const getStatusDotStyle = (
 
         case "confirmed":
             return "bg-emerald-500";
+
+        case "edit_requested":
+            return "bg-blue-500";
 
         case "declined":
             return "bg-red-500";
@@ -174,114 +190,44 @@ const TherapistSchedule = () => {
 
     const [actionMessage, setActionMessage] =
         useState("");
+    const [actionNote, setActionNote] =
+        useState("");
+    const [loadingSchedules, setLoadingSchedules] =
+        useState(true);
+    const [scheduleError, setScheduleError] =
+        useState("");
 
     const selectedDateKey =
         getDateKey(selectedDate);
 
     const [schedules, setSchedules] =
-        useState<ScheduleItem[]>(() => {
-            const today = new Date();
-            const todayKey = getDateKey(today);
+        useState<ScheduleItem[]>([]);
 
-            const tomorrowKey = getDateKey(
-                addDays(today, 1)
-            );
+    useEffect(() => {
+        async function loadSchedules() {
+            try {
+                setLoadingSchedules(true);
+                setScheduleError("");
+                const data = await getSchedules();
+                setSchedules(data.map(mapSchedule));
+            } catch (error) {
+                console.error(error);
+                setScheduleError(
+                    "Unable to load your assigned schedules."
+                );
+            } finally {
+                setLoadingSchedules(false);
+            }
+        }
 
-            return [
-                {
-                    id: "schedule-001",
-                    dateKey: todayKey,
-                    time: "08:00",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-lea-sarsoza",
-                    durationMinutes: 45,
-                    status: "confirmed",
-                    notes:
-                        "Speech warm-up followed by guided word practice.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-002",
-                    dateKey: todayKey,
-                    time: "09:30",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-albus-severus",
-                    durationMinutes: 40,
-                    status: "pending",
-                    notes:
-                        "Word-level activity focusing on familiar objects.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-003",
-                    dateKey: todayKey,
-                    time: "11:00",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-lea-sarsoza",
-                    durationMinutes: 50,
-                    status: "pending",
-                    notes:
-                        "Practice greetings, turn-taking, and simple conversation.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-004",
-                    dateKey: todayKey,
-                    time: "13:30",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-albus-severus",
-                    durationMinutes: 45,
-                    status: "cancelled",
-                    notes:
-                        "Session cancelled by the center.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-                {
-                    id: "schedule-005",
-                    dateKey: tomorrowKey,
-                    time: "10:00",
-                    therapistId:
-                        CURRENT_THERAPIST_ID,
-                    learnerId:
-                        "learner-lea-sarsoza",
-                    durationMinutes: 50,
-                    status: "pending",
-                    notes:
-                        "Continue practicing social greetings and responses.",
-                    assignedBy:
-                        "Abled Minds Therapy Center",
-                },
-            ];
-        });
-
-    const getLearner = (
-        learnerId: string
-    ) => {
-        return learners.find(
-            (learner) =>
-                learner.id === learnerId
-        );
-    };
+        void loadSchedules();
+    }, []);
 
     const schedulesForSelectedDate =
         useMemo(() => {
             return schedules
                 .filter(
                     (schedule) =>
-                        schedule.therapistId ===
-                            CURRENT_THERAPIST_ID &&
                         schedule.dateKey ===
                             selectedDateKey
                 )
@@ -305,16 +251,11 @@ const TherapistSchedule = () => {
 
             return schedulesForSelectedDate.filter(
                 (schedule) => {
-                    const learner =
-                        getLearner(
-                            schedule.learnerId
-                        );
-
                     const searchableText = [
                         formatTime(
                             schedule.time
                         ),
-                        learner?.name ?? "",
+                        schedule.learnerName,
                         `${schedule.durationMinutes} minutes`,
                         schedule.notes ?? "",
                         schedule.assignedBy ??
@@ -382,48 +323,53 @@ const TherapistSchedule = () => {
 
     const closeApprovalModal = () => {
         setApprovalTarget(null);
+        setActionNote("");
     };
 
-    const handleApproveSchedule = () => {
+    const updateScheduleResponse = async (
+        action: "approve" | "request-edit" | "decline"
+    ) => {
         if (!approvalTarget) {
             return;
         }
 
-        setSchedules(
-            (currentSchedules) =>
-                currentSchedules.map(
-                    (schedule) =>
-                        schedule.id ===
-                        approvalTarget.id
-                            ? {
-                                  ...schedule,
-                                  status:
-                                      "confirmed",
-                              }
-                            : schedule
-                )
-        );
+        try {
+            const updated = await respondToSchedule(
+                approvalTarget.id,
+                action,
+                actionNote,
+            );
+            const nextSchedule = mapSchedule(updated);
 
-        setApprovalTarget(null);
+            setSchedules((currentSchedules) =>
+                currentSchedules.map((schedule) =>
+                    schedule.id === nextSchedule.id
+                        ? nextSchedule
+                        : schedule,
+                ),
+            );
 
-        setActionMessage(
-            "Schedule approved successfully."
-        );
+            setApprovalTarget(null);
+            setActionNote("");
+            setActionMessage(
+                action === "approve"
+                    ? "Schedule approved successfully."
+                    : action === "request-edit"
+                    ? "Edit request sent to center admin."
+                    : "Schedule declined.",
+            );
 
-        window.setTimeout(() => {
-            setActionMessage("");
-        }, 2500);
-
-        /*
-         * Later backend call:
-         *
-         * PATCH /api/therapist/schedules/:scheduleId/approve
-         *
-         * The backend should verify:
-         * 1. The schedule belongs to the logged-in therapist.
-         * 2. The schedule is still pending.
-         * 3. The therapist is allowed to approve it.
-         */
+            window.setTimeout(() => {
+                setActionMessage("");
+            }, 2500);
+        } catch (error) {
+            console.error(error);
+            setScheduleError(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to update schedule.",
+            );
+        }
     };
 
     return (
@@ -500,6 +446,18 @@ const TherapistSchedule = () => {
                     </div>
 
                     <div className="my-5 border-b border-gray-400/50" />
+
+                    {loadingSchedules && (
+                        <div className="mb-4 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#82548C]">
+                            Loading assigned schedules...
+                        </div>
+                    )}
+
+                    {scheduleError && (
+                        <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                            {scheduleError}
+                        </div>
+                    )}
 
                     {/* PAGE CONTENT */}
                     <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -654,11 +612,6 @@ const TherapistSchedule = () => {
                                         (
                                             schedule
                                         ) => {
-                                            const learner =
-                                                getLearner(
-                                                    schedule.learnerId
-                                                );
-
                                             return (
                                                 <article
                                                     key={
@@ -686,7 +639,7 @@ const TherapistSchedule = () => {
                                                         </p>
 
                                                         <p className="truncate text-sm font-semibold text-gray-900">
-                                                            {learner?.name ??
+                                                            {schedule.learnerName ??
                                                                 "Unknown learner"}
                                                         </p>
                                                     </div>
@@ -754,8 +707,8 @@ const TherapistSchedule = () => {
                                                                     )
                                                                 }
                                                                 className="flex items-center justify-center gap-1.5 rounded-lg border border-[#D9C7DD] bg-white px-3 py-2 text-sm font-semibold text-[#82548C] transition hover:bg-[#F7F1F8]"
-                                                                aria-label={`Approve ${
-                                                                    learner?.name ??
+                                                                aria-label={`Review ${
+                                                                    schedule.learnerName ??
                                                                     "learner"
                                                                 }'s session`}
                                                             >
@@ -765,7 +718,7 @@ const TherapistSchedule = () => {
                                                                     }
                                                                 />
 
-                                                                Approve
+                                                                Review
                                                             </button>
                                                         ) : schedule.status ===
                                                           "confirmed" ? (
@@ -887,10 +840,7 @@ const TherapistSchedule = () => {
 
                                             <div className="min-w-0">
                                                 <p className="truncate font-bold text-gray-900">
-                                                    {getLearner(
-                                                        approvalTarget.learnerId
-                                                    )
-                                                        ?.name ??
+                                                    {approvalTarget.learnerName ||
                                                         "Unknown learner"}
                                                 </p>
 
@@ -953,6 +903,23 @@ const TherapistSchedule = () => {
                                             </p>
                                         </div>
                                     )}
+
+                                    <div className="mt-4">
+                                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                            Optional response note
+                                        </label>
+                                        <textarea
+                                            value={actionNote}
+                                            onChange={(event) =>
+                                                setActionNote(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder="Add reason for edit request or decline..."
+                                            rows={3}
+                                            className="mt-2 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#82548C]"
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* MODAL ACTIONS */}
@@ -969,8 +936,34 @@ const TherapistSchedule = () => {
 
                                     <button
                                         type="button"
-                                        onClick={
-                                            handleApproveSchedule
+                                        onClick={() =>
+                                            updateScheduleResponse(
+                                                "decline"
+                                            )
+                                        }
+                                        className="rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                                    >
+                                        Decline
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            updateScheduleResponse(
+                                                "request-edit"
+                                            )
+                                        }
+                                        className="rounded-xl border border-[#82548C] bg-white px-5 py-3 text-sm font-semibold text-[#82548C] transition hover:bg-[#F7F1F8]"
+                                    >
+                                        Request Edit
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            updateScheduleResponse(
+                                                "approve"
+                                            )
                                         }
                                         className="flex items-center justify-center gap-2 rounded-xl bg-[#82548C] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#704578]"
                                     >
@@ -980,7 +973,7 @@ const TherapistSchedule = () => {
                                             }
                                         />
 
-                                        Confirm Approval
+                                        Approve
                                     </button>
                                 </div>
                             </div>

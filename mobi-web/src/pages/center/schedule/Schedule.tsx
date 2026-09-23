@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   CalendarDays,
@@ -13,6 +13,14 @@ import {
   Users,
 } from "lucide-react";
 import CenterLayout from "../../../layouts/CenterLayout";
+import { getCenterStaff } from "../../../services/centerStaffApi";
+import { getLearners } from "../../../services/learner/learnerApi";
+import {
+  cancelSchedule,
+  getSchedules,
+  saveSchedule as saveScheduleApi,
+  type TherapySchedule,
+} from "../../../services/scheduleApi";
 
 type Therapist = {
   id: string;
@@ -25,7 +33,12 @@ type Learner = {
   name: string;
 };
 
-type ScheduleStatus = "pending" | "confirmed" | "declined" | "cancelled";
+type ScheduleStatus =
+  | "pending"
+  | "confirmed"
+  | "edit_requested"
+  | "declined"
+  | "cancelled";
 
 type ScheduleItem = {
   id: string;
@@ -34,28 +47,24 @@ type ScheduleItem = {
   therapistId: string;
   learnerId: string;
   status: ScheduleStatus;
+  durationMinutes?: number;
   notes?: string;
+  therapistResponseNote?: string;
 };
 
-const therapists: Therapist[] = [
-  { id: "t1", name: "Ruby Jane", role: "Occupational Therapist" },
-  { id: "t2", name: "Mia Santos", role: "Speech Therapist" },
-  { id: "t3", name: "Angela Cruz", role: "Behavior Therapist" },
-  { id: "t4", name: "Carla Reyes", role: "Speech Therapist" },
-  { id: "t5", name: "Nina Dela Cruz", role: "Occupational Therapist" },
-];
-
-const learners: Learner[] = [
-  { id: "l1", name: "Lexi Pantaleon" },
-  { id: "l2", name: "Jane Lee" },
-  { id: "l3", name: "Ron Weasley" },
-  { id: "l4", name: "Ginny Weasley" },
-  { id: "l5", name: "Lesley Baguio" },
-  { id: "l6", name: "Lea Sarsoza" },
-  { id: "l7", name: "Harry Potter" },
-  { id: "l8", name: "Albus Severus" },
-  { id: "l9", name: "George Weasley" },
-];
+function mapSchedule(schedule: TherapySchedule): ScheduleItem {
+  return {
+    id: schedule.id,
+    dateKey: schedule.dateKey,
+    time: schedule.time,
+    therapistId: schedule.therapistId,
+    learnerId: schedule.learnerId,
+    durationMinutes: schedule.durationMinutes,
+    status: schedule.status,
+    notes: schedule.notes,
+    therapistResponseNote: schedule.therapistResponseNote,
+  };
+}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -103,6 +112,8 @@ const getStatusLabel = (status: ScheduleStatus) => {
       return "Pending Approval";
     case "confirmed":
       return "Confirmed";
+    case "edit_requested":
+      return "Edit Requested";
     case "declined":
       return "Declined";
     case "cancelled":
@@ -118,6 +129,8 @@ const getStatusStyle = (status: ScheduleStatus) => {
             return "text-amber-700";
         case "confirmed":
             return "text-emerald-700";
+        case "edit_requested":
+            return "text-blue-700";
         case "declined":
             return "text-red-600";
         case "cancelled":
@@ -133,6 +146,8 @@ const getStatusDotStyle = (status: ScheduleStatus) => {
             return "bg-amber-400";
         case "confirmed":
             return "bg-emerald-500";
+        case "edit_requested":
+            return "bg-blue-500";
         case "declined":
             return "bg-red-500";
         case "cancelled":
@@ -159,49 +174,50 @@ const Schedule = () => {
     useState<string | null>(null);
 
   const [editorError, setEditorError] = useState("");
+  const [loadingData, setLoadingData] = useState(true);
+  const [dataError, setDataError] = useState("");
+  const [therapists, setTherapists] = useState<Therapist[]>([]);
+  const [learners, setLearners] = useState<Learner[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
 
-  const [schedules, setSchedules] = useState<ScheduleItem[]>(() => {
-    const todayKey = getDateKey(new Date());
+  useEffect(() => {
+    async function loadScheduleData() {
+      try {
+        setLoadingData(true);
+        setDataError("");
+        const [therapistData, learnerData, scheduleData] =
+          await Promise.all([
+            getCenterStaff("therapist"),
+            getLearners({ limit: 200 }),
+            getSchedules(),
+          ]);
 
-    return [
-      {
-        id: "s1",
-        dateKey: todayKey,
-        time: "08:00",
-        therapistId: "t1",
-        learnerId: "l1",
-        status: "confirmed",
-        notes: "Speech warm-up and guided practice.",
-      },
-      {
-        id: "s2",
-        dateKey: todayKey,
-        time: "09:30",
-        therapistId: "t1",
-        learnerId: "l2",
-        status: "pending",
-        notes: "Word activity session.",
-      },
-      {
-        id: "s3",
-        dateKey: todayKey,
-        time: "11:00",
-        therapistId: "t2",
-        learnerId: "l3",
-        status: "pending",
-        notes: "Social readiness activity.",
-      },
-      {
-        id: "s4",
-        dateKey: todayKey,
-        time: "13:00",
-        therapistId: "t3",
-        learnerId: "l4",
-        status: "confirmed",
-        notes: "Conversation practice.",
-      },
-    ];
-  });
+        setTherapists(
+          therapistData
+            .filter((therapist) => therapist.isActive)
+            .map((therapist) => ({
+              id: therapist.id,
+              name: `${therapist.firstName} ${therapist.lastName}`.trim(),
+              role: therapist.specialty || "Therapist",
+            })),
+        );
+        setLearners(
+          learnerData.learners.map((learner) => ({
+            id: learner.id,
+            name: `${learner.firstName} ${learner.lastName}`.trim(),
+          })),
+        );
+        setSchedules(scheduleData.map(mapSchedule));
+      } catch (error) {
+        console.error(error);
+        setDataError("Unable to load real schedule data.");
+      } finally {
+        setLoadingData(false);
+      }
+    }
+
+    void loadScheduleData();
+  }, []);
 
   const getTherapist = (therapistId: string) => {
     return therapists.find((therapist) => therapist.id === therapistId);
@@ -331,7 +347,7 @@ const Schedule = () => {
     });
   };
 
-  const saveSchedule = () => {
+  const saveSchedule = async () => {
     if (!editingSchedule) return;
 
     if (
@@ -368,40 +384,68 @@ const Schedule = () => {
       return;
     }
 
-    setSchedules((prev) => {
-      if (editingExistingId) {
-        return prev.map((schedule) =>
-          schedule.id === editingExistingId ? editingSchedule : schedule
-        );
-      }
+    try {
+      const savedSchedule = await saveScheduleApi(
+        {
+          learnerId: editingSchedule.learnerId,
+          therapistId: editingSchedule.therapistId,
+          dateKey: editingSchedule.dateKey,
+          time: editingSchedule.time,
+          durationMinutes: editingSchedule.durationMinutes ?? 45,
+          notes: editingSchedule.notes ?? "",
+        },
+        editingExistingId ?? undefined,
+      );
 
-      return [...prev, editingSchedule];
-    });
+      const nextSchedule = mapSchedule(savedSchedule);
 
-    setSelectedDate(dateFromKey(editingSchedule.dateKey));
+      setSchedules((prev) => {
+        if (editingExistingId) {
+          return prev.map((schedule) =>
+            schedule.id === editingExistingId ? nextSchedule : schedule,
+          );
+        }
 
-    console.log("Automatic notification should be sent:", {
-      therapistId: editingSchedule.therapistId,
-      learnerId: editingSchedule.learnerId,
-      schedule: editingSchedule,
-    });
+        return [...prev, nextSchedule];
+      });
 
-    closeEditor();
+      setSelectedDate(dateFromKey(nextSchedule.dateKey));
+      closeEditor();
+    } catch (error) {
+      console.error(error);
+      setEditorError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save schedule.",
+      );
+    }
   };
 
-  const deleteSchedule = (scheduleId: string) => {
+  const deleteSchedule = async (scheduleId: string) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this schedule?"
+      "Cancel this schedule?"
     );
 
     if (!confirmed) return;
 
-    setSchedules((prev) =>
-      prev.filter((schedule) => schedule.id !== scheduleId)
-    );
+    try {
+      const cancelled = await cancelSchedule(scheduleId);
+      setSchedules((prev) =>
+        prev.map((schedule) =>
+          schedule.id === scheduleId ? mapSchedule(cancelled) : schedule,
+        ),
+      );
 
-    if (editingExistingId === scheduleId) {
-      closeEditor();
+      if (editingExistingId === scheduleId) {
+        closeEditor();
+      }
+    } catch (error) {
+      console.error(error);
+      setDataError(
+        error instanceof Error
+          ? error.message
+          : "Unable to cancel schedule.",
+      );
     }
   };
 
@@ -471,6 +515,18 @@ const Schedule = () => {
                 </div>
 
                 <div className="my-5 border-b border-gray-400/50" />
+
+                {loadingData && (
+                    <div className="mb-4 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#82548C]">
+                        Loading real schedule data...
+                    </div>
+                )}
+
+                {dataError && (
+                    <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                        {dataError}
+                    </div>
+                )}
 
                 {/* PAGE CONTENT */}
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

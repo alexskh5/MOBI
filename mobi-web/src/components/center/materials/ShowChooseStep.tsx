@@ -331,6 +331,7 @@ import {
 
 import VoiceStyleModal from "./VoiceStyleModal";
 import StepMenu from "./StepMenu";
+import ManualScoringToggle from "./ManualScoringToggle";
 import { previewTTS } from "../../../services/activityApi";
 
 type Choice = {
@@ -345,6 +346,7 @@ type ShowChooseStepData = {
   question: string;
   choices: Choice[];
   ai_voice_style: string;
+  manual_scoring_enabled?: boolean;
   prompt_audio_file?: File | null;
 };
 
@@ -371,6 +373,8 @@ function ShowAndChooseStep({
   const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
   const [promptAudioFile, setPromptAudioFile] =
     useState<File | null>(null);
+  const [manualScoringEnabled, setManualScoringEnabled] =
+    useState(initialData?.manual_scoring_enabled ?? false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -387,12 +391,14 @@ function ShowAndChooseStep({
     nextQuestion = question,
     nextChoices = choices,
     nextVoiceStyle = voiceStyle,
-    nextPromptAudioFile = promptAudioFile
+    nextPromptAudioFile = promptAudioFile,
+    nextManualScoringEnabled = manualScoringEnabled
   ) => {
     onChange(stepKey, {
       question: nextQuestion,
       choices: nextChoices,
       ai_voice_style: nextVoiceStyle,
+      manual_scoring_enabled: nextManualScoringEnabled,
       prompt_audio_file: nextPromptAudioFile,
     });
   };
@@ -581,6 +587,20 @@ function ShowAndChooseStep({
               Using recorded voice: {promptAudioFile.name}
             </p>
           )}
+
+          <ManualScoringToggle
+            enabled={manualScoringEnabled}
+            onChange={(enabled) => {
+              setManualScoringEnabled(enabled);
+              updateParent(
+                question,
+                choices,
+                voiceStyle,
+                promptAudioFile,
+                enabled,
+              );
+            }}
+          />
 
           <div>
             <label className="block text-sm font-medium mb-3 mt-5">

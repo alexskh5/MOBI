@@ -65,7 +65,10 @@ export default function LogInScreen() {
         index: 0,
         routes: [
           {
-            name: user.defaultMobileRoute,
+            name:
+              user.role === 'therapist'
+                ? 'LearnerSelect'
+                : user.defaultMobileRoute,
           },
         ],
       });

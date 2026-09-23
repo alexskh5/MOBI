@@ -26,6 +26,9 @@ import {
 
 import { createDefaultLearnerAdaptationSettings,
 } from "./adaptationSettingsService";
+import {
+  supabaseAdmin,
+} from "../../config/supabase";
 
 /* =========================================================
    TYPES
@@ -56,6 +59,12 @@ interface EnrollmentPayload {
     emergencyContactName?: string | null;
     emergencyContactPhone?: string | null;
     authorizedForUpdates?: boolean;
+  };
+
+  doctor?: {
+    doctorId?: string | null;
+    doctorName?: string | null;
+    collaborationNotes?: string | null;
   };
 
   learnerIntakeProfile: {
@@ -293,6 +302,49 @@ if (profilePhoto) {
         true,
     });
 
+  let doctorAssignment = null;
+
+  if (
+    payload.doctor?.doctorId &&
+    payload.doctor.doctorId !== "other"
+  ) {
+    const { data: doctor, error: doctorError } =
+      await supabaseAdmin
+        .from("doctors")
+        .select("id")
+        .eq("id", payload.doctor.doctorId)
+        .eq("center_id", centerId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+    if (doctorError) {
+      throw doctorError;
+    }
+
+    if (doctor) {
+      const { data, error } =
+        await supabaseAdmin
+          .from("learner_doctors")
+          .insert({
+            center_id: centerId,
+            learner_id: savedLearner.id,
+            doctor_id: doctor.id,
+            is_current: true,
+            assigned_at: new Date().toISOString(),
+            unassigned_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .select("*")
+          .single();
+
+      if (error) {
+        throw error;
+      }
+
+      doctorAssignment = data;
+    }
+  }
+
   /* =====================================================
      4. FIND ASSESSMENT TEMPLATE
   ===================================================== */
@@ -398,6 +450,8 @@ if (profilePhoto) {
 
     parentLearner:
       parentLearnerLink,
+
+    doctorAssignment,
 
     assessment:
       savedAssessment,

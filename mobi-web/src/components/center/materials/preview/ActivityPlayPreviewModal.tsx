@@ -8,6 +8,7 @@ import ShowChoosePreviewStep from "./ShowChoosePreviewStep";
 import ConversationPreviewStep from "./ConversationPreviewStep";
 import DoItPreviewStep from "./DoItPreviewStep";
 import PreviewVoiceControl from "./PreviewVoiceControl";
+import { previewTTS } from "../../../../services/activityApi";
 
 import {
   formatStepType,
@@ -105,31 +106,41 @@ export default function ActivityPlayPreviewModal({
   };
 
   const handleReplayPrompt = () => {
+    void replayPromptWithBackendVoice();
+  };
+
+  const replayPromptWithBackendVoice = async () => {
     const text = getTextForSpeech();
 
     if (!text) return;
 
-    if (!("speechSynthesis" in window)) {
+    try {
+      window.speechSynthesis?.cancel();
       setSpeakerStatus("speaking");
 
-      setTimeout(() => {
-        setSpeakerStatus("idle");
-      }, 1200);
+      const style =
+        currentType === "feedback" &&
+        typeof currentStep?.ai_voice_style === "object"
+          ? lastResultCorrect === false
+            ? currentStep.ai_voice_style?.wrong || "Encouraging"
+            : currentStep.ai_voice_style?.correct || "Celebratory"
+          : typeof currentStep?.ai_voice_style === "string"
+          ? currentStep.ai_voice_style
+          : "Teaching";
 
-      return;
+      await previewTTS({
+        text,
+        voice: "Kore",
+        speed: 1,
+        style,
+        emotion: "Calm",
+      });
+    } catch (error) {
+      console.error("Preview TTS failed:", error);
+      alert("Unable to preview TTS. Please check backend and TTS API keys.");
+    } finally {
+      setSpeakerStatus("idle");
     }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    utterance.pitch = 1.05;
-
-    utterance.onstart = () => setSpeakerStatus("speaking");
-    utterance.onend = () => setSpeakerStatus("idle");
-    utterance.onerror = () => setSpeakerStatus("idle");
-
-    window.speechSynthesis.speak(utterance);
   };
 
   const handleMicPress = () => {

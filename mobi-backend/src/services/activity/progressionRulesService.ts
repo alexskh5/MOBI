@@ -4,7 +4,6 @@ export const SPEECH_LADDER_LEVELS = [
   "word",
   "phrase",
   "sentence",
-  "conversation",
 ] as const;
 
 export type SpeechLadderLevel =
@@ -26,7 +25,7 @@ export function normalizeSpeechLadderLevel(
     .replace(/[\s_-]+/g, " ");
 
   if (normalized === "social readiness") {
-    return "conversation";
+    return "sentence";
   }
 
   return SPEECH_LADDER_LEVELS.find(

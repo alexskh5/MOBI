@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -14,100 +14,138 @@ import {
   X,
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
+import { getSuperAdminDashboard } from "../../services/super_admin/superAdminApi";
 
 type Activity = {
-  id: number;
+  id: string;
   title: string;
   centerName: string;
   rank: number;
-  postedAgo: string;
+  usageCount: number;
   description: string;
   author: string;
-  datePublished: string;
+  datePublished: string | null;
 };
 
-const stats = {
-  activeParents: 90,
-  activeDoctors: 3,
-  activeTherapists: 5,
+type DashboardStats = {
+  activeParents: number;
+  activeDoctors: number;
+  activeTherapists: number;
+  activeCenters: number;
+  totalCenters: number;
+  inactiveCenters: number;
+  totalLearners: number;
 };
 
-const mostUsedActivities: Activity[] = [
-  {
-    id: 1,
-    title: "Learning greetings through fun",
-    centerName: "Abled Mind Therapy Center",
-    rank: 1,
-    postedAgo: "1 yr ago",
-    author: "Abled Mind Therapy Center",
-    datePublished: "June 15, 2025",
-    description:
-      "An activity designed to help learners practice basic greetings and friendly social responses.",
-  },
-  {
-    id: 2,
-    title: "The story of colors",
-    centerName: "Abled Mind Therapy Center",
-    rank: 2,
-    postedAgo: "1 yr ago",
-    author: "Abled Mind Therapy Center",
-    datePublished: "June 20, 2025",
-    description:
-      "A visual learning activity that introduces colors through storytelling and recognition tasks.",
-  },
-  {
-    id: 3,
-    title: "Puzzle and Me",
-    centerName: "Abled Mind Therapy Center",
-    rank: 3,
-    postedAgo: "1 yr ago",
-    author: "Abled Mind Therapy Center",
-    datePublished: "July 2, 2025",
-    description:
-      "A problem-solving activity that supports attention, matching, and communication practice.",
-  },
-  {
-    id: 4,
-    title: "Brushing Teeth",
-    centerName: "Abled Mind Therapy Center",
-    rank: 4,
-    postedAgo: "3 mon ago",
-    author: "Abled Mind Therapy Center",
-    datePublished: "March 10, 2026",
-    description:
-      "A daily living skills activity that teaches learners the steps of brushing teeth.",
-  },
-  {
-    id: 5,
-    title: "Saying Please and Its Difference",
-    centerName: "Abled Mind Therapy Center",
-    rank: 5,
-    postedAgo: "1 wk ago",
-    author: "Abled Mind Therapy Center",
-    datePublished: "June 20, 2026",
-    description:
-      "A social readiness activity focused on polite expressions and appropriate communication.",
-  },
-  {
-    id: 6,
-    title: "How to lock the door in public areas and why it is needed",
-    centerName: "Abled Mind Therapy Center",
-    rank: 6,
-    postedAgo: "4 mon ago",
-    author: "Abled Mind Therapy Center",
-    datePublished: "February 18, 2026",
-    description:
-      "A safety awareness activity that explains privacy, public spaces, and basic security routines.",
-  },
-];
+type CenterSummary = {
+  centerName: string;
+  email: string;
+  status: "Active" | "Suspended";
+};
+
+type CenterAccount = CenterSummary & {
+  id: string;
+  owner: string;
+  contactPerson: string;
+  plan: string;
+  createdAt: string | null;
+};
+
+type CenterFilter = "all" | "active" | "suspended";
+
+const emptyStats: DashboardStats = {
+  activeParents: 0,
+  activeDoctors: 0,
+  activeTherapists: 0,
+  activeCenters: 0,
+  totalCenters: 0,
+  inactiveCenters: 0,
+  totalLearners: 0,
+};
+
+function formatDate(value: string | null) {
+  if (!value) return "Not published";
+
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function SuperDashboardScreen() {
   const navigate = useNavigate();
+
+  const [stats, setStats] = useState<DashboardStats>(emptyStats);
+  const [center, setCenter] = useState<CenterSummary | null>(null);
+  const [centers, setCenters] = useState<CenterAccount[]>([]);
+  const [centerFilter, setCenterFilter] =
+    useState<CenterFilter>("all");
+  const [mostUsedActivities, setMostUsedActivities] = useState<Activity[]>([]);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
 
   const [selectedActivity, setSelectedActivity] =
     useState<Activity | null>(null);
 
   const [showReport, setShowReport] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDashboard() {
+      try {
+        setLoadingDashboard(true);
+        setDashboardError("");
+
+        const result = await getSuperAdminDashboard();
+        const data = result.data || {};
+
+        if (!isMounted) return;
+
+        setStats({
+          activeParents: data.activeParents || 0,
+          activeDoctors: data.activeDoctors || 0,
+          activeTherapists: data.activeTherapists || 0,
+          activeCenters: data.activeCenters || 0,
+          totalCenters: data.totalCenters || 0,
+          inactiveCenters: data.inactiveCenters || 0,
+          totalLearners: data.totalLearners || 0,
+        });
+        setCenter(data.center || null);
+        setCenters(data.centers || []);
+        setMostUsedActivities(data.mostUsedActivities || []);
+      } catch (error: any) {
+        if (isMounted) {
+          setDashboardError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load dashboard data."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingDashboard(false);
+        }
+      }
+    }
+
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const visibleCenters = useMemo(() => {
+    return centers
+      .filter((item) => {
+        if (centerFilter === "active") return item.status === "Active";
+        if (centerFilter === "suspended") return item.status === "Suspended";
+        return true;
+      })
+      .sort((a, b) => a.centerName.localeCompare(b.centerName));
+  }, [centerFilter, centers]);
 
   return (
     <main className="super-page">
@@ -206,19 +244,47 @@ export default function SuperDashboardScreen() {
 
             <div>
               <span className="center-label">ACTIVE CENTER</span>
-              <h2>Abled Mind Therapy Center</h2>
-              <p>Connected to the MOBI platform</p>
+              <h2>{center?.centerName || "No center found"}</h2>
+              <p>{center?.email || "Connect a center to the MOBI platform"}</p>
             </div>
           </div>
 
           <div className="active-status">
             <span className="active-dot" />
-            Active
+            {center?.status || "No data"}
           </div>
         </section>
 
+        {dashboardError && (
+          <div className="dashboard-error">{dashboardError}</div>
+        )}
+
         {/* STATS */}
         <section className="stats-grid">
+          <StatCard
+            icon={<Building2 size={21} />}
+            label="Active Centers"
+            value={stats.activeCenters}
+            description="Centers currently allowed to use MOBI"
+            tone="purple"
+          />
+
+          <StatCard
+            icon={<Building2 size={21} />}
+            label="Total Centers"
+            value={stats.totalCenters}
+            description={`${stats.inactiveCenters} suspended or inactive`}
+            tone="green"
+          />
+
+          <StatCard
+            icon={<Users size={21} />}
+            label="Total Learners"
+            value={stats.totalLearners}
+            description="Learners enrolled across all centers"
+            tone="orange"
+          />
+
           <StatCard
             icon={<Users size={21} />}
             label="Active Parents"
@@ -244,6 +310,86 @@ export default function SuperDashboardScreen() {
           />
         </section>
 
+        <section className="center-list-panel">
+          <div className="panel-header">
+            <div>
+              <span className="section-eyebrow">CENTER ACCOUNTS</span>
+              <h2>Centers</h2>
+              <p>
+                SaaS center accounts from the database, sorted by center name.
+              </p>
+            </div>
+
+            <div className="center-filter-group">
+              {(["all", "active", "suspended"] as CenterFilter[]).map(
+                (filter) => (
+                  <button
+                    key={filter}
+                    className={
+                      centerFilter === filter
+                        ? "center-filter active"
+                        : "center-filter"
+                    }
+                    onClick={() => setCenterFilter(filter)}
+                  >
+                    {filter === "all"
+                      ? "All"
+                      : filter === "active"
+                        ? "Active"
+                        : "Suspended"}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+
+          <div className="center-table-header">
+            <span>Center</span>
+            <span>Owner / Contact</span>
+            <span>Plan</span>
+            <span>Status</span>
+          </div>
+
+          <div className="center-list">
+            {loadingDashboard && (
+              <div className="empty-activity-state">Loading centers...</div>
+            )}
+
+            {!loadingDashboard && visibleCenters.length === 0 && (
+              <div className="empty-activity-state">
+                No centers found for this filter.
+              </div>
+            )}
+
+            {!loadingDashboard &&
+              visibleCenters.map((item) => (
+                <div key={item.id} className="center-row">
+                  <div>
+                    <strong>{item.centerName}</strong>
+                    <span>{item.email || "No email"}</span>
+                  </div>
+
+                  <div>
+                    <strong>{item.owner || "No owner added"}</strong>
+                    <span>{item.contactPerson || "No contact person"}</span>
+                  </div>
+
+                  <div className="center-plan">{item.plan}</div>
+
+                  <div
+                    className={
+                      item.status === "Active"
+                        ? "center-status active"
+                        : "center-status suspended"
+                    }
+                  >
+                    {item.status}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
+
         {/* ACTIVITIES */}
         <section className="activity-panel">
           <div className="panel-header">
@@ -251,8 +397,8 @@ export default function SuperDashboardScreen() {
               <span className="section-eyebrow">ACTIVITY INSIGHTS</span>
               <h2>Most Used Activities</h2>
               <p>
-                Activities with the highest learner usage from Abled Mind
-                Therapy Center.
+                Activities with the highest learner usage across the MOBI
+                platform.
               </p>
             </div>
 
@@ -274,7 +420,17 @@ export default function SuperDashboardScreen() {
           </div>
 
           <div className="activity-list">
-            {mostUsedActivities.map((activity) => (
+            {loadingDashboard && (
+              <div className="empty-activity-state">Loading activity usage...</div>
+            )}
+
+            {!loadingDashboard && mostUsedActivities.length === 0 && (
+              <div className="empty-activity-state">
+                No published activity usage has been recorded yet.
+              </div>
+            )}
+
+            {!loadingDashboard && mostUsedActivities.map((activity) => (
               <button
                 key={activity.id}
                 className="activity-row"
@@ -290,11 +446,11 @@ export default function SuperDashboardScreen() {
                 </div>
 
                 <div className="rank-badge">
-                  Top {activity.rank}
+                  {activity.usageCount} sessions
                 </div>
 
                 <div className="posted-time">
-                  {activity.postedAgo}
+                  {formatDate(activity.datePublished)}
                 </div>
 
                 <span className="row-arrow">
@@ -336,7 +492,7 @@ export default function SuperDashboardScreen() {
 
             <div className="detail-box">
               <span className="detail-label">Date published</span>
-              <strong>{selectedActivity.datePublished}</strong>
+              <strong>{formatDate(selectedActivity.datePublished)}</strong>
             </div>
           </div>
         </Modal>
@@ -356,7 +512,7 @@ export default function SuperDashboardScreen() {
             <div>
               <h3>Top Performing Activities</h3>
               <p>
-                Based on learner usage from Abled Mind Therapy Center.
+                Based on learner session usage from the database.
               </p>
             </div>
           </div>
@@ -374,7 +530,7 @@ export default function SuperDashboardScreen() {
                 </div>
 
                 <div className="report-position">
-                  Top {activity.rank}
+                  {activity.usageCount} sessions
                 </div>
               </div>
             ))}
@@ -384,8 +540,8 @@ export default function SuperDashboardScreen() {
             <CheckCircle2 size={17} />
 
             <p>
-              Activity usage analytics can later be connected directly to
-              backend data.
+              These rankings are now loaded from recorded learner activity
+              sessions.
             </p>
           </div>
         </Modal>
@@ -783,6 +939,25 @@ export default function SuperDashboardScreen() {
           margin-bottom: 25px;
         }
 
+        .dashboard-error,
+        .empty-activity-state {
+          border-radius: 14px;
+          background: #fff6f6;
+          border: 1px solid #f5d2d2;
+          color: #9f2f2f;
+          padding: 15px 17px;
+          margin-bottom: 18px;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .empty-activity-state {
+          background: #f8f6fa;
+          border-color: var(--border);
+          color: var(--text-secondary);
+          margin-bottom: 0;
+        }
+
         .stat-card {
           min-height: 136px;
           padding: 20px;
@@ -923,6 +1098,116 @@ export default function SuperDashboardScreen() {
         .report-button:hover {
           background: var(--mobi-purple-light);
           border-color: #cfc4df;
+        }
+
+        .center-list-panel {
+          overflow: hidden;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: var(--card-bg);
+          margin-bottom: 25px;
+        }
+
+        .center-filter-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .center-filter {
+          min-height: 36px;
+          padding: 0 14px;
+          border: 1px solid #ded8e8;
+          border-radius: 9px;
+          background: #ffffff;
+          color: var(--text-secondary);
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: 650;
+        }
+
+        .center-filter.active {
+          background: var(--mobi-purple);
+          border-color: var(--mobi-purple);
+          color: #ffffff;
+        }
+
+        .center-table-header,
+        .center-row {
+          display: grid;
+          grid-template-columns:
+            minmax(240px, 1.1fr)
+            minmax(220px, 1fr)
+            minmax(140px, 0.6fr)
+            110px;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .center-table-header {
+          padding: 11px 20px;
+          border-bottom: 1px solid var(--border-soft);
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .center-list {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .center-row {
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--border-soft);
+          font-size: 13px;
+        }
+
+        .center-row:last-child {
+          border-bottom: none;
+        }
+
+        .center-row strong,
+        .center-row span {
+          display: block;
+        }
+
+        .center-row strong {
+          font-size: 13px;
+          font-weight: 650;
+          color: var(--text-primary);
+        }
+
+        .center-row span {
+          margin-top: 4px;
+          color: var(--text-secondary);
+          font-size: 11px;
+        }
+
+        .center-plan {
+          color: var(--text-secondary);
+          font-size: 12px;
+        }
+
+        .center-status {
+          width: fit-content;
+          padding: 7px 10px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .center-status.active {
+          background: var(--success-light);
+          color: var(--success);
+        }
+
+        .center-status.suspended {
+          background: #fff1ec;
+          color: #b65235;
         }
 
         .activity-table-header {

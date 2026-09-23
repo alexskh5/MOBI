@@ -9,7 +9,6 @@ import {
   Edit3,
   Home,
   LogOut,
-  Menu,
   Search,
   Send,
   Trash2,
@@ -334,49 +333,56 @@ export default function SuperProcessScreen() {
   return (
     <main className="super-page">
       <aside className="sidebar">
-        <button className="burger-btn" aria-label="Menu">
-          <Menu size={22} />
+        <div className="sidebar-top">
+          <div className="brand">
+            <img src={mobiLogo} alt="MOBI Logo" />
+
+            <div className="brand-text">
+              <span className="brand-name">MOBI</span>
+              <span className="brand-role">Super Admin</span>
+            </div>
+          </div>
+
+          <div className="welcome">
+            <span>WELCOME BACK</span>
+            <strong>Dev</strong>
+          </div>
+
+          <nav className="nav-links">
+            <button
+              className="nav-item"
+              onClick={() => navigate("/superadmin/SuperDashboardScreen")}
+            >
+              <span className="nav-icon">
+                <Home size={19} />
+              </span>
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate("/superadmin/SuperManageScreen")}
+            >
+              <span className="nav-icon">
+                <Building2 size={19} />
+              </span>
+              <span>Manage</span>
+            </button>
+
+            <button className="nav-item active" onClick={() => setViewMode("menu")}>
+              <span className="nav-active-line" />
+              <span className="nav-icon">
+                <ClipboardCheck size={19} />
+              </span>
+              <span>Process</span>
+            </button>
+          </nav>
+        </div>
+
+        <button className="logout-button" onClick={() => navigate("/")}>
+          <LogOut size={18} />
+          <span>Log out</span>
         </button>
-
-        <div className="brand">
-          <img src={mobiLogo} alt="MOBI Logo" />
-        </div>
-
-        <div className="welcome">
-          <h2>
-            Welcome
-            <br />
-            back, Admin!
-          </h2>
-        </div>
-
-        <nav className="nav-links">
-          <button
-            className="nav-item"
-            onClick={() => navigate("/superadmin/SuperDashboardScreen")}
-          >
-            <Home size={20} />
-            <span>Dashboard</span>
-          </button>
-
-          <button
-            className="nav-item"
-            onClick={() => navigate("/superadmin/SuperManageScreen")}
-          >
-            <Building2 size={20} />
-            <span>Manage</span>
-          </button>
-
-          <button className="nav-item active" onClick={() => setViewMode("menu")}>
-            <ClipboardCheck size={20} />
-            <span>Process</span>
-          </button>
-
-          <button className="nav-item" onClick={() => navigate("/")}>
-            <LogOut size={20} />
-            <span>Log out</span>
-          </button>
-        </nav>
       </aside>
 
       <section className="process-card">
@@ -673,54 +679,81 @@ export default function SuperProcessScreen() {
         .super-page {
           min-height: 100vh;
           width: 100%;
-          background: #ffffff;
           display: grid;
-          grid-template-columns: 190px 1fr;
-          gap: 22px;
-          padding: 18px;
+          grid-template-columns: 230px minmax(0, 1fr);
+          background: #f7f7f9;
           font-family: Inter, Poppins, Arial, sans-serif;
-          color: #111;
+          color: #202027;
         }
 
         .sidebar {
+          height: 100vh;
           position: sticky;
-          top: 18px;
-          height: calc(100vh - 36px);
+          top: 0;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
+          justify-content: space-between;
+          padding: 28px 18px 22px;
+          background: #ffffff;
+          border-right: 1px solid #e8e8ed;
         }
 
-        .burger-btn {
-          border: none;
-          background: transparent;
-          padding: 6px;
-          margin-bottom: 18px;
-          cursor: pointer;
+        .sidebar-top {
+          width: 100%;
         }
 
         .brand {
-          width: 100%;
-          text-align: center;
-          margin-bottom: 18px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 0 10px;
+          margin-bottom: 38px;
         }
 
         .brand img {
-          width: 92px;
-          height: auto;
+          width: 43px;
+          height: 43px;
           object-fit: contain;
         }
 
-        .welcome {
-          padding-left: 8px;
-          margin-bottom: 22px;
+        .brand-text {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
         }
 
-        .welcome h2 {
-          margin: 0;
-          font-size: 18px;
-          line-height: 1.1;
-          font-weight: 800;
+        .brand-name {
+          font-size: 17px;
+          font-weight: 700;
+          color: #202027;
+        }
+
+        .brand-role {
+          margin-top: 2px;
+          font-size: 11px;
+          font-weight: 500;
+          color: #9898a3;
+        }
+
+        .welcome {
+          display: flex;
+          flex-direction: column;
+          padding: 0 12px;
+          margin-bottom: 24px;
+        }
+
+        .welcome span {
+          margin-bottom: 5px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.13em;
+          color: #9898a3;
+        }
+
+        .welcome strong {
+          font-size: 16px;
+          font-weight: 650;
+          color: #202027;
         }
 
         .nav-links {
@@ -732,33 +765,79 @@ export default function SuperProcessScreen() {
 
         .nav-item {
           width: 100%;
+          min-height: 46px;
           height: 44px;
           border: none;
-          border-radius: 8px;
+          border-radius: 10px;
           background: transparent;
           display: flex;
           align-items: center;
           gap: 12px;
-          padding: 0 12px;
+          padding: 0 13px;
           cursor: pointer;
-          font-size: 15px;
-          font-weight: 800;
-          color: #111;
+          font-size: 14px;
+          font-weight: 550;
+          color: #666672;
           text-align: left;
+          position: relative;
         }
 
         .nav-item.active {
-          color: #9a9fd3;
+          background: #f3eff8;
+          color: #7456a3;
+          font-weight: 650;
+        }
+
+        .nav-item:hover {
+          background: #f8f6fa;
+          color: #7456a3;
+        }
+
+        .nav-active-line {
+          position: absolute;
+          left: 0;
+          top: 10px;
+          bottom: 10px;
+          display: block;
+          width: 3px;
+          border-radius: 0 4px 4px 0;
+          background: #7456a3;
+        }
+
+        .nav-icon {
+          width: 23px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .logout-button {
+          width: 100%;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 0 13px;
+          border: none;
+          border-radius: 10px;
+          background: transparent;
+          color: #777781;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 550;
+        }
+
+        .logout-button:hover {
+          background: #faf2f2;
+          color: #a34e4e;
         }
 
         .process-card {
           position: relative;
-          min-height: calc(100vh - 36px);
+          min-height: 100vh;
           min-width: 0;
-          border-radius: 22px;
-          padding: 34px 44px;
-          background: #ead9eb;
-          box-shadow: inset 0 0 0 1px rgba(130, 87, 145, 0.18);
+          padding: 35px 42px 55px;
+          background: #f7f7f9;
           overflow-y: auto;
         }
 

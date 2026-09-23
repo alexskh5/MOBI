@@ -11,6 +11,7 @@ import {
   listActivities,
   listSubmittedActivityReviews,
   readActivity,
+  resubmitActivityReview,
   uploadActivityAsset,
 } from "../controllers/activityController";
 
@@ -67,6 +68,11 @@ router.patch(
 router.patch(
   "/:id/review/decline",
   declineActivityReview,
+);
+
+router.patch(
+  "/:id/review/resubmit",
+  resubmitActivityReview,
 );
 
 /*
