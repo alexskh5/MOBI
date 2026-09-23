@@ -19,6 +19,31 @@ import {
 import {
   getAuthUserFromAccessToken,
 } from "../services/authService";
+
+async function getRequestCenterAuth(req: Request) {
+  const authHeader =
+    req.header("authorization") ?? "";
+
+  const accessToken =
+    authHeader.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
+
+  if (!accessToken) {
+    throw new Error("Please log in before using learner records.");
+  }
+
+  const authUser =
+    await getAuthUserFromAccessToken(
+      accessToken,
+    );
+
+  if (!authUser.centerId) {
+    throw new Error("This account is not connected to a center.");
+  }
+
+  return authUser;
+}
 /* =========================================================
    ENROLL LEARNER CONTROLLER
 ========================================================= */
@@ -83,14 +108,11 @@ export const enrollLearner = async (
        2. CENTER ID
     ===================================================== */
 
-    /*
-      TEMPORARY:
+    const authUser =
+      await getRequestCenterAuth(req);
 
-      Later this should come from the authenticated
-      center account.
-    */
     const CENTER_ID =
-      "d5ae1649-0343-46d4-b433-575c97e064e1";
+      authUser.centerId!;
 
     /* =====================================================
        3. CALL ENROLLMENT SERVICE
@@ -219,14 +241,11 @@ export const getLearnerById = async (
        2. CENTER ID
     ===================================================== */
 
-    /*
-      TEMPORARY:
+    const authUser =
+      await getRequestCenterAuth(req);
 
-      Later this will come from the authenticated
-      Center account/session instead of being hardcoded.
-    */
     const CENTER_ID =
-      "d5ae1649-0343-46d4-b433-575c97e064e1";
+      authUser.centerId!;
 
     /* =====================================================
        3. GET COMPLETE LEARNER PROFILE
@@ -285,34 +304,8 @@ export const getLearners = async (
        1. CENTER ID
     ===================================================== */
 
-    const authHeader =
-      req.header("authorization") ?? "";
-
-    const accessToken =
-      authHeader.toLowerCase().startsWith("bearer ")
-        ? authHeader.slice(7).trim()
-        : "";
-
-    if (!accessToken) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "Please log in before viewing learners.",
-      });
-    }
-
     const authUser =
-      await getAuthUserFromAccessToken(
-        accessToken,
-      );
-
-    if (!authUser.centerId) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "This account is not connected to a center.",
-      });
-    }
+      await getRequestCenterAuth(req);
 
     const CENTER_ID =
       authUser.centerId;

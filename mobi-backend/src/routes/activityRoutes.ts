@@ -4,12 +4,14 @@ import { Router } from "express";
 import multer from "multer";
 
 import {
+  approveActivityReview,
   archiveActivity,
   createActivity,
   deleteTherapistActivity,
   listActivities,
   listTherapistMaterials,
   readActivity,
+  resubmitActivityReview,
   uploadActivityAsset,
 } from "../controllers/activityController";
 
@@ -46,6 +48,26 @@ router.post(
 router.patch(
   "/:id/archive",
   archiveActivity,
+);
+
+router.get(
+  "/reviews/submissions",
+  listSubmittedActivityReviews,
+);
+
+router.patch(
+  "/:id/review/publish",
+  approveActivityReview,
+);
+
+router.patch(
+  "/:id/review/decline",
+  declineActivityReview,
+);
+
+router.patch(
+  "/:id/review/resubmit",
+  resubmitActivityReview,
 );
 
 /*

@@ -148,6 +148,13 @@ const FILLER_WORDS = new Set([
   "it",
   "is",
   "am",
+  "are",
+  "was",
+  "were",
+  "this",
+  "that",
+  "there",
+  "here",
 ]);
 
 const SEMANTIC_WORDS: Record<string, string> = {
@@ -173,6 +180,13 @@ const SEMANTIC_WORDS: Record<string, string> = {
   yep: "yes",
   yeah: "yes",
 };
+
+const REQUEST_WORDS = new Set([
+  "more",
+  "want",
+  "need",
+  "give",
+]);
 
 function getSemanticWords(text: string) {
   return getWords(text)
@@ -225,6 +239,57 @@ function semanticWordsMatch(
   }
 
   return false;
+}
+
+function meaningfulWords(text: string) {
+  return getWords(text)
+    .map(normalizeSimplePlural)
+    .filter((word) => !FILLER_WORDS.has(word));
+}
+
+function hasMeaningfulOverlap(
+  transcript: string,
+  acceptedPhrase: string,
+) {
+  const spokenWords = meaningfulWords(transcript);
+  const targetWords = meaningfulWords(acceptedPhrase);
+
+  if (
+    spokenWords.length === 0 ||
+    targetWords.length === 0 ||
+    getWords(transcript).some((word) => NEGATION_WORDS.has(word))
+  ) {
+    return false;
+  }
+
+  const targetSet = new Set(targetWords);
+  const overlapCount = spokenWords.filter((word) =>
+    targetSet.has(word),
+  ).length;
+
+  if (targetWords.length === 1) {
+    return overlapCount === 1;
+  }
+
+  if (
+    targetWords.length <= 2 &&
+    overlapCount >= 1
+  ) {
+    const missingTargetWords = targetWords.filter(
+      (word) => !spokenWords.includes(word),
+    );
+
+    if (
+      missingTargetWords.length > 0 &&
+      missingTargetWords.every((word) =>
+        REQUEST_WORDS.has(word),
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return overlapCount >= Math.min(2, targetWords.length);
 }
 
 function canUseSemanticTarget(
@@ -346,6 +411,20 @@ export function evaluateSpeech({
         };
       }
     }
+
+    for (const accepted of allAccepted) {
+      if (hasMeaningfulOverlap(transcript, accepted)) {
+        return {
+          accepted: true,
+          method: "semantic_match",
+          matched_word: accepted,
+          communication_attempt: true,
+          should_score: true,
+          approximation: true,
+          semantic_match: true,
+        };
+      }
+    }
   }
 
   const approximationCandidates = Array.from(
@@ -356,7 +435,9 @@ export function evaluateSpeech({
     for (const answer of expected) {
       const distance = levenshteinDistance(candidate, answer);
       const maximumDistance =
-        answer.length <= 3
+        answer.length === 1
+          ? 0
+          : answer.length <= 3
           ? Math.min(1, levenshteinThreshold)
           : levenshteinThreshold;
 

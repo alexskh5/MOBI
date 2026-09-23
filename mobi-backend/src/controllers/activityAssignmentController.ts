@@ -13,16 +13,50 @@ import {
 } from "../services/activity/activityAssignmentService";
 
 import type {
+  AssignedByRole,
   AssignmentStatus,
 } from "../services/activity/activityAssignmentService";
-/*
-  Temporary Center ID.
 
-  Later, this must come from the logged-in Center or
-  Therapist account.
-*/
-const CENTER_ID =
-  "d5ae1649-0343-46d4-b433-575c97e064e1";
+import {
+  getOptionalActorContext,
+  getRequestCenterId,
+} from "../middleware/centerContext";
+
+function requireCenterId(req: Request) {
+  const centerId =
+    getRequestCenterId(req);
+
+  if (!centerId) {
+    throw new Error(
+      "A valid center login is required to manage activity assignments.",
+    );
+  }
+
+  return centerId;
+}
+
+function getAssignmentActor(req: Request) {
+  const actor =
+    getOptionalActorContext(req);
+
+  const allowedRoles: AssignedByRole[] = [
+    "center_admin",
+    "therapist",
+    "system",
+  ];
+
+  return {
+    actorId:
+      actor?.actorId ?? null,
+    actorRole:
+      actor &&
+      allowedRoles.includes(
+        actor.actorRole as AssignedByRole,
+      )
+        ? (actor.actorRole as AssignedByRole)
+        : "center_admin",
+  };
+}
 
 /* =========================================================
    ASSIGN ONE ACTIVITY TO MULTIPLE LEARNERS
@@ -33,6 +67,11 @@ export async function assignActivity(
   res: Response,
 ) {
   try {
+    const centerId =
+      requireCenterId(req);
+    const actor =
+      getAssignmentActor(req);
+
     const {
       activityId,
       learnerIds,
@@ -90,7 +129,7 @@ export async function assignActivity(
     const assignments =
       await assignActivityToLearners({
         centerId:
-          CENTER_ID,
+          centerId,
 
         activityId,
 
@@ -126,10 +165,10 @@ export async function assignActivity(
             : null,
 
         assignedByRole:
-          "center_admin",
+          actor.actorRole,
 
         assignedByUserId:
-          null,
+          actor.actorId,
       });
 
     return res.status(201).json({
@@ -165,6 +204,9 @@ export async function getAssignedActivities(
   res: Response,
 ) {
   try {
+    const centerId =
+      requireCenterId(req);
+
     const learnerIdParam =
       req.params.learnerId;
 
@@ -220,7 +262,7 @@ const statuses: AssignmentStatus[] =
     const assignments =
       await getLearnerAssignedActivities(
         learnerIdParam,
-        CENTER_ID,
+        centerId,
         statuses,
       );
 
@@ -255,6 +297,9 @@ export async function updateAssignment(
   res: Response,
 ) {
   try {
+    const centerId =
+      requireCenterId(req);
+
     const assignmentIdParam =
       req.params.assignmentId;
 
@@ -291,7 +336,7 @@ export async function updateAssignment(
       await updateActivityAssignment(
         assignmentIdParam,
         learnerIdParam,
-        CENTER_ID,
+        centerId,
         {
           assignmentType,
           priority,
@@ -339,6 +384,9 @@ export async function cancelAssignment(
   res: Response,
 ) {
   try {
+    const centerId =
+      requireCenterId(req);
+
     const assignmentIdParam =
       req.params.assignmentId;
 
@@ -362,7 +410,7 @@ export async function cancelAssignment(
       await cancelActivityAssignment(
         assignmentIdParam,
         learnerIdParam,
-        CENTER_ID,
+        centerId,
       );
 
     return res.status(200).json({

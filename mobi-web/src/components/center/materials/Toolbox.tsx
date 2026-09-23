@@ -125,7 +125,7 @@ function Toolbox({
               <span className="w-6 h-6 rounded-full bg-[#E38AE5] shrink-0"></span>
 
               <span className="font-semibold text-lg">
-                Conversation
+                Social Prompt
               </span>
             </button>
 

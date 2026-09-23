@@ -33,6 +33,8 @@ export interface ProcessLearnerResponseInput {
   transcript:
     string;
 
+  adultScoringOverride?: "correct" | "incorrect" | null;
+
   selectedChoiceId?: string | null;
 
   expectedChoiceId?: string | null;
@@ -179,7 +181,7 @@ export function processLearnerResponse(
      - phonetic / Soundex matches
   ======================================================= */
 
-  const communication =
+  const evaluatedCommunication =
     response.responseType === "choice"
       ? evaluateChoiceResponse({
           selectedChoiceId: response.selectedChoiceId ?? null,
@@ -200,6 +202,22 @@ export function processLearnerResponse(
             sttConfidence: response.sttConfidence,
             settings: response.evaluationSettings,
           });
+
+  const communication = response.adultScoringOverride
+    ? {
+        ...evaluatedCommunication,
+        communicationAttempt: true,
+        targetAchieved: response.adultScoringOverride === "correct",
+        accepted: response.adultScoringOverride === "correct",
+        approximationDetected: false,
+        shouldScore: true,
+        evaluationReliable: true,
+        matchingMethod: "adult_scoring_override",
+        matchedAnswer: null,
+        phoneticMatch: false,
+        semanticMatch: false,
+      }
+    : evaluatedCommunication;
 
   /* =======================================================
      2. BUILD ORCHESTRATOR RESPONSE

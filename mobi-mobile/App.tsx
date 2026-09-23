@@ -87,6 +87,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LogInScreen from './src/screens/LogInScreen';
 
 // Child-Mode
+import LearnerSelectScreen from './src/screens/Child-Mode/LearnerSelectScreen';
 import ChildDashboardScreen from './src/screens/Child-Mode/ChildDashboardScreen';
 
 // Adult-Mode
@@ -121,6 +122,11 @@ export default function App() {
           <Stack.Screen
             name="LogIn"
             component={LogInScreen}
+          />
+
+          <Stack.Screen
+            name="LearnerSelect"
+            component={LearnerSelectScreen}
           />
 
           <Stack.Screen

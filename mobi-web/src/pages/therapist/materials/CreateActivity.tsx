@@ -100,6 +100,9 @@ function CreateActivity() {
   const [highlightedSection, setHighlightedSection] = useState("");
 
   const [customSteps, setCustomSteps] = useState<string[]>([]);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [loadingExistingActivity, setLoadingExistingActivity] =
+    useState(false);
 
   const speechLadderRef = useRef<HTMLDivElement>(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
@@ -875,10 +878,29 @@ function CreateActivity() {
             onClick={handleSubmitForReview}
             className="text-[#E37D4A]"
           >
-            Submit for Review
+            {isEditingExistingActivity
+              ? "Publish Revision"
+              : "Publish"}
           </button>
         </div>
       </header>
+
+      {loadingExistingActivity && (
+        <div className="bg-[#FFF8E8] px-10 py-3 text-sm font-semibold text-[#8A5B00]">
+          Loading activity for revision...
+        </div>
+      )}
+
+      {reviewFeedback && (
+        <div className="mx-6 mt-4 rounded-2xl border border-red-100 bg-red-50 px-5 py-4">
+          <p className="text-sm font-bold text-red-700">
+            Center admin feedback
+          </p>
+          <p className="mt-1 text-sm leading-6 text-red-700">
+            {reviewFeedback}
+          </p>
+        </div>
+      )}
 
       {/* BODY */}
       <div className="flex flex-1 gap-6 p-6 overflow-hidden">

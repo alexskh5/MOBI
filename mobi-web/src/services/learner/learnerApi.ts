@@ -504,7 +504,10 @@ export async function getLearnerProfileSettings(
 
   if (!response.ok || !result?.settings) {
     throw new Error(
-      result?.message ||
+      [result?.message, result?.error]
+        .filter(Boolean)
+        .join(" ") ||
+        result?.message ||
         result?.error ||
         "Unable to load learner settings.",
     );
@@ -539,7 +542,10 @@ export async function updateLearnerProfileSettings(
 
   if (!response.ok || !result?.settings) {
     throw new Error(
-      result?.message ||
+      [result?.message, result?.error]
+        .filter(Boolean)
+        .join(" ") ||
+        result?.message ||
         result?.error ||
         "Unable to save learner settings.",
     );

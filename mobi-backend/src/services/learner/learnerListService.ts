@@ -217,6 +217,14 @@ export async function getLearnerList(
       .eq(
         "center_id",
         centerId,
+      )
+      .neq(
+        "enrollment_status",
+        "archived",
+      )
+      .neq(
+        "enrollment_status",
+        "inactive",
       );
 
   if (assignedLearnerIds) {

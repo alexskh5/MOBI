@@ -1,3 +1,20 @@
+create table if not exists public.learner_child_safety_settings (
+  id uuid primary key default gen_random_uuid(),
+  learner_id uuid not null references public.learners(id) on delete cascade,
+  center_id uuid not null references public.centers(id) on delete cascade,
+  daily_screen_time_limit_seconds integer
+    check (
+      daily_screen_time_limit_seconds is null
+      or daily_screen_time_limit_seconds between 300 and 28800
+    ),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (learner_id)
+);
+
+create index if not exists learner_child_safety_settings_center_idx
+  on public.learner_child_safety_settings(center_id);
+
 create table if not exists public.learner_session_preferences (
   id uuid primary key default gen_random_uuid(),
   learner_id uuid not null references public.learners(id) on delete cascade,
@@ -37,7 +54,9 @@ select
     when coalesce(profile.requires_visual_support, false)
       or exists (
         select 1
-        from unnest(coalesce(profile.sensory_preferences, array[]::text[])) as preference
+        from jsonb_array_elements_text(
+          coalesce(profile.sensory_preferences, '[]'::jsonb)
+        ) as preference
         where lower(preference) like '%visual%'
           or lower(preference) like '%light%'
           or lower(preference) like '%screen%'
@@ -48,7 +67,9 @@ select
   end,
   exists (
     select 1
-    from unnest(coalesce(profile.sensory_preferences, array[]::text[])) as preference
+    from jsonb_array_elements_text(
+      coalesce(profile.sensory_preferences, '[]'::jsonb)
+    ) as preference
     where lower(preference) like '%visual%'
       or lower(preference) like '%light%'
       or lower(preference) like '%screen%'
@@ -58,7 +79,9 @@ select
   coalesce(profile.requires_visual_support, false),
   exists (
     select 1
-    from unnest(coalesce(profile.sensory_preferences, array[]::text[])) as preference
+    from jsonb_array_elements_text(
+      coalesce(profile.sensory_preferences, '[]'::jsonb)
+    ) as preference
     where lower(preference) like '%visual%'
       or lower(preference) like '%light%'
       or lower(preference) like '%screen%'
@@ -66,7 +89,7 @@ select
   ),
   jsonb_build_object(
     'assessmentSensoryPreferences',
-    coalesce(profile.sensory_preferences, array[]::text[]),
+    coalesce(profile.sensory_preferences, '[]'::jsonb),
     'requiresVisualSupport',
     coalesce(profile.requires_visual_support, false),
     'typicalEngagementMinutes',

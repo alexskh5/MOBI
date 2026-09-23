@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   Home,
   LogOut,
-  Menu,
   Search,
   X,
 } from "lucide-react";
@@ -26,7 +25,7 @@ type CenterAccount = {
   contactPerson: string;
   centerOwner: string;
   email: string;
-  
+  planDetail: string;
   status: "Active" | "Suspended";
 };
 
@@ -60,15 +59,16 @@ type ApiParentAccount = {
   status: "Active" | "Suspended";
 };
 
-type SubscriptionPlan = {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  duration: "Month" | "Year";
-  learnerLimit: string;
-  aiAccess: string;
-  isActive: boolean;
+type InviteForm = {
+  centerEmail: string;
+  centerName: string;
+  centerOwnerName: string;
+  centerOwnerPhone: string;
+  centerOwnerEmail: string;
+  contactPersonName: string;
+  contactPersonPhone: string;
+  contactPersonEmail: string;
+  attachmentFileName: string;
 };
 
 
@@ -100,9 +100,14 @@ export default function SuperManageScreen() {
   const [parents, setParents] = useState<ParentAccount[]>(initialParents);
   const [parentsLoading, setParentsLoading] = useState(false);
   const [parentsError, setParentsError] = useState("");
-  const [plans, setPlans] = useState<SubscriptionPlan[]>(initialPlans);
 
   const [selectedUser, setSelectedUser] = useState<ParentAccount | null>(null);
+  const [selectedCenter, setSelectedCenter] = useState<CenterAccount | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState<InviteForm>(emptyInviteForm);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteError, setInviteError] = useState("");
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
 
 
   const filteredParents = useMemo(() => {
@@ -112,6 +117,14 @@ export default function SuperManageScreen() {
         .includes(searchQuery.toLowerCase())
     );
   }, [parents, searchQuery]);
+
+  const filteredCenters = useMemo(() => {
+    return centers.filter((center) =>
+      `${center.id} ${center.centerName} ${center.email} ${center.centerOwner} ${center.contactPerson} ${center.status}`
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
+    );
+  }, [centers, searchQuery]);
 
   useEffect(() => {
     let isMounted = true;
@@ -163,23 +176,23 @@ export default function SuperManageScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadCenter() {
+    async function loadCenters() {
       try {
         setCenterLoading(true);
         setCenterError("");
 
-        const result = await getSuperAdminCenter();
-        const apiCenter: ApiCenterAccount = result.data;
-
-        const mappedCenter: CenterAccount = {
-          id: apiCenter.id,
-          centerName: apiCenter.center_name,
-          contactPerson: apiCenter.contact_person || "Not set",
-          centerOwner: apiCenter.center_owner || "Not set",
-          email: apiCenter.email,
-          planDetail: apiCenter.plan_detail || "No plan",
-          status: apiCenter.status,
-        };
+        const result = await getSuperAdminCenters();
+        const mappedCenters: CenterAccount[] = result.data.map(
+          (apiCenter: ApiCenterAccount) => ({
+            id: apiCenter.id,
+            centerName: apiCenter.center_name,
+            contactPerson: apiCenter.contact_person || "Not set",
+            centerOwner: apiCenter.center_owner || "Not set",
+            email: apiCenter.email,
+            planDetail: apiCenter.plan_detail || "No plan",
+            status: apiCenter.status,
+          })
+        );
 
         if (isMounted) setCenter(mappedCenter);
       } catch (error: any) {
@@ -238,6 +251,7 @@ export default function SuperManageScreen() {
   const handleTabChange = (tab: UserTab) => {
     setActiveTab(tab);
     setSelectedUser(null);
+    setSelectedCenter(null);
 
     if (viewMode === "menu") {
       navigate("/superadmin/SuperDashboardScreen");
@@ -263,52 +277,118 @@ export default function SuperManageScreen() {
     );
   };
 
+  const toggleCenterStatus = async (center: CenterAccount) => {
+    const nextStatus = center.status === "Active" ? "suspended" : "active";
+
+    const result = await updateSuperAdminCenterStatus(center.id, nextStatus);
+    const updatedCenter: ApiCenterAccount = result.data;
+
+    const mappedCenter: CenterAccount = {
+      id: updatedCenter.id,
+      centerName: updatedCenter.center_name,
+      contactPerson: updatedCenter.contact_person || "Not set",
+      centerOwner: updatedCenter.center_owner || "Not set",
+      email: updatedCenter.email,
+      planDetail: updatedCenter.plan_detail || "No plan",
+      status: updatedCenter.status,
+    };
+
+    setCenters((prev) =>
+      prev.map((item) => (item.id === mappedCenter.id ? mappedCenter : item))
+    );
+    setSelectedCenter(mappedCenter);
+  };
+
+  const updateInviteField = (field: keyof InviteForm, value: string) => {
+    setInviteForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const closeInviteModal = () => {
+    setShowInviteModal(false);
+    setInviteForm(emptyInviteForm);
+    setInviteError("");
+    setInviteResult(null);
+  };
+
+  const submitCenterInvite = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    try {
+      setInviteSubmitting(true);
+      setInviteError("");
+      setInviteResult(null);
+
+      const result = await createCenterInvitation(inviteForm);
+
+      setInviteResult(result.data);
+      setInviteForm(emptyInviteForm);
+    } catch (error: any) {
+      setInviteError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to invite center."
+      );
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
+
   return (
     <main className="super-page">
       <aside className="sidebar">
-        <button className="burger-btn" aria-label="Menu">
-          <Menu size={22} />
+        <div className="sidebar-top">
+          <div className="brand">
+            <img src={mobiLogo} alt="MOBI Logo" />
+
+            <div className="brand-text">
+              <span className="brand-name">MOBI</span>
+              <span className="brand-role">Super Admin</span>
+            </div>
+          </div>
+
+          <div className="welcome">
+            <span>WELCOME BACK</span>
+            <strong>Dev</strong>
+          </div>
+
+          <nav className="nav-links">
+            <button
+              className="nav-item"
+              onClick={() => navigate("/superadmin/SuperDashboardScreen")}
+            >
+              <span className="nav-icon">
+                <Home size={19} />
+              </span>
+              <span>Dashboard</span>
+            </button>
+
+            <button className="nav-item active" onClick={() => setViewMode("menu")}>
+              <span className="nav-active-line" />
+              <span className="nav-icon">
+                <Building2 size={19} />
+              </span>
+              <span>Manage</span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate("/superadmin/SuperProcessScreen")}
+            >
+              <span className="nav-icon">
+                <ClipboardCheck size={19} />
+              </span>
+              <span>Process</span>
+            </button>
+          </nav>
+        </div>
+
+        <button className="logout-button" onClick={() => navigate("/")}>
+          <LogOut size={18} />
+          <span>Log out</span>
         </button>
-
-        <div className="brand">
-          <img src={mobiLogo} alt="MOBI Logo" />
-        </div>
-
-        <div className="welcome">
-          <h2>
-            Welcome
-            <br />
-            back, Admin!
-          </h2>
-        </div>
-
-        <nav className="nav-links">
-          <button
-            className="nav-item"
-            onClick={() => navigate("/superadmin/SuperDashboardScreen")}
-          >
-            <Home size={20} />
-            <span>Dashboard</span>
-          </button>
-
-          <button className="nav-item active" onClick={() => setViewMode("menu")}>
-            <Building2 size={20} />
-            <span>Manage</span>
-          </button>
-
-          <button
-            className="nav-item"
-            onClick={() => navigate("/superadmin/SuperProcessScreen")}
-          >
-            <ClipboardCheck size={20} />
-            <span>Process</span>
-          </button>
-
-          <button className="nav-item" onClick={() => navigate("/")}>
-            <LogOut size={20} />
-            <span>Log out</span>
-          </button>
-        </nav>
       </aside>
 
       <section className="manage-card">
@@ -323,7 +403,7 @@ export default function SuperManageScreen() {
             <button className="manage-option" onClick={() => setViewMode("users")}>
               <div>
                 <h2>MANAGE USERS</h2>
-                <p>Manage the partnered center and free-trial parent accounts.</p>
+                <p>Invite centers and manage center or free-trial parent accounts.</p>
               </div>
               <ArrowRight size={26} />
             </button>
@@ -335,16 +415,26 @@ export default function SuperManageScreen() {
             <div className="panel-header">
               <div>
                 <h1>Manage Users</h1>
-                <p>One partnered center and free-trial parent accounts.</p>
+                <p>Invite centers and manage center or free-trial parent accounts.</p>
               </div>
 
-              <div className="search-box">
-                <Search size={15} />
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search parents..."
-                />
+              <div className="panel-actions">
+                <button className="primary-btn" onClick={() => setShowInviteModal(true)}>
+                  Invite Center
+                </button>
+
+                <div className="search-box">
+                  <Search size={15} />
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={
+                      activeTab === "center"
+                        ? "Search centers..."
+                        : "Search parents..."
+                    }
+                  />
+                </div>
               </div>
             </div>
 
@@ -365,9 +455,28 @@ export default function SuperManageScreen() {
             </div>
 
             {activeTab === "center" && (
-              <>
+              <div className="parent-section">
+                <div className="parent-summary">
+                  <div>
+                    <strong>{centers.length}</strong>
+                    <span>Total centers</span>
+                  </div>
+                  <div>
+                    <strong>
+                      {centers.filter((item) => item.status === "Active").length}
+                    </strong>
+                    <span>Active accounts</span>
+                  </div>
+                  <div>
+                    <strong>
+                      {centers.filter((item) => item.status === "Suspended").length}
+                    </strong>
+                    <span>Suspended accounts</span>
+                  </div>
+                </div>
+
                 {centerLoading && (
-                  <div className="center-card">
+                  <div className="empty-state">
                     <p>Loading center account...</p>
                   </div>
                 )}
@@ -407,7 +516,7 @@ export default function SuperManageScreen() {
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {activeTab === "parents" && (
@@ -516,6 +625,175 @@ export default function SuperManageScreen() {
         </Modal>
       )}
 
+      {selectedCenter && (
+        <Modal title="Center Account Details" onClose={() => setSelectedCenter(null)}>
+          <div className="modal-info">
+            <InfoItem label="Center" value={selectedCenter.centerName} />
+            <InfoItem label="Email" value={selectedCenter.email} />
+            <InfoItem label="Center ID" value={selectedCenter.id} />
+            <InfoItem label="Owner" value={selectedCenter.centerOwner} />
+            <InfoItem label="Contact Person" value={selectedCenter.contactPerson} />
+            <InfoItem label="Plan Detail" value={selectedCenter.planDetail} />
+            <InfoItem label="Status" value={selectedCenter.status} />
+          </div>
+
+          <div className="modal-actions">
+            <button
+              className="danger-btn"
+              onClick={() => {
+                toggleCenterStatus(selectedCenter).catch((error) => {
+                  setCenterError(
+                    error?.response?.data?.message ||
+                      error?.message ||
+                      "Failed to update center account."
+                  );
+                });
+              }}
+            >
+              {selectedCenter.status === "Active"
+                ? "Suspend Account"
+                : "Activate Account"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {showInviteModal && (
+        <Modal title="Invite Center" onClose={closeInviteModal}>
+          <form className="invite-form" onSubmit={submitCenterInvite}>
+            <div className="form-grid">
+              <label>
+                Center official email *
+                <input
+                  type="email"
+                  value={inviteForm.centerEmail}
+                  onChange={(event) =>
+                    updateInviteField("centerEmail", event.target.value)
+                  }
+                  required
+                />
+              </label>
+
+              <label>
+                Center name *
+                <input
+                  value={inviteForm.centerName}
+                  onChange={(event) =>
+                    updateInviteField("centerName", event.target.value)
+                  }
+                  required
+                />
+              </label>
+
+              <label>
+                Center owner
+                <input
+                  value={inviteForm.centerOwnerName}
+                  onChange={(event) =>
+                    updateInviteField("centerOwnerName", event.target.value)
+                  }
+                />
+              </label>
+
+              <label>
+                Owner phone
+                <input
+                  value={inviteForm.centerOwnerPhone}
+                  onChange={(event) =>
+                    updateInviteField("centerOwnerPhone", event.target.value)
+                  }
+                />
+              </label>
+
+              <label>
+                Owner email
+                <input
+                  type="email"
+                  value={inviteForm.centerOwnerEmail}
+                  onChange={(event) =>
+                    updateInviteField("centerOwnerEmail", event.target.value)
+                  }
+                />
+              </label>
+
+              <label>
+                Contact person
+                <input
+                  value={inviteForm.contactPersonName}
+                  onChange={(event) =>
+                    updateInviteField("contactPersonName", event.target.value)
+                  }
+                />
+              </label>
+
+              <label>
+                Contact number
+                <input
+                  value={inviteForm.contactPersonPhone}
+                  onChange={(event) =>
+                    updateInviteField("contactPersonPhone", event.target.value)
+                  }
+                />
+              </label>
+
+              <label>
+                Contact email
+                <input
+                  type="email"
+                  value={inviteForm.contactPersonEmail}
+                  onChange={(event) =>
+                    updateInviteField("contactPersonEmail", event.target.value)
+                  }
+                />
+              </label>
+
+              <label className="full">
+                File attachment for invite
+                <input
+                  type="file"
+                  onChange={(event) =>
+                    updateInviteField(
+                      "attachmentFileName",
+                      event.target.files?.[0]?.name || ""
+                    )
+                  }
+                />
+                {inviteForm.attachmentFileName && (
+                  <span className="file-note">
+                    Selected: {inviteForm.attachmentFileName}
+                  </span>
+                )}
+              </label>
+            </div>
+
+            {inviteError && <p className="form-error">{inviteError}</p>}
+
+            {inviteResult && (
+              <div className="invite-result">
+                <span>Invitation ready</span>
+                <strong>{inviteResult.magicCode}</strong>
+                <p>
+                  Send this setup link to {inviteResult.centerEmail}. The code
+                  expires on {new Date(inviteResult.expiresAt).toLocaleDateString()}.
+                </p>
+                <a href={inviteResult.setupLink} target="_blank" rel="noreferrer">
+                  {inviteResult.setupLink}
+                </a>
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button type="button" className="secondary-btn" onClick={closeInviteModal}>
+                Close
+              </button>
+              <button type="submit" className="primary-btn" disabled={inviteSubmitting}>
+                {inviteSubmitting ? "Sending..." : "Send Invite"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       <style>{`
         * {
           box-sizing: border-box;
@@ -524,54 +802,81 @@ export default function SuperManageScreen() {
         .super-page {
           min-height: 100vh;
           width: 100%;
-          background: #ffffff;
           display: grid;
-          grid-template-columns: 190px 1fr;
-          gap: 22px;
-          padding: 18px;
+          grid-template-columns: 230px minmax(0, 1fr);
+          background: #f7f7f9;
           font-family: Inter, Poppins, Arial, sans-serif;
-          color: #111;
+          color: #202027;
         }
 
         .sidebar {
+          height: 100vh;
           position: sticky;
-          top: 18px;
-          height: calc(100vh - 36px);
+          top: 0;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
+          justify-content: space-between;
+          padding: 28px 18px 22px;
+          background: #ffffff;
+          border-right: 1px solid #e8e8ed;
         }
 
-        .burger-btn {
-          border: none;
-          background: transparent;
-          padding: 6px;
-          margin-bottom: 18px;
-          cursor: pointer;
+        .sidebar-top {
+          width: 100%;
         }
 
         .brand {
-          width: 100%;
-          text-align: center;
-          margin-bottom: 18px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 0 10px;
+          margin-bottom: 38px;
         }
 
         .brand img {
-          width: 92px;
-          height: auto;
+          width: 43px;
+          height: 43px;
           object-fit: contain;
         }
 
-        .welcome {
-          padding-left: 8px;
-          margin-bottom: 22px;
+        .brand-text {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
         }
 
-        .welcome h2 {
-          margin: 0;
-          font-size: 18px;
-          line-height: 1.1;
-          font-weight: 800;
+        .brand-name {
+          font-size: 17px;
+          font-weight: 700;
+          color: #202027;
+        }
+
+        .brand-role {
+          margin-top: 2px;
+          font-size: 11px;
+          font-weight: 500;
+          color: #9898a3;
+        }
+
+        .welcome {
+          display: flex;
+          flex-direction: column;
+          padding: 0 12px;
+          margin-bottom: 24px;
+        }
+
+        .welcome span {
+          margin-bottom: 5px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.13em;
+          color: #9898a3;
+        }
+
+        .welcome strong {
+          font-size: 16px;
+          font-weight: 650;
+          color: #202027;
         }
 
         .nav-links {
@@ -583,33 +888,79 @@ export default function SuperManageScreen() {
 
         .nav-item {
           width: 100%;
+          min-height: 46px;
           height: 44px;
           border: none;
-          border-radius: 8px;
+          border-radius: 10px;
           background: transparent;
           display: flex;
           align-items: center;
           gap: 12px;
-          padding: 0 12px;
+          padding: 0 13px;
           cursor: pointer;
-          font-size: 15px;
-          font-weight: 800;
-          color: #111;
+          font-size: 14px;
+          font-weight: 550;
+          color: #666672;
           text-align: left;
+          position: relative;
         }
 
         .nav-item.active {
-          color: #9a9fd3;
+          background: #f3eff8;
+          color: #7456a3;
+          font-weight: 650;
+        }
+
+        .nav-item:hover {
+          background: #f8f6fa;
+          color: #7456a3;
+        }
+
+        .nav-active-line {
+          position: absolute;
+          left: 0;
+          top: 10px;
+          bottom: 10px;
+          display: block;
+          width: 3px;
+          border-radius: 0 4px 4px 0;
+          background: #7456a3;
+        }
+
+        .nav-icon {
+          width: 23px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .logout-button {
+          width: 100%;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 0 13px;
+          border: none;
+          border-radius: 10px;
+          background: transparent;
+          color: #777781;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 550;
+        }
+
+        .logout-button:hover {
+          background: #faf2f2;
+          color: #a34e4e;
         }
 
         .manage-card {
           position: relative;
-          min-height: calc(100vh - 36px);
+          min-height: 100vh;
           min-width: 0;
-          border-radius: 22px;
-          padding: 34px 44px;
-          background: #ead9eb;
-          box-shadow: inset 0 0 0 1px rgba(130, 87, 145, 0.18);
+          padding: 35px 42px 55px;
+          background: #f7f7f9;
           overflow-y: auto;
         }
 
@@ -864,14 +1215,40 @@ export default function SuperManageScreen() {
         }
 
         .secondary-btn {
+          border: 1px solid #e6ddeb;
+          border-radius: 999px;
+          padding: 9px 14px;
           background: white;
           color: #7d3eb0;
-          font-size: 10px; 
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .primary-btn {
+          border: none;
+          border-radius: 999px;
+          padding: 10px 16px;
+          background: #7456a3;
+          color: white;
+          font-size: 13px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .primary-btn:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
         }
 
         .danger-btn {
+          border: none;
+          border-radius: 999px;
+          padding: 10px 16px;
           background: #fff0f0;
           color: #b73232;
+          font-weight: 900;
+          cursor: pointer;
         }
 
         .modal-backdrop {
@@ -886,7 +1263,7 @@ export default function SuperManageScreen() {
         }
 
         .modal-card {
-          width: min(560px, 100%);
+          width: min(720px, 100%);
           max-height: 90vh;
           overflow-y: auto;
           background: white;
@@ -922,6 +1299,13 @@ export default function SuperManageScreen() {
           margin-bottom: 20px;
         }
 
+        .panel-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
         .panel-header h1,
         .subscription-header h1 {
           margin: 0;
@@ -953,6 +1337,8 @@ export default function SuperManageScreen() {
           margin-top: 18px;
           display: flex;
           justify-content: flex-end;
+          gap: 10px;
+          flex-wrap: wrap;
         }
 
         .form-grid {
@@ -986,6 +1372,58 @@ export default function SuperManageScreen() {
 
         .form-grid .full {
           grid-column: 1 / -1;
+        }
+
+        .file-note {
+          color: #7456a3;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .form-error {
+          border-radius: 12px;
+          background: #fff0f0;
+          color: #b73232;
+          padding: 11px 13px;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .invite-result {
+          margin-top: 16px;
+          border: 1px solid #d8cbe5;
+          background: #f8f3fb;
+          border-radius: 16px;
+          padding: 15px;
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+        }
+
+        .invite-result span {
+          color: #7456a3;
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+        }
+
+        .invite-result strong {
+          font-size: 28px;
+          letter-spacing: 0.18em;
+          color: #202027;
+        }
+
+        .invite-result p {
+          margin: 0;
+          color: #555;
+          font-size: 13px;
+        }
+
+        .invite-result a {
+          color: #5f4588;
+          font-size: 13px;
+          word-break: break-all;
+          font-weight: 800;
         }
 
         .save-btn {

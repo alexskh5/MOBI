@@ -18,6 +18,32 @@ import { useNavigate } from "react-router-dom";
 import CenterLayout from "../../../layouts/CenterLayout";
 import centerLogo from "../../../assets/centerLogo.png";
 import coverPhoto from "../../../assets/coverPhoto.png";
+import {
+  getCenterProfile,
+  updateCenterProfile,
+  type CenterProfile as CenterProfileData,
+} from "../../../services/centerProfileApi";
+
+const emptyProfile: CenterProfileData = {
+  id: "",
+  centerName: "",
+  centerEmail: "",
+  centerPhone: "",
+  centerWebsite: "",
+  centerOwnerName: "",
+  centerOwnerPhone: "",
+  centerOwnerEmail: "",
+  contactPersonName: "",
+  contactPersonPhone: "",
+  contactPersonEmail: "",
+  address: "",
+  city: "",
+  province: "",
+  postalCode: "",
+  about: "",
+  subscriptionStatus: "No active plan",
+  isActive: false,
+};
 
 type EditableFieldProps = {
   label: string;
@@ -365,6 +391,7 @@ const CenterProfile = () => {
                   )}
                 </section>
               </div>
+            )}
 
               {/* RIGHT COLUMN */}
               <aside className="space-y-6">

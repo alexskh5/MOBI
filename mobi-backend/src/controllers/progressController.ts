@@ -26,17 +26,18 @@ import {
   getRequestCenterId,
 } from "../middleware/centerContext";
 
-const DEFAULT_CENTER_ID =
-  "d5ae1649-0343-46d4-b433-575c97e064e1";
-
 function getProgressCenterId(req: Request) {
-  return (
-    getRequestCenterId(req) ??
-    DEFAULT_CENTER_ID
-  );
+  const centerId =
+    getRequestCenterId(req);
+
+  if (!centerId) {
+    throw new Error(
+      "A valid center login is required to view progress.",
+    );
+  }
+
+  return centerId;
 }
-
-
 
 function getErrorMessage(
   error: unknown,

@@ -356,10 +356,11 @@ export async function getLearnerAssignedActivities(
         success_required_count,
         thumbnail_url,
         ai_voice_gender,
-        ai_voice_speed,
-        access_scope,
-        status
-      )
+	        ai_voice_speed,
+	        access_scope,
+	        status,
+	        archived_at
+	      )
     `)
     .eq(
       "learner_id",
@@ -396,9 +397,24 @@ export async function getLearnerAssignedActivities(
 
     required before recommended
   */
-  const sortedAssignments = (
-    data ?? []
-  ).sort((a: any, b: any) => {
+	  const activeAssignments = (
+	    data ?? []
+	  ).filter((assignment: any) => {
+	    const activity = Array.isArray(
+	      assignment.activities,
+	    )
+	      ? assignment.activities[0]
+	      : assignment.activities;
+
+	    return (
+	      activity &&
+	      activity.status === "published" &&
+	      !activity.archived_at
+	    );
+	  });
+
+	  const sortedAssignments =
+	    activeAssignments.sort((a: any, b: any) => {
     const assignmentTypeOrder: Record<
       AssignmentType,
       number

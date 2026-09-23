@@ -6,7 +6,6 @@ const speechLevels = [
   "Word",
   "Phrase",
   "Sentence",
-  "Conversation",
 ];
 
 function ActivityReadinessLadder() {
@@ -38,7 +37,7 @@ function ActivityReadinessLadder() {
 
           <div className="absolute top-3 left-0 right-0 h-1 bg-gray-400 rounded-full"></div>
 
-          <div className="grid grid-cols-6 relative">
+          <div className="grid grid-cols-5 relative">
 
             {speechLevels.map(
               (level, index) => (

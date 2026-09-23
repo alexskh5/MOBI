@@ -64,11 +64,11 @@ export default function SessionMediaHolder({
 
   return (
     <View style={styles.wrap}>
-      {visibleMedia.map((item) =>
-        item.type === 'image' && item.url ? (
-          <Image
-            key={item.id}
-            source={{ uri: item.url }}
+	      {visibleMedia.map((item) =>
+	        item.type === 'image' && item.url ? (
+	          <Image
+	            key={String(item.id ?? item.url)}
+	            source={{ uri: item.url }}
             style={[
               styles.image,
               {
@@ -77,10 +77,10 @@ export default function SessionMediaHolder({
               },
             ]}
           />
-        ) : item.type === 'video' && item.url ? (
-          <Video
-            key={item.id}
-            source={{ uri: item.url }}
+	        ) : item.type === 'video' && item.url ? (
+	          <Video
+	            key={String(item.id ?? item.url)}
+	            source={{ uri: item.url }}
             style={[
               styles.image,
               {
@@ -91,17 +91,17 @@ export default function SessionMediaHolder({
             useNativeControls
             resizeMode={ResizeMode.CONTAIN}
           />
-        ) : item.type === 'audio' && item.url ? (
-          <AudioMaterial
-            key={item.id}
-            url={item.url}
+	        ) : item.type === 'audio' && item.url ? (
+	          <AudioMaterial
+	            key={String(item.id ?? item.url)}
+	            url={item.url}
             name={item.name}
             width={imageWidth}
             height={imageHeight}
           />
         ) : (
-          <View
-            key={item.id}
+	          <View
+	            key={String(item.id ?? item.url)}
             style={[
               styles.placeholder,
               {

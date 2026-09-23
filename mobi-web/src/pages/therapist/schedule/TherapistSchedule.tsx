@@ -24,6 +24,11 @@ import {
 } from "lucide-react";
 
 import TherapistLayout from "../../../layouts/TherapistLayout";
+import {
+    getSchedules,
+    respondToSchedule,
+    type TherapySchedule,
+} from "../../../services/scheduleApi";
 
 import {
   confirmTherapistSchedule,
@@ -39,7 +44,6 @@ import type {
 
 /* =========================================================
    PHILIPPINE TIME HELPERS
-========================================================= */
 
 const MANILA_TIME_ZONE = "Asia/Manila";
 

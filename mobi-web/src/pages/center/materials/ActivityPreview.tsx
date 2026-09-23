@@ -7,7 +7,11 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import CenterLayout from "../../../layouts/CenterLayout";
-import { getActivityById } from "../../../services/activityApi";
+import {
+  approveSubmittedActivity,
+  declineSubmittedActivity,
+  getActivityById,
+} from "../../../services/activityApi";
 import ActivityPlayPreviewModal from "../../../components/center/materials/preview/ActivityPlayPreviewModal";
 
 interface ActivityStep {
@@ -120,21 +124,14 @@ function ActivityPreview() {
     try {
       setSubmittingAction("approve");
 
-      // BACKEND LATER:
-      // await approveActivity(activity.id, {
-      //   feedback: reviewFeedback,
-      //   status: "published",
-      // });
-
-      console.log("Approve activity:", {
-        activityId: activity.id,
-        feedback: reviewFeedback,
-        status: "published",
-      });
+      await approveSubmittedActivity(
+        activity.id,
+        reviewFeedback,
+      );
 
       alert("Activity approved and published.");
 
-      navigate("/center/notifications");
+      navigate("/center/materials");
     } catch (err) {
       console.error(err);
       alert("Failed to approve activity.");
@@ -154,21 +151,14 @@ function ActivityPreview() {
     try {
       setSubmittingAction("changes");
 
-      // BACKEND LATER:
-      // await requestActivityChanges(activity.id, {
-      //   feedback: reviewFeedback,
-      //   status: "needs_revision",
-      // });
-
-      console.log("Request changes:", {
-        activityId: activity.id,
-        feedback: reviewFeedback,
-        status: "needs_revision",
-      });
+      await declineSubmittedActivity(
+        activity.id,
+        reviewFeedback.trim(),
+      );
 
       alert("Change request sent to the therapist.");
 
-      navigate("/center/notifications");
+      navigate("/center/materials");
     } catch (err) {
       console.error(err);
       alert("Failed to send change request.");

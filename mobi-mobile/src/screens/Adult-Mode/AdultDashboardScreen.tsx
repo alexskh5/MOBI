@@ -1,6 +1,6 @@
 // src/screens/Adult-Mode/AdultDashboardScreen.tsx
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   ImageBackground,
@@ -14,7 +14,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CommonActions, useNavigation } from '@react-navigation/native';
-import { NavigationProp, PeriodKey } from '../../types';
+import {
+  NavigationProp,
+  OverallProgressCard,
+  PeriodKey,
+} from '../../types';
+import {
+  getActiveLearner,
+  getLearnerProgressOverview,
+} from '../../services/api';
 
 import PerActivityAnalysisScreen from '../../components/Adult-Mode/progress/PerActivityAnalysisScreen';
 import ProgressOverviewScreen from '../../components/Adult-Mode/progress/ProgressOverviewScreen';
@@ -30,19 +38,74 @@ import {
 const bgImage = require('../../../assets/images/background.jpg');
 const mobiLogo = require('../../../assets/images/mobi_logo.png');
 
-const learner = {
-  firstName: 'Lexi Rose',
-  lastName: 'Pantaleon',
-  age: 8,
-};
+function formatSeconds(totalSeconds: number | null | undefined) {
+  const seconds =
+    typeof totalSeconds === 'number' && Number.isFinite(totalSeconds)
+      ? Math.max(0, totalSeconds)
+      : 0;
+  const minutes = Math.round(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  return remainingMinutes > 0
+    ? `${hours}h ${remainingMinutes}m`
+    : `${hours}h`;
+}
+
+function calculateAge(birthDate?: string | null) {
+  if (!birthDate) {
+    return null;
+  }
+
+  const birth = new Date(`${birthDate}T00:00:00`);
+  const today = new Date();
+
+  if (
+    Number.isNaN(birth.getTime()) ||
+    birth > today
+  ) {
+    return null;
+  }
+
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birth.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age;
+}
 
 export default function AdultDashboardScreen() {
   const navigation = useNavigation<NavigationProp<'AdultDashboard'>>();
   const { width } = useWindowDimensions();
+  const activeLearner = getActiveLearner();
+  const learner = {
+    firstName:
+      activeLearner?.nickname ||
+      activeLearner?.firstName ||
+      'Selected',
+    lastName:
+      activeLearner?.nickname
+        ? ''
+        : activeLearner?.lastName || 'Learner',
+    age: calculateAge(activeLearner?.birthDate) ?? 0,
+  };
 
   const [page, setPage] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>('day');
   const [showExitModal, setShowExitModal] = useState(false);
+  const [overviewCards, setOverviewCards] =
+    useState<OverallProgressCard[] | null>(null);
 
   const availablePeriods = useMemo(
     () =>
@@ -53,7 +116,91 @@ export default function AdultDashboardScreen() {
     []
   );
 
-  const currentData = dashboardData[selectedPeriod];
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadProgressOverview() {
+      if (!activeLearner?.id) {
+        setOverviewCards(null);
+        return;
+      }
+
+      try {
+        const overview = await getLearnerProgressOverview({
+          learnerId: activeLearner.id,
+          period: selectedPeriod,
+        });
+
+        const metrics = overview.metrics ?? {};
+        const accuracy =
+          typeof metrics.scoredSuccessRate === 'number'
+            ? `${Math.round(metrics.scoredSuccessRate)}%`
+            : 'No scored attempts';
+        const screenLimit = metrics.screenTimeLimitSeconds
+          ? formatSeconds(metrics.screenTimeLimitSeconds)
+          : 'No limit';
+
+        if (mounted) {
+          setOverviewCards([
+            {
+              label: 'Activities Completed',
+              value: String(metrics.activitiesCompleted ?? 0),
+              icon: 'layers-outline',
+            },
+            {
+              label: 'Communication Attempts',
+              value: String(metrics.communicationAttempts ?? 0),
+              icon: 'chatbubble-ellipses-outline',
+            },
+            {
+              label: 'Accuracy',
+              value: accuracy,
+              subtitle: `${metrics.correctAttempts ?? 0} correct of ${metrics.scoredAttempts ?? 0}`,
+              icon: 'checkmark-circle-outline',
+            },
+            {
+              label: 'Focus Time',
+              value: formatSeconds(metrics.observedEngagementSeconds),
+              icon: 'time-outline',
+            },
+            {
+              label: 'Screen Time',
+              value: `${formatSeconds(metrics.screenTimeSeconds)} / ${screenLimit}`,
+              subtitle: 'Used vs daily limit',
+              icon: 'phone-portrait-outline',
+            },
+            {
+              label: 'Inactivity Time',
+              value: formatSeconds(metrics.inactivitySeconds),
+              icon: 'pause-circle-outline',
+            },
+          ]);
+        }
+      } catch (error) {
+        console.log('Failed to load progress overview:', error);
+
+        if (mounted) {
+          setOverviewCards(null);
+        }
+      }
+    }
+
+    loadProgressOverview();
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeLearner?.id, selectedPeriod]);
+
+  const currentData = useMemo(
+    () => ({
+      ...dashboardData[selectedPeriod],
+      overall:
+        overviewCards ??
+        dashboardData[selectedPeriod].overall,
+    }),
+    [overviewCards, selectedPeriod],
+  );
   const currentGraphData = progressGraphDataByPeriod[selectedPeriod];
 
   const horizontalPadding = width >= 768 ? 32 : width < 360 ? 12 : 20;

@@ -519,7 +519,7 @@ const ActivityLibrary = () => {
                     {[
                       "Teach & Practice",
                       "Check & Answer",
-                      "Conversation",
+                      "Social Prompt",
                       "Story",
                       "Turn Taking",
                       "Life Skills",

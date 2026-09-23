@@ -37,6 +37,19 @@ export type PreviewStep = {
   choices?: PreviewChoice[] | null;
   topics?: string[] | null;
   materials_needed?: string[] | null;
+  ai_voice_style?:
+    | string
+    | {
+        correct?: string | null;
+        wrong?: string | null;
+      }
+    | null;
+  prompt_audio_url?: string | null;
+  feedback_audio_urls?: {
+    correct?: string | null;
+    wrong?: string | null;
+    max_attempts?: string | null;
+  } | null;
 
   image_url?: string | null;
   media_url?: string | null;
@@ -71,7 +84,7 @@ export function formatStepType(stepType?: string) {
 
   if (type === "choose") return "Choose";
   if (type === "feedback") return "Feedback";
-  if (type === "conversation") return "Conversation";
+  if (type === "conversation") return "Social Prompt";
   if (type === "teach") return "Teach";
   if (type === "do") return "Do It";
   if (type === "ask") return "Ask";
@@ -114,9 +127,18 @@ export function getStepMedia(step: PreviewStep): PreviewMedia[] {
   }
 
   if (step.media_url) {
+    const mediaType =
+      step.media_url.match(/\.(mp4|mov|webm)(\?|$)/i)
+        ? "video"
+        : step.media_url.match(/\.(mp3|m4a|wav|ogg|aac)(\?|$)/i)
+        ? "audio"
+        : step.media_url.match(/\.(pdf)(\?|$)/i)
+        ? "file"
+        : "image";
+
     media.push({
       id: `${step.id}-media`,
-      type: "image",
+      type: mediaType,
       url: step.media_url,
       name: "Step media",
     });

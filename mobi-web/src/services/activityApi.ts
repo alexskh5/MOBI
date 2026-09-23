@@ -119,6 +119,110 @@ export async function archiveActivity(id: string) {
   return result;
 }
 
+export async function getSubmittedActivities() {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/reviews/submissions`,
+    {
+      headers: getAuthHeaders(),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok || !Array.isArray(result?.activities)) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to fetch submitted activities",
+    );
+  }
+
+  return result.activities;
+}
+
+export async function approveSubmittedActivity(
+  id: string,
+  feedback = "",
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/${id}/review/publish`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ feedback }),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to approve activity",
+    );
+  }
+
+  return result;
+}
+
+export async function declineSubmittedActivity(
+  id: string,
+  reason: string,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/${id}/review/decline`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to decline activity",
+    );
+  }
+
+  return result;
+}
+
+export async function resubmitActivityForReview(
+  id: string,
+  payload: any,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/activities/${id}/review/resubmit`,
+    {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+        result?.error ||
+        "Failed to resubmit activity",
+    );
+  }
+
+  return result;
+}
+
 export type ActivityAssetCategory =
   | "thumbnail"
   | "step-media"
@@ -192,26 +296,13 @@ export async function previewTTS({
   let request = ttsRequestCache.get(cacheKey);
 
   if (!request) {
-    request = fetch(`${API_BASE_URL}/speech/tts`, {
-      method: "POST",
-      headers: {
-        ...getAuthHeaders(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    request = generateTTSBlob({
         text: normalizedText,
         voice,
         speed,
         style,
         emotion,
-      }),
-    }).then(async (response) => {
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to preview TTS");
-      }
-
-      const audioBlob = await response.blob();
+    }).then((audioBlob) => {
       const audioUrl = URL.createObjectURL(audioBlob);
       ttsAudioCache.set(cacheKey, audioUrl);
       return audioUrl;
@@ -231,6 +322,48 @@ export async function previewTTS({
   } finally {
     ttsRequestCache.delete(cacheKey);
   }
+}
+
+export async function generateTTSBlob({
+  text,
+  voice = "Kore",
+  speed = 1,
+  style = "friendly",
+  emotion = "warm",
+}: {
+  text: string;
+  voice?: string;
+  speed?: number;
+  style?: string;
+  emotion?: string;
+}) {
+  const normalizedText = text.trim();
+
+  if (!normalizedText) {
+    throw new Error("Text is required.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/speech/tts`, {
+    method: "POST",
+    headers: {
+      ...getAuthHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text: normalizedText,
+      voice,
+      speed,
+      style,
+      emotion,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to generate TTS");
+  }
+
+  return response.blob();
 }
 
 export function clearTTSPreviewCache() {

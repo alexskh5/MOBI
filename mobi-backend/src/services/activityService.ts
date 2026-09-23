@@ -872,6 +872,8 @@ export async function updateTherapistActivityService({
       metadata: {
         lesson: step.lesson || null,
         question: step.question || null,
+        manual_scoring_enabled:
+          step.manual_scoring_enabled === true,
         media: step.media || [],
         prompt_audio_url: step.prompt_audio_url || null,
         feedback_audio_urls: step.feedback_audio_urls || null,
@@ -880,6 +882,7 @@ export async function updateTherapistActivityService({
         materials_needed: step.materials_needed || [],
         correct_feedback: step.correct_feedback || null,
         wrong_feedback: step.wrong_feedback || null,
+        max_attempts_feedback: step.max_attempts_feedback || null,
         ai_voice_style: step.ai_voice_style || null,
       },
     }));
@@ -1043,7 +1046,6 @@ export async function restoreTherapistActivityService({
 
 /* =========================================================
    SAFE DELETE
-========================================================= */
 
 export async function deleteTherapistActivityService({
   activityId,

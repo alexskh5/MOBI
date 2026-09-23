@@ -41,6 +41,7 @@ import type {
 
 import {
   createActivity,
+  generateTTSBlob,
   uploadActivityAsset,
 } from "../../../services/activityApi";
 
@@ -130,6 +131,8 @@ function CreateActivity() {
   );
   const [aiVoiceGender, setAiVoiceGender] = useState(draftData?.aiVoiceGender || "girl");
   const [aiVoiceSpeed, setAiVoiceSpeed] = useState(draftData?.aiVoiceSpeed || "moderate");
+  const [speechLadderLevel, setSpeechLadderLevel] =
+    useState(draftData?.speechLadderLevel || "sound");
 
   /*
   Activity assignment state.
@@ -415,25 +418,118 @@ function CreateActivity() {
     return uploadActivityAsset(file, category);
   };
 
+  const getVoiceName = () =>
+    aiVoiceGender === "boy" ||
+    aiVoiceGender === "Boy"
+      ? "Puck"
+      : "Kore";
+
+  const getVoiceSpeedValue = () => {
+    if (aiVoiceSpeed === "slow") return 0.85;
+    if (aiVoiceSpeed === "fast") return 1.12;
+    return 1;
+  };
+
+  const generateAndUploadPromptAudio = async ({
+    text,
+    style,
+    filename,
+  }: {
+    text?: string | null;
+    style?: string | null;
+    filename: string;
+  }) => {
+    const cleanText = String(text || "").trim();
+
+    if (!cleanText) {
+      return null;
+    }
+
+    const audioBlob = await generateTTSBlob({
+      text: cleanText,
+      voice: getVoiceName(),
+      speed: getVoiceSpeedValue(),
+      style: style || "Teaching",
+      emotion: "Calm",
+    });
+
+    const audioFile = new File(
+      [audioBlob],
+      `${filename}.wav`,
+      {
+        type: audioBlob.type || "audio/wav",
+      },
+    );
+
+    return uploadActivityAsset(
+      audioFile,
+      "prompt-audio",
+    );
+  };
+
+  const getStepPromptForTTS = (step: any) =>
+    step.prompt ||
+    step.question ||
+    step.instruction ||
+    step.lesson ||
+    "";
+
   const uploadStepAssets = async (step: any) => {
     const uploadedMedia =
       await uploadOptionalAsset(step.media_file, "step-media");
 
     const uploadedPromptAudio =
-      await uploadOptionalAsset(step.prompt_audio_file, "prompt-audio");
+      await uploadOptionalAsset(step.prompt_audio_file, "prompt-audio") ||
+      await generateAndUploadPromptAudio({
+        text: getStepPromptForTTS(step),
+        style: typeof step.ai_voice_style === "string"
+          ? step.ai_voice_style
+          : "Teaching",
+        filename: `step-${step.step_order || Date.now()}-prompt`,
+      });
 
     const feedbackAudioUrls = {
       correct:
         (await uploadOptionalAsset(step.correct_audio_file, "prompt-audio"))
-          ?.url || null,
+          ?.url ||
+        (await generateAndUploadPromptAudio({
+          text: Array.isArray(step.correct_feedback)
+            ? step.correct_feedback[0]
+            : step.correct_feedback,
+          style:
+            step.correct_voice_style ||
+            step.ai_voice_style?.correct ||
+            "Celebratory",
+          filename: `step-${step.step_order || Date.now()}-correct`,
+        }))?.url ||
+        null,
       wrong:
         (await uploadOptionalAsset(step.wrong_audio_file, "prompt-audio"))
-          ?.url || null,
+          ?.url ||
+        (await generateAndUploadPromptAudio({
+          text: Array.isArray(step.wrong_feedback)
+            ? step.wrong_feedback[0]
+            : step.wrong_feedback,
+          style:
+            step.wrong_voice_style ||
+            step.ai_voice_style?.wrong ||
+            "Encouraging",
+          filename: `step-${step.step_order || Date.now()}-wrong`,
+        }))?.url ||
+        null,
       max_attempts:
         (await uploadOptionalAsset(
           step.max_attempts_audio_file,
           "prompt-audio",
-        ))?.url || null,
+        ))?.url ||
+        (await generateAndUploadPromptAudio({
+          text: Array.isArray(step.max_attempts_feedback)
+            ? step.max_attempts_feedback[0]
+            : step.max_attempts_feedback,
+          style: "Encouraging",
+          filename: `step-${step.step_order || Date.now()}-max-attempts`,
+        }))?.url ||
+        null,
     };
 
     const choices = await Promise.all(
@@ -565,6 +661,8 @@ function CreateActivity() {
         can_repeat: true,
         can_give_hint: true,
         can_skip: true,
+        manual_scoring_enabled:
+          savedStepData.manual_scoring_enabled === true,
 
         ai_voice_style:
           step.type === "Feedback"
@@ -678,7 +776,7 @@ function CreateActivity() {
         step.type === "Conversation" &&
         !(savedStepData.topics || []).some((topic: string) => topic.trim())
       ) {
-        errors.push(`${label}: add at least one conversation topic.`);
+        errors.push(`${label}: add at least one social prompt.`);
       }
 
       if (step.type === "Feedback") {
@@ -714,7 +812,7 @@ function CreateActivity() {
       title: title.trim(),
       description,
       activity_type: selectedTemplate,
-      speech_ladder_level: "word",
+      speech_ladder_level: speechLadderLevel,
       max_attempts: maxAttempts,
       estimated_minutes: estimatedMinutes,
       allow_skip: true,
@@ -1208,7 +1306,10 @@ function CreateActivity() {
                   }
                 `}
               >
-                <ActivitySpeechLadder />
+                <ActivitySpeechLadder
+                  value={speechLadderLevel}
+                  onChange={setSpeechLadderLevel}
+                />
               </div>
 
               <div

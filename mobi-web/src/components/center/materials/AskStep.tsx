@@ -9,6 +9,7 @@ import {
 
 import VoiceStyleModal from "./VoiceStyleModal";
 import StepMenu from "./StepMenu";
+import ManualScoringToggle from "./ManualScoringToggle";
 import { previewTTS } from "../../../services/activityApi";
 
 type AskStepData = {
@@ -16,6 +17,7 @@ type AskStepData = {
   expected_answers: string[];
   accepted_variations: string[];
   ai_voice_style: string;
+  manual_scoring_enabled?: boolean;
   media_file?: File | null;
   prompt_audio_file?: File | null;
 };
@@ -57,6 +59,8 @@ function AskStep({
 
   const [answers, setAnswers] =
     useState<string[]>(initialData?.expected_answers || []);
+  const [manualScoringEnabled, setManualScoringEnabled] =
+    useState(initialData?.manual_scoring_enabled ?? false);
 
   const [answerInput, setAnswerInput] =
     useState("");
@@ -72,13 +76,15 @@ function AskStep({
   nextAnswers = answers,
   nextVoiceStyle = voiceStyle,
   nextMediaFile = selectedFile,
-  nextPromptAudioFile = promptAudioFile
+  nextPromptAudioFile = promptAudioFile,
+  nextManualScoringEnabled = manualScoringEnabled
 ) => {
   onChange(stepKey, {
     question: nextQuestion,
     expected_answers: nextAnswers,
     accepted_variations: nextAnswers,
     ai_voice_style: nextVoiceStyle,
+    manual_scoring_enabled: nextManualScoringEnabled,
     media_file: nextMediaFile,
     prompt_audio_file: nextPromptAudioFile,
   });
@@ -371,6 +377,21 @@ function AskStep({
             )}
 
           </div>
+
+          <ManualScoringToggle
+            enabled={manualScoringEnabled}
+            onChange={(enabled) => {
+              setManualScoringEnabled(enabled);
+              updateParent(
+                question,
+                answers,
+                voiceStyle,
+                selectedFile,
+                promptAudioFile,
+                enabled,
+              );
+            }}
+          />
           
           {/* EXPECTED ANSWERS */}
 

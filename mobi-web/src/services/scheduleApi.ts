@@ -69,7 +69,6 @@ export interface ScheduledSession {
 
 /* =========================================================
    CENTER
-========================================================= */
 
 export async function getCenterSchedules(
   centerId: string,
@@ -180,7 +179,6 @@ export async function rejectRescheduleRequest(
 
 /* =========================================================
    THERAPIST
-========================================================= */
 
 export async function getTherapistSchedules(
   therapistId: string,
@@ -239,7 +237,6 @@ export async function requestTherapistReschedule(
    PARENT / GUARDIAN
 
    These are ready for the mobile integration later.
-========================================================= */
 
 export async function confirmGuardianSchedule(
   scheduleId: string,
@@ -275,7 +272,6 @@ export async function declineGuardianSchedule(
 
 /* =========================================================
    DISPLAY DATA
-========================================================= */
 
 export interface ScheduleLearner {
   id: string;

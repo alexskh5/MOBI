@@ -549,7 +549,7 @@ export async function uploadActivityAsset(
   }
 }
 
-export async function listActivities(_req: Request, res: Response) {
+export async function listActivities(req: Request, res: Response) {
   try {
     const activityId =
       Array.isArray(
@@ -604,7 +604,6 @@ export async function listActivities(_req: Request, res: Response) {
 
 /* =========================================================
    DELETE
-========================================================= */
 
 export async function deleteTherapistActivity(
   req: Request,

@@ -52,6 +52,41 @@ export default function PreviewMediaHolder({
           );
         }
 
+        if (type === "video" && item.url) {
+          return (
+            <video
+              key={item.id || `${item.url}-${index}`}
+              src={item.url}
+              controls
+              playsInline
+              className={`${imageHeight} w-[82%] rounded-[24px] bg-black object-contain`}
+            />
+          );
+        }
+
+        if (type === "audio" && item.url) {
+          return (
+            <div
+              key={item.id || `${item.url}-${index}`}
+              className={`
+                ${imageHeight} flex w-[82%] flex-col items-center justify-center
+                rounded-[24px] border-2 border-dashed border-[#E6C5E6]
+                bg-white px-4 text-center
+              `}
+            >
+              <Music size={34} className="text-[#B48BC7]" />
+              <p className="mt-2 text-xs font-black text-[#1F1D28]">
+                Audio Material
+              </p>
+              <audio
+                src={item.url}
+                controls
+                className="mt-3 w-full"
+              />
+            </div>
+          );
+        }
+
         return (
           <div
             key={item.id || `${item.url}-${index}`}

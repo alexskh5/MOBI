@@ -5,8 +5,11 @@ import { Search, ArrowUp, Archive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import CenterLayout from "../../../layouts/CenterLayout";
 import {
+  approveSubmittedActivity,
   archiveActivity,
+  declineSubmittedActivity,
   getActivities,
+  getSubmittedActivities,
 } from "../../../services/activityApi";
 
 interface ActivityData {
@@ -19,6 +22,9 @@ interface ActivityData {
   activity_type: string;
   status?: string | null;
   archived_at?: string | null;
+  decline_reason?: string | null;
+  review_feedback?: string | null;
+  submitted_at?: string | null;
 }
 
 const ACTIVITY_DRAFT_STORAGE_KEY = "mobi-center-activity-drafts-v1";
@@ -36,6 +42,9 @@ const ActivityLibrary = () => {
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const [activities, setActivities] = useState<ActivityData[]>([]);
+  const [submittedActivities, setSubmittedActivities] = useState<
+    ActivityData[]
+  >([]);
   const [sortBy, setSortBy] = useState("Newest");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -105,8 +114,19 @@ const ActivityLibrary = () => {
     async function loadActivities() {
       try {
         setLoading(true);
+        setError("");
         const data = await getActivities();
         setActivities(data);
+
+        try {
+          setSubmittedActivities(await getSubmittedActivities());
+        } catch (submissionError) {
+          console.warn(
+            "Unable to load therapist submissions.",
+            submissionError,
+          );
+          setSubmittedActivities([]);
+        }
       } catch (err) {
         console.error(err);
         setError("Failed to load activities.");
@@ -138,7 +158,13 @@ const ActivityLibrary = () => {
       return false;
     }
 
-    if (activity.archived_at || activity.status === "draft") {
+    if (
+      activity.archived_at ||
+      activity.status === "draft" ||
+      activity.status === "pending_review" ||
+      activity.status === "declined" ||
+      (activity.status && activity.status !== "published")
+    ) {
       return false;
     }
 
@@ -222,6 +248,52 @@ const ActivityLibrary = () => {
     }
   };
 
+  const handleApproveSubmission = async (activity: ActivityData) => {
+    const feedback = window.prompt(
+      "Optional feedback for therapist before publishing:",
+      "",
+    );
+
+    try {
+      const result = await approveSubmittedActivity(
+        activity.id,
+        feedback ?? "",
+      );
+      setSubmittedActivities((current) =>
+        current.filter((item) => item.id !== activity.id),
+      );
+      if (result?.activity) {
+        setActivities((current) => [result.activity, ...current]);
+      }
+      alert("Activity approved and published.");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to approve activity.");
+    }
+  };
+
+  const handleDeclineSubmission = async (activity: ActivityData) => {
+    const reason = window.prompt(
+      "Write the reason so the therapist knows what to revise:",
+      "",
+    );
+
+    if (!reason?.trim()) {
+      return;
+    }
+
+    try {
+      await declineSubmittedActivity(activity.id, reason.trim());
+      setSubmittedActivities((current) =>
+        current.filter((item) => item.id !== activity.id),
+      );
+      alert("Activity declined with feedback.");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to decline activity.");
+    }
+  };
+
   return (
     <CenterLayout>
       {(sidebarOpen, setSidebarOpen) => (
@@ -261,7 +333,7 @@ const ActivityLibrary = () => {
                     {[
                       "Teach & Practice",
                       "Check & Answer",
-                      "Conversation",
+                      "Social Prompt",
                       "Story",
                       "Turn Taking",
                       "Life Skills",
@@ -407,6 +479,81 @@ const ActivityLibrary = () => {
             <p className="text-center text-red-600 font-semibold">
               {error}
             </p>
+          )}
+
+          {!loading && !error && submittedActivities.length > 0 && (
+            <section className="mb-6 rounded-3xl bg-white/80 p-5 shadow-md">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold">
+                    Therapist Submissions
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Review submitted materials before they enter the
+                    learner library.
+                  </p>
+                </div>
+                <span className="rounded-full bg-[#F5EEF6] px-4 py-2 text-sm font-semibold">
+                  {submittedActivities.length} pending
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                {submittedActivities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="rounded-2xl border border-[#E5C7E9] bg-white p-4"
+                  >
+                    <div
+                      onClick={() =>
+                        navigate(`/center/materials/${activity.id}`, {
+                          state: { reviewMode: true },
+                        })
+                      }
+                      className="cursor-pointer"
+                    >
+                      <img
+                        src={activity.thumbnail_url || fallbackImage}
+                        alt={activity.title}
+                        className="mb-3 h-28 w-full rounded-xl object-cover"
+                      />
+                      <h3 className="font-bold leading-tight">
+                        {activity.title}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                        {activity.description ||
+                          "No description provided."}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Submitted by{" "}
+                        {activity.uploaded_by || "Therapist"}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleApproveSubmission(activity)
+                        }
+                        className="flex-1 rounded-xl bg-[#8B5FBF] px-3 py-2 text-sm font-semibold text-white"
+                      >
+                        Publish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDeclineSubmission(activity)
+                        }
+                        className="flex-1 rounded-xl border border-[#8B5FBF] bg-white px-3 py-2 text-sm font-semibold text-[#8B5FBF]"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
 
           {!loading && !error && sortedActivities.length === 0 && (

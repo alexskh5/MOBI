@@ -497,9 +497,9 @@ test("progression uses only the latest result for each distinct activity", () =>
   assert.equal(evidence.activitiesMastered, 1);
   assert.equal(evidence.averageSuccessRate, 90);
   assert.equal(evidence.eligible, false);
-  assert.equal(normalizeSpeechLadderLevel("Social-Readiness"), "conversation");
+  assert.equal(normalizeSpeechLadderLevel("Social-Readiness"), "sentence");
   assert.equal(getNextSpeechLadderLevel("word"), "phrase");
-  assert.equal(getNextSpeechLadderLevel("conversation"), null);
+  assert.equal(getNextSpeechLadderLevel("sentence"), null);
 });
 
 test("center calendar ranges use the configured fixed offset", () => {
