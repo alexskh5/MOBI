@@ -9,6 +9,7 @@ function Navbar() {
 
   useEffect(() => {
     if (!isOpen) {
+      document.body.style.overflow = "";
       return;
     }
 
@@ -65,7 +66,7 @@ function Navbar() {
             xl:px-20
           "
         >
-          {/* Logo and title */}
+          {/* LOGO + TITLE */}
           <NavLink
             to="/home"
             onClick={closeMenu}
@@ -109,7 +110,7 @@ function Navbar() {
             </h1>
           </NavLink>
 
-          {/* Mobile menu button */}
+          {/* MOBILE MENU BUTTON */}
           <button
             type="button"
             aria-label={
@@ -141,7 +142,7 @@ function Navbar() {
             )}
           </button>
 
-          {/* Desktop navigation */}
+          {/* DESKTOP NAVIGATION */}
           <ul
             className="
               hidden
@@ -185,9 +186,10 @@ function Navbar() {
           </ul>
         </div>
 
-        {/* Mobile navigation */}
+        {/* MOBILE NAVIGATION */}
         {isOpen && (
           <>
+            {/* Background overlay */}
             <button
               type="button"
               aria-label="Close navigation menu"
@@ -204,6 +206,7 @@ function Navbar() {
               "
             />
 
+            {/* Mobile menu */}
             <ul
               className="
                 absolute
@@ -261,7 +264,7 @@ function Navbar() {
         )}
       </nav>
 
-      {/* Space reserved for the fixed navbar */}
+      {/* SPACE FOR FIXED NAVBAR */}
       <div
         className="
           h-[72px]

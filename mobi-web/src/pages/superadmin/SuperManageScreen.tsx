@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,10 +12,8 @@ import {
 } from "lucide-react";
 import mobiLogo from "../../assets/mobiLogo.png";
 import {
-  createCenterInvitation,
-  getSuperAdminCenters,
+  getSuperAdminCenter,
   getSuperAdminParents,
-  updateSuperAdminCenterStatus,
 } from "../../services/super_admin/superAdminApi";
 
 type ViewMode = "menu" | "users" ;
@@ -46,6 +44,7 @@ type ParentAccount = {
   firstName: string;
   lastName: string;
   email: string;
+  planDetail: string;
   childNumber: number;
   status: "Active" | "Suspended";
 };
@@ -55,7 +54,7 @@ type ApiParentAccount = {
   first_name: string;
   last_name: string;
   email: string;
-  plan_detail: string;
+  plan_detail: string | null;
   child_number: number;
   status: "Active" | "Suspended";
 };
@@ -72,27 +71,20 @@ type InviteForm = {
   attachmentFileName: string;
 };
 
-type InviteResult = {
-  centerEmail: string;
-  centerName: string;
-  magicCode: string;
-  expiresAt: string;
-  setupLink: string;
+
+
+
+const centerAccount: CenterAccount = {
+  id: "C-001",
+  centerName: "Abled Mind Therapy Center",
+  contactPerson: "Maria Garcia",
+  centerOwner: "Ruby Jane",
+  email: "abledmind@example.com",
+  planDetail: "No plan",
+  status: "Active",
 };
 
-const initialParents: ParentAccount[] = [];
-
-const emptyInviteForm: InviteForm = {
-  centerEmail: "",
-  centerName: "",
-  centerOwnerName: "",
-  centerOwnerPhone: "",
-  centerOwnerEmail: "",
-  contactPersonName: "",
-  contactPersonPhone: "",
-  contactPersonEmail: "",
-  attachmentFileName: "",
-};
+const fallbackParents: ParentAccount[] = [];
 
 export default function SuperManageScreen() {
   const navigate = useNavigate();
@@ -101,7 +93,7 @@ export default function SuperManageScreen() {
   const [activeTab, setActiveTab] = useState<UserTab>("center");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [centers, setCenters] = useState<CenterAccount[]>([]);
+  const [center, setCenter] = useState<CenterAccount>(fallbackCenter);
   const [centerLoading, setCenterLoading] = useState(false);
   const [centerError, setCenterError] = useState("");
 
@@ -202,33 +194,62 @@ export default function SuperManageScreen() {
           })
         );
 
-        if (isMounted) {
-          setCenters(mappedCenters);
-        }
+        if (isMounted) setCenter(mappedCenter);
       } catch (error: any) {
         if (isMounted) {
           setCenterError(
             error?.response?.data?.message ||
               error?.message ||
-              "Failed to load center account."
+              "Failed to load center account.",
           );
         }
       } finally {
-        if (isMounted) {
-          setCenterLoading(false);
-        }
+        if (isMounted) setCenterLoading(false);
       }
     }
 
-    loadCenters();
+    async function loadParents() {
+      try {
+        setParentsLoading(true);
+        setParentsError("");
+
+        const result = await getSuperAdminParents();
+        const mappedParents: ParentAccount[] = result.data.map(
+          (parent: ApiParentAccount) => ({
+            id: parent.id,
+            firstName: parent.first_name,
+            lastName: parent.last_name,
+            email: parent.email,
+            planDetail: parent.plan_detail || "Free Trial",
+            childNumber: parent.child_number,
+            status: parent.status,
+          }),
+        );
+
+        if (isMounted) setParents(mappedParents);
+      } catch (error: any) {
+        if (isMounted) {
+          setParentsError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Failed to load parent accounts.",
+          );
+        }
+      } finally {
+        if (isMounted) setParentsLoading(false);
+      }
+    }
+
+    loadCenter();
+    loadParents();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const handleBack = () => {
-    setSearchQuery("");
+  const handleTabChange = (tab: UserTab) => {
+    setActiveTab(tab);
     setSelectedUser(null);
     setSelectedCenter(null);
 
@@ -461,50 +482,38 @@ export default function SuperManageScreen() {
                 )}
 
                 {centerError && (
-                  <div className="empty-state">
-                    <p>{centerError}</p>
+                  <div className="center-account-card">
+                    <div className="empty-state">
+                      <strong>Unable to load center account</strong>
+                      <span>{centerError}</span>
+                    </div>
                   </div>
                 )}
 
-                {!centerLoading && !centerError && filteredCenters.length === 0 && (
-                  <div className="empty-state">
-                    <p>No centers found.</p>
-                  </div>
-                )}
-
-                {!centerLoading && !centerError && filteredCenters.length > 0 && (
-                  <div className="parent-list compact">
-                    {filteredCenters.map((center) => (
-                      <article key={center.id} className="parent-row">
-                        <div className="parent-main">
-                          <div className="avatar">
-                            {center.centerName.slice(0, 2).toUpperCase()}
-                          </div>
-
-                          <div>
-                            <h3>{center.centerName}</h3>
-                            <p>{center.email}</p>
-                          </div>
+                {!centerLoading && !centerError && (
+                  <div className="center-account-card">
+                    <div className="center-account-top">
+                      <div className="center-account-main">
+                        <div className="center-icon">
+                          <Building2 size={22} />
                         </div>
 
-                        <span
-                          className={
-                            center.status === "Active"
-                              ? "status active"
-                              : "status suspended"
-                          }
-                        >
-                          {center.status}
-                        </span>
+                        <div>
+                          <span className="account-kicker">PARTNERED CENTER</span>
+                          <h3>{center.centerName}</h3>
+                          <p>{center.email}</p>
+                        </div>
+                      </div>
 
-                        <button
-                          className="secondary-btn"
-                          onClick={() => setSelectedCenter(center)}
-                        >
-                          View
-                        </button>
-                      </article>
-                    ))}
+                      <StatusBadge status={center.status} />
+                    </div>
+
+                    <div className="center-details-grid">
+                      <InfoItem label="Center ID" value={center.id} />
+                      <InfoItem label="Contact Person" value={center.contactPerson} />
+                      <InfoItem label="Center Owner" value={center.centerOwner} />
+                      <InfoItem label="Plan Detail" value={center.planDetail} />
+                    </div>
                   </div>
                 )}
               </div>

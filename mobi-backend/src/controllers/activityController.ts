@@ -1,15 +1,22 @@
-//mobi-backend/src/controllers/activityController.ts
+// mobi-backend/src/controllers/activityController.ts
 
-import { Request, Response } from "express";
+import type {
+  Request,
+  Response,
+} from "express";
+
 import {
   archiveActivityById,
   createActivityWithSteps,
+  deleteTherapistActivityService,
   getActivities,
   getActivityById,
-  getSubmittedActivities,
-  declineSubmittedActivity,
-  publishSubmittedActivity,
-  resubmitTherapistActivity,
+  getTherapistMaterialsService,
+  resolveActivityActor,
+  restoreTherapistActivityService,
+  submitTherapistActivityForReviewService,
+  updateTherapistActivityService,
+  type TherapistMaterialView,
 } from "../services/activityService";
 import {
   AuthUser,
@@ -46,32 +53,245 @@ async function getActivityAuthor(req: Request): Promise<AuthUser> {
   return authUser;
 }
 
+function headerValue(
+  req: Request,
+  name: string,
+) {
+  const value =
+    req.headers[name];
+
+  if (
+    Array.isArray(
+      value,
+    )
+  ) {
+    return value[0] ??
+      null;
+  }
+
+  return typeof value ===
+    "string"
+    ? value
+    : null;
+}
+
+function getTherapistId(
+  req: Request,
+) {
+  return (
+    headerValue(
+      req,
+      "x-mobi-staff-profile-id",
+    ) ??
+    (
+      typeof req.body
+        ?.therapistId ===
+        "string"
+        ? req.body
+            .therapistId
+        : null
+    )
+  );
+}
+
+/* =========================================================
+   CREATE
+========================================================= */
+
 export async function createActivity(
   req: Request,
   res: Response,
 ) {
   try {
-    /*
-      TEMPORARY CENTER ID
+    const actor =
+      await resolveActivityActor({
+        role:
+          headerValue(
+            req,
+            "x-mobi-staff-role",
+          ),
 
-      Later this should come from the authenticated
-      Center Admin or Therapist account.
+        profileId:
+          headerValue(
+            req,
+            "x-mobi-staff-profile-id",
+          ),
+      });
 
+    const activity =
+      await createActivityWithSteps(
+        req.body,
+        actor,
+      );
+
+    return res
+      .status(201)
+      .json({
+        message:
+          "Activity created successfully",
+        activity,
+      });
+  } catch (
+    error: any
+  ) {
+    console.error(
+      "Create activity error:",
+      error,
+    );
+
+    return res
+      .status(500)
+      .json({
+        message:
+          "Failed to create activity",
+        error:
+          error.message,
+      });
+  }
+}
+
+
+export async function listActivities(
+  _req: Request,
+  res: Response,
+) {
+  try {
+    const activities =
+      await getActivities();
+
+    return res
+      .status(200)
+      .json(
+        activities,
+      );
+  } catch (
+    error: any
+  ) {
+    return res
+      .status(500)
+      .json({
+        message:
+          "Failed to fetch activities",
+        error:
+          error.message,
+      });
+  }
+}
       For now, we use the same AMTC center ID used
       in your learner backend.
     */
     const activityAuthor = await getActivityAuthor(req);
 
-    /*
-      The frontend should not decide which center owns
-      the activity.
+/* =========================================================
+   THERAPIST MATERIAL VIEWS
+========================================================= */
 
-      The backend attaches center_id here so the activity
-      can later be safely matched with learner assignments.
-    */
+export async function listTherapistMaterials(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const therapistId =
+      Array.isArray(
+        req.params
+          .therapistId,
+      )
+        ? req.params
+            .therapistId[0]
+        : req.params
+            .therapistId;
+
+    const requestedView =
+      typeof req.query
+        .view ===
+        "string"
+        ? req.query.view
+        : "mine";
+
+    const allowed:
+      TherapistMaterialView[] =
+      [
+        "mine",
+        "all",
+        "center",
+        "drafts",
+        "archived",
+      ];
+
+    if (
+      !allowed.includes(
+        requestedView as
+          TherapistMaterialView,
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Invalid Therapist material view.",
+        });
+    }
+
+    const activities =
+      await getTherapistMaterialsService({
+        therapistId,
+
+        view:
+          requestedView as
+            TherapistMaterialView,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
+
+        activities,
+      });
+  } catch (
+    error: any
+  ) {
+    console.error(
+      "List Therapist materials error:",
+      error,
+    );
+
+    return res
+      .status(500)
+      .json({
+        success:
+          false,
+
+        message:
+          "Failed to fetch Therapist materials.",
+
+        error:
+          error.message,
+      });
+  }
+}
+
+/* =========================================================
+   READ ONE
+========================================================= */
+
+export async function readActivity(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const id =
+      Array.isArray(
+        req.params.id,
+      )
+        ? req.params.id[0]
+        : req.params.id;
+
     const activity =
-      await createActivityWithSteps({
-        ...req.body,
+      await getActivityById(
+        id,
+      );
 
         center_id:
           activityAuthor.centerId,
@@ -84,29 +304,201 @@ export async function createActivity(
             ? activityAuthor.actorId
             : null,
       });
-
-    return res.status(201).json({
-      message:
-        "Activity created successfully",
-
-      activity,
-    });
-  } catch (error: any) {
-    console.error(
-      "Create activity error:",
-      error,
-    );
-
-    return res.status(500).json({
-      message:
-        "Failed to create activity",
-
-      error:
-        error.message,
-    });
   }
 }
 
+/* =========================================================
+   UPDATE THERAPIST ACTIVITY
+========================================================= */
+
+export async function updateTherapistActivity(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityId =
+      Array.isArray(
+        req.params.id,
+      )
+        ? req.params.id[0]
+        : req.params.id;
+
+    const therapistId =
+      getTherapistId(
+        req,
+      );
+
+    if (!therapistId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Therapist profile ID is required.",
+        });
+    }
+
+    const activity =
+      await updateTherapistActivityService({
+        activityId,
+        therapistId,
+        payload:
+          req.body,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
+        message:
+          "Activity updated successfully.",
+        activity,
+      });
+  } catch (
+    error: any
+  ) {
+    console.error(
+      "Update Therapist activity error:",
+      error,
+    );
+
+    return res
+      .status(500)
+      .json({
+        success:
+          false,
+        message:
+          error.message ||
+          "Failed to update activity.",
+      });
+  }
+}
+
+/* =========================================================
+   SUBMIT FOR REVIEW
+========================================================= */
+
+export async function submitTherapistActivityForReview(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityId =
+      Array.isArray(
+        req.params.id,
+      )
+        ? req.params.id[0]
+        : req.params.id;
+
+    const therapistId =
+      getTherapistId(
+        req,
+      );
+
+    if (!therapistId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Therapist profile ID is required.",
+        });
+    }
+
+    const activity =
+      await submitTherapistActivityForReviewService({
+        activityId,
+        therapistId,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
+        message:
+          "Activity submitted for Center review.",
+        activity,
+      });
+  } catch (
+    error: any
+  ) {
+    return res
+      .status(500)
+      .json({
+        success:
+          false,
+        message:
+          error.message ||
+          "Failed to submit activity.",
+      });
+  }
+}
+
+/* =========================================================
+   ARCHIVE
+========================================================= */
+
+export async function archiveTherapistActivity(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const activityId =
+      Array.isArray(
+        req.params.id,
+      )
+        ? req.params.id[0]
+        : req.params.id;
+
+    const therapistId =
+      getTherapistId(
+        req,
+      );
+
+    if (!therapistId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Therapist profile ID is required.",
+        });
+    }
+
+    const activity =
+      await archiveTherapistActivityService({
+        activityId,
+        therapistId,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
+        message:
+          "Activity archived successfully.",
+        activity,
+      });
+  } catch (
+    error: any
+  ) {
+    return res
+      .status(500)
+      .json({
+        success:
+          false,
+        message:
+          error.message ||
+          "Failed to archive activity.",
+      });
+  }
+}
+
+
+export async function restoreTherapistActivity(
+  req: Request,
+  res: Response,
+) {
 export async function uploadActivityAsset(
   req: Request,
   res: Response,
@@ -159,184 +551,114 @@ export async function uploadActivityAsset(
 
 export async function listActivities(req: Request, res: Response) {
   try {
-    const activityAuthor = await getActivityAuthor(req);
-    const activities = await getActivities(activityAuthor.centerId!);
-    res.status(200).json(activities);
-  } catch (error: any) {
-    res.status(500).json({
-      message: "Failed to fetch activities",
-      error: error.message,
-    });
-  }
-}
+    const activityId =
+      Array.isArray(
+        req.params.id,
+      )
+        ? req.params.id[0]
+        : req.params.id;
 
-export async function listSubmittedActivityReviews(
-  req: Request,
-  res: Response,
-) {
-  try {
-    const activityAuthor = await getActivityAuthor(req);
+    const therapistId =
+      getTherapistId(
+        req,
+      );
 
-    if (activityAuthor.role !== "center_admin") {
-      return res.status(403).json({
+    if (!therapistId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Therapist profile ID is required.",
+        });
+    }
+
+    const activity =
+      await restoreTherapistActivityService({
+        activityId,
+        therapistId,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
         message:
-          "Only center admins can review therapist-submitted activities.",
+          "Activity restored successfully.",
+        activity,
       });
-    }
-
-    const activities = await getSubmittedActivities(
-      activityAuthor.centerId!,
-    );
-
-    return res.status(200).json({
-      activities,
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      message: "Failed to fetch submitted activities",
-      error: error.message,
-    });
-  }
-}
-
-export async function approveActivityReview(
-  req: Request,
-  res: Response,
-) {
-  try {
-    const activityAuthor = await getActivityAuthor(req);
-
-    if (activityAuthor.role !== "center_admin") {
-      return res.status(403).json({
+  } catch (
+    error: any
+  ) {
+    return res
+      .status(500)
+      .json({
+        success:
+          false,
         message:
-          "Only center admins can approve therapist-submitted activities.",
+          error.message ||
+          "Failed to restore activity.",
       });
-    }
-
-    const id = Array.isArray(req.params.id)
-      ? req.params.id[0]
-      : req.params.id;
-
-    const activity = await publishSubmittedActivity({
-      activityId: id,
-      centerId: activityAuthor.centerId!,
-      reviewedBy: activityAuthor.actorId,
-      feedback:
-        typeof req.body?.feedback === "string"
-          ? req.body.feedback.trim()
-          : null,
-    });
-
-    return res.status(200).json({
-      message: "Activity approved and published.",
-      activity,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      message: "Failed to approve activity",
-      error: error.message,
-    });
   }
 }
 
-export async function declineActivityReview(
+/* =========================================================
+   DELETE
+
+export async function deleteTherapistActivity(
   req: Request,
   res: Response,
 ) {
   try {
-    const activityAuthor = await getActivityAuthor(req);
+    const activityId =
+      Array.isArray(
+        req.params.id,
+      )
+        ? req.params.id[0]
+        : req.params.id;
 
-    if (activityAuthor.role !== "center_admin") {
-      return res.status(403).json({
+    const therapistId =
+      getTherapistId(
+        req,
+      );
+
+    if (!therapistId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Therapist profile ID is required.",
+        });
+    }
+
+    const result =
+      await deleteTherapistActivityService({
+        activityId,
+        therapistId,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
         message:
-          "Only center admins can decline therapist-submitted activities.",
+          "Activity deleted successfully.",
+        activity:
+          result,
       });
-    }
-
-    const reason =
-      typeof req.body?.reason === "string"
-        ? req.body.reason.trim()
-        : "";
-
-    if (!reason) {
-      return res.status(400).json({
-        message: "A decline reason is required.",
+  } catch (
+    error: any
+  ) {
+    return res
+      .status(500)
+      .json({
+        success:
+          false,
+        message:
+          error.message ||
+          "Failed to delete activity.",
       });
-    }
-
-    const id = Array.isArray(req.params.id)
-      ? req.params.id[0]
-      : req.params.id;
-
-    const activity = await declineSubmittedActivity({
-      activityId: id,
-      centerId: activityAuthor.centerId!,
-      reviewedBy: activityAuthor.actorId,
-      reason,
-    });
-
-    return res.status(200).json({
-      message: "Activity declined with feedback.",
-      activity,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      message: "Failed to decline activity",
-      error: error.message,
-    });
-  }
-}
-
-export async function resubmitActivityReview(
-  req: Request,
-  res: Response,
-) {
-  try {
-    const activityAuthor = await getActivityAuthor(req);
-
-    if (activityAuthor.role !== "therapist") {
-      return res.status(403).json({
-        message: "Only therapists can resubmit declined activities.",
-      });
-    }
-
-    const id = Array.isArray(req.params.id)
-      ? req.params.id[0]
-      : req.params.id;
-
-    const activity = await resubmitTherapistActivity({
-      activityId: id,
-      centerId: activityAuthor.centerId!,
-      therapistId: activityAuthor.actorId,
-      payload: req.body,
-    });
-
-    return res.status(200).json({
-      message:
-        activity.status === "published"
-          ? "Activity published."
-          : "Activity resubmitted for center review.",
-      activity,
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      message: "Failed to resubmit activity",
-      error: error.message,
-    });
-  }
-}
-
-export async function readActivity(req: Request, res: Response) {
-  try {
-    const activityAuthor = await getActivityAuthor(req);
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const activity = await getActivityById(id, activityAuthor.centerId!);
-    res.status(200).json(activity);
-  } catch (error: any) {
-    res.status(404).json({
-      message: "Activity not found",
-      error: error.message,
-    });
   }
 }
 

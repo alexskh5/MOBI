@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import {
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
 import {
     CalendarDays,
     Check,
@@ -12,165 +16,52 @@ import {
     X,
 } from "lucide-react";
 import CenterLayout from "../../../layouts/CenterLayout";
+import {
+    assignLearnerDoctor,
+    assignLearnerTherapists,
+    createLearnerCollaborationNote,
+    getCollaborationDoctors,
+    getCollaborationLearners,
+    getCollaborationTherapists,
+    getLearnerCollaborationNotes,
+    getLearnerDoctor,
+    getLearnerTherapists,
+} from "../../../services/collaboration/collaborationApi";
 
 type Learner = {
-    id: number;
+    id: string;
     name: string;
     age: number;
-    assignedDoctorId?: number;
-    assignedTherapistIds: number[];
+    assignedDoctorId?: string;
+    assignedTherapistIds: string[];
 };
 
 type Doctor = {
-    id: number;
+    id: string;
     name: string;
     specialization: string;
 };
 
 type Therapist = {
-    id: number;
+    id: string;
     name: string;
     specialization: string;
 };
 
 type CollaborationRecord = {
-    id: number;
-    learnerId: number;
-    doctorId?: number;
-    category: "Clinical" | "MOBI Session";
+    id: string;
+    learnerId: string;
+    doctorId?: string | null;
+    therapistId?: string | null;
+    category: string;
     title: string;
     createdAt: string;
     sender: string;
-    senderRole: "Center" | "Doctor";
+    senderRole: "Center" | "Doctor" | "Therapist";
     content: string;
 };
 
 type NoteFilter = "today" | "week" | "month";
-
-const doctors: Doctor[] = [
-    {
-        id: 1,
-        name: "Dr. Jane R. Doe",
-        specialization: "Developmental Pediatrician",
-    },
-    {
-        id: 2,
-        name: "Dr. Marco D. Reyes",
-        specialization: "Child Psychologist",
-    },
-    {
-        id: 3,
-        name: "Dr. Andrea L. Cruz",
-        specialization: "Behavioral Specialist",
-    },
-];
-
-const therapists: Therapist[] = [
-    {
-        id: 1,
-        name: "Anna Reyes, SLP",
-        specialization: "Speech-Language Therapist",
-    },
-    {
-        id: 2,
-        name: "Villa R. Reese, ST",
-        specialization: "Speech Therapist",
-    },
-    {
-        id: 3,
-        name: "Maria D. Santos, BT",
-        specialization: "Behavioral Therapist",
-    },
-];
-
-const initialLearners: Learner[] = [
-    {
-        id: 1,
-        name: "Lea Sarsoza",
-        age: 6,
-        assignedDoctorId: 1,
-        assignedTherapistIds: [1, 2],
-    },
-    {
-        id: 2,
-        name: "Harry Potter",
-        age: 7,
-        assignedTherapistIds: [3],
-    },
-    {
-        id: 3,
-        name: "Albus Severus",
-        age: 5,
-        assignedDoctorId: 2,
-        assignedTherapistIds: [1],
-    },
-    {
-        id: 4,
-        name: "George Weasley",
-        age: 8,
-        assignedTherapistIds: [],
-    },
-];
-
-const createDateDaysAgo = (daysAgo: number) => {
-    const date = new Date();
-
-    date.setDate(date.getDate() - daysAgo);
-    date.setHours(10, 0, 0, 0);
-
-    return date.toISOString();
-};
-
-const initialRecords: CollaborationRecord[] = [
-    {
-        id: 1,
-        learnerId: 1,
-        doctorId: 1,
-        category: "Clinical",
-        title: "Clinical Progress Note",
-        createdAt: createDateDaysAgo(10),
-        sender: "Dr. Jane R. Doe",
-        senderRole: "Doctor",
-        content:
-            "Lea practiced following simple directions and used short verbal requests during play activities. She showed improved attention during sensory breaks and participated well in peer interaction exercises.",
-    },
-    {
-        id: 2,
-        learnerId: 1,
-        doctorId: 1,
-        category: "MOBI Session",
-        title: "MOBI Session Note",
-        createdAt: createDateDaysAgo(3),
-        sender: "Center Admin",
-        senderRole: "Center",
-        content:
-            "Lea completed AI-guided speech activities focused on emotion recognition and turn-taking skills. She responded positively to adaptive prompts and demonstrated progress in initiating simple social greetings.",
-    },
-    {
-        id: 3,
-        learnerId: 1,
-        doctorId: 1,
-        category: "Clinical",
-        title: "Clinical Follow-up",
-        createdAt: createDateDaysAgo(0),
-        sender: "Dr. Jane R. Doe",
-        senderRole: "Doctor",
-        content:
-            "Continue using short prompts and allow a brief sensory break when Lea becomes distracted. Gradually increase activity difficulty when she consistently completes the current level.",
-    },
-    {
-        id: 4,
-        learnerId: 3,
-        doctorId: 2,
-        category: "Clinical",
-        title: "Clinical Progress Note",
-        createdAt: createDateDaysAgo(5),
-        sender: "Dr. Marco D. Reyes",
-        senderRole: "Doctor",
-        content:
-            "Albus may benefit from slower activity pacing and fewer repeated attempts per session to avoid frustration.",
-    },
-];
 
 const getInitials = (name: string) => {
     return name
@@ -221,19 +112,91 @@ const isWithinFilter = (
     return recordDate >= startDate && recordDate <= now;
 };
 
+const normalizeSenderRole = (
+    role?: string | null
+): CollaborationRecord["senderRole"] => {
+    const normalizedRole =
+        role?.trim().toLowerCase();
+
+    if (normalizedRole === "doctor") {
+        return "Doctor";
+    }
+
+    if (normalizedRole === "therapist") {
+        return "Therapist";
+    }
+
+    return "Center";
+};
+
+const mapApiNoteToRecord = (
+    note: any
+): CollaborationRecord => ({
+    id: String(note.id),
+    learnerId: String(note.learnerId),
+    doctorId: note.doctorId ?? null,
+    therapistId: note.therapistId ?? null,
+    category: note.category ?? "MOBI Session",
+    title: note.title ?? "MOBI Session Note",
+    createdAt: note.createdAt,
+    sender: note.sender ?? "Center Admin",
+    senderRole: normalizeSenderRole(
+        note.senderRole
+    ),
+    content: note.content ?? "",
+});
+
+const calculateAge = (
+    birthDate?: string | null
+) => {
+    if (!birthDate) {
+        return 0;
+    }
+
+    const birth = new Date(birthDate);
+    const today = new Date();
+
+    let age =
+        today.getFullYear() -
+        birth.getFullYear();
+
+    const monthDifference =
+        today.getMonth() -
+        birth.getMonth();
+
+    if (
+        monthDifference < 0 ||
+        (
+            monthDifference === 0 &&
+            today.getDate() <
+                birth.getDate()
+        )
+    ) {
+        age--;
+    }
+
+    return Math.max(age, 0);
+};
+
 const Collaboration = () => {
     const [showFilterMenu, setShowFilterMenu] = useState(false);
 
     const [learners, setLearners] =
-        useState<Learner[]>(initialLearners);
+        useState<Learner[]>([]);
+
+    const [doctors, setDoctors] =
+        useState<Doctor[]>([]);
+
+    const [therapists, setTherapists] =
+        useState<Therapist[]>([]);
 
     const [records, setRecords] =
-        useState<CollaborationRecord[]>(initialRecords);
+        useState<CollaborationRecord[]>([]);
 
     const [searchTerm, setSearchTerm] = useState("");
 
     const [selectedLearnerId, setSelectedLearnerId] =
-        useState<number | null>(null);
+        useState<string | null>(null);
 
     const [selectedFilter, setSelectedFilter] =
         useState<NoteFilter>("month");
@@ -246,15 +209,233 @@ const Collaboration = () => {
     const [showNoteModal, setShowNoteModal] = useState(false);
 
     const [selectedDoctorId, setSelectedDoctorId] =
-        useState<number>(doctors[0]?.id ?? 1);
+        useState<string>("");
+
+    const [isSavingDoctor, setIsSavingDoctor] =
+        useState(false);
+
+    const [isSavingTherapists, setIsSavingTherapists] =
+        useState(false);
+
+    const [isSavingNote, setIsSavingNote] =
+        useState(false);
+
+    const [isLoadingNotes, setIsLoadingNotes] =
+        useState(false);
 
     const [selectedTherapistIds, setSelectedTherapistIds] =
-        useState<number[]>([]);
+        useState<string[]>([]);
 
     const [noteTitle, setNoteTitle] =
         useState("MOBI Session Note");
 
     const [noteContent, setNoteContent] = useState("");
+
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadCollaborationData() {
+            try {
+                const [
+                    learnerResult,
+                    doctorResult,
+                    therapistResult,
+                ] = await Promise.all([
+                    getCollaborationLearners(),
+                    getCollaborationDoctors(),
+                    getCollaborationTherapists(),
+                ]);
+
+                if (!isMounted) {
+                    return;
+                }
+
+                const mappedDoctors: Doctor[] =
+                    (doctorResult.doctors ?? []).map(
+                        (doctor: any) => ({
+                            id: doctor.id,
+                            name: [
+                                doctor.first_name ?? doctor.firstName,
+                                doctor.middle_name ?? doctor.middleName,
+                                doctor.last_name ?? doctor.lastName,
+                            ]
+                                .filter(Boolean)
+                                .join(" "),
+                            specialization:
+                                doctor.specialization ??
+                                "No specialization",
+                        })
+                    );
+
+                setDoctors(mappedDoctors);
+
+                const mappedTherapists: Therapist[] =
+                    (therapistResult.therapists ?? []).map(
+                        (therapist: any) => ({
+                            id: String(therapist.id),
+                            name: [
+                                therapist.first_name ?? therapist.firstName,
+                                therapist.middle_name ?? therapist.middleName,
+                                therapist.last_name ?? therapist.lastName,
+                            ]
+                                .filter(Boolean)
+                                .join(" "),
+                            specialization:
+                                therapist.specialization ??
+                                "No specialization",
+                        })
+                    );
+
+                setTherapists(mappedTherapists);
+
+                const mappedLearners: Learner[] =
+                    await Promise.all(
+                        (learnerResult.learners ?? []).map(
+                            async (learner: any) => {
+                                let assignedDoctorId:
+                                    | string
+                                    | undefined;
+
+                                let assignedTherapistIds:
+                                    string[] = [];
+
+                                const [
+                                    doctorAssignmentResult,
+                                    therapistAssignmentResult,
+                                ] = await Promise.allSettled([
+                                    getLearnerDoctor(
+                                        learner.id
+                                    ),
+                                    getLearnerTherapists(
+                                        learner.id
+                                    ),
+                                ]);
+
+                                if (
+                                    doctorAssignmentResult.status ===
+                                    "fulfilled"
+                                ) {
+                                    assignedDoctorId =
+                                        doctorAssignmentResult.value
+                                            .doctorAssignment
+                                            ?.doctor
+                                            ?.id;
+                                } else {
+                                    console.error(
+                                        `Unable to load doctor for learner ${learner.id}:`,
+                                        doctorAssignmentResult.reason
+                                    );
+                                }
+
+                                if (
+                                    therapistAssignmentResult.status ===
+                                    "fulfilled"
+                                ) {
+                                    assignedTherapistIds =
+                                        (
+                                            therapistAssignmentResult
+                                                .value
+                                                .therapists ?? []
+                                        ).map(
+                                            (therapist: any) =>
+                                                String(
+                                                    therapist.id
+                                                )
+                                        );
+                                } else {
+                                    console.error(
+                                        `Unable to load therapists for learner ${learner.id}:`,
+                                        therapistAssignmentResult.reason
+                                    );
+                                }
+
+                                return {
+                                    id: learner.id,
+                                    name: [
+                                        learner.firstName,
+                                        learner.middleName,
+                                        learner.lastName,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(" "),
+                                    age: calculateAge(
+                                        learner.birthDate
+                                    ),
+                                    assignedDoctorId,
+                                    assignedTherapistIds,
+                                };
+                            }
+                        )
+                    );
+
+                if (isMounted) {
+                    setLearners(mappedLearners);
+                }
+            } catch (error) {
+                console.error(
+                    "Unable to load collaboration data:",
+                    error
+                );
+            }
+        }
+
+        loadCollaborationData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadLearnerNotes() {
+            if (!selectedLearnerId) {
+                setRecords([]);
+                return;
+            }
+
+            try {
+                setIsLoadingNotes(true);
+
+                const result =
+                    await getLearnerCollaborationNotes(
+                        selectedLearnerId
+                    );
+
+                if (!isMounted) {
+                    return;
+                }
+
+                const mappedNotes: CollaborationRecord[] =
+                    (result.notes ?? []).map(
+                        mapApiNoteToRecord
+                    );
+
+                setRecords(mappedNotes);
+            } catch (error) {
+                console.error(
+                    "Unable to load collaboration notes:",
+                    error
+                );
+
+                if (isMounted) {
+                    setRecords([]);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoadingNotes(false);
+                }
+            }
+        }
+
+        loadLearnerNotes();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedLearnerId]);
 
     const selectedLearner = learners.find(
         (learner) => learner.id === selectedLearnerId
@@ -314,7 +495,7 @@ const Collaboration = () => {
         setSelectedDoctorId(
             selectedLearner.assignedDoctorId ??
                 doctors[0]?.id ??
-                1
+                ""
         );
 
         setShowDoctorModal(true);
@@ -342,26 +523,50 @@ const Collaboration = () => {
         setShowNoteModal(true);
     };
 
-    const handleAssignDoctor = () => {
-        if (!selectedLearner) {
+    const handleAssignDoctor = async () => {
+        if (
+            !selectedLearner ||
+            !selectedDoctorId
+        ) {
             return;
         }
 
-        setLearners((previousLearners) =>
-            previousLearners.map((learner) =>
-                learner.id === selectedLearner.id
-                    ? {
-                          ...learner,
-                          assignedDoctorId: selectedDoctorId,
-                      }
-                    : learner
-            )
-        );
+        try {
+            setIsSavingDoctor(true);
 
-        setShowDoctorModal(false);
+            await assignLearnerDoctor(
+                selectedLearner.id,
+                selectedDoctorId
+            );
+
+            setLearners((previousLearners) =>
+                previousLearners.map((learner) =>
+                    learner.id === selectedLearner.id
+                        ? {
+                              ...learner,
+                              assignedDoctorId:
+                                  selectedDoctorId,
+                          }
+                        : learner
+                )
+            );
+
+            setShowDoctorModal(false);
+        } catch (error) {
+            console.error(
+                "Unable to assign doctor:",
+                error
+            );
+
+            window.alert(
+                "Unable to assign doctor. Please try again."
+            );
+        } finally {
+            setIsSavingDoctor(false);
+        }
     };
 
-    const toggleTherapistSelection = (therapistId: number) => {
+    const toggleTherapistSelection = (therapistId: string) => {
         setSelectedTherapistIds((previousIds) => {
             if (previousIds.includes(therapistId)) {
                 return previousIds.filter(
@@ -373,52 +578,112 @@ const Collaboration = () => {
         });
     };
 
-    const handleAssignTherapists = () => {
+    const handleAssignTherapists = async () => {
         if (!selectedLearner) {
             return;
         }
 
-        setLearners((previousLearners) =>
-            previousLearners.map((learner) =>
-                learner.id === selectedLearner.id
-                    ? {
-                          ...learner,
-                          assignedTherapistIds:
-                              selectedTherapistIds,
-                      }
-                    : learner
-            )
-        );
+        try {
+            setIsSavingTherapists(true);
 
-        setShowTherapistModal(false);
+            const result =
+                await assignLearnerTherapists(
+                    selectedLearner.id,
+                    selectedTherapistIds
+                );
+
+            const savedTherapistIds =
+                (result.therapists ?? []).map(
+                    (therapist: any) =>
+                        String(therapist.id)
+                );
+
+            setLearners((previousLearners) =>
+                previousLearners.map((learner) =>
+                    learner.id === selectedLearner.id
+                        ? {
+                              ...learner,
+                              assignedTherapistIds:
+                                  savedTherapistIds,
+                          }
+                        : learner
+                )
+            );
+
+            setSelectedTherapistIds(
+                savedTherapistIds
+            );
+
+            setShowTherapistModal(false);
+        } catch (error) {
+            console.error(
+                "Unable to assign therapists:",
+                error
+            );
+
+            window.alert(
+                "Unable to assign therapists. Please try again."
+            );
+        } finally {
+            setIsSavingTherapists(false);
+        }
     };
 
-    const handleAddNote = () => {
-        if (!selectedLearner || !noteContent.trim()) {
+    const handleAddNote = async () => {
+        if (
+            !selectedLearner ||
+            !noteContent.trim()
+        ) {
             return;
         }
 
-        const newRecord: CollaborationRecord = {
-            id: Date.now(),
-            learnerId: selectedLearner.id,
-            doctorId: assignedDoctor?.id,
-            category: "MOBI Session",
-            title: noteTitle.trim() || "MOBI Session Note",
-            createdAt: new Date().toISOString(),
-            sender: "Center Admin",
-            senderRole: "Center",
-            content: noteContent.trim(),
-        };
+        try {
+            setIsSavingNote(true);
 
-        setRecords((previousRecords) => [
-            ...previousRecords,
-            newRecord,
-        ]);
+            const result =
+                await createLearnerCollaborationNote(
+                    selectedLearner.id,
+                    {
+                        title:
+                            noteTitle.trim() ||
+                            "MOBI Session Note",
+                        content:
+                            noteContent.trim(),
+                        category:
+                            "MOBI Session",
+                    }
+                );
 
-        setSelectedFilter("today");
-        setNoteTitle("MOBI Session Note");
-        setNoteContent("");
-        setShowNoteModal(false);
+            const savedNote =
+                mapApiNoteToRecord(
+                    result.note
+                );
+
+            setRecords(
+                (previousRecords) => [
+                    ...previousRecords,
+                    savedNote,
+                ]
+            );
+
+            setSelectedFilter("today");
+            setNoteTitle(
+                "MOBI Session Note"
+            );
+            setNoteContent("");
+            setShowNoteModal(false);
+        } catch (error) {
+            console.error(
+                "Unable to add progress note:",
+                error
+            );
+
+            window.alert(
+                "Unable to add progress note. Please try again."
+            );
+        } finally {
+            setIsSavingNote(false);
+        }
     };
 
     return (
@@ -892,7 +1157,18 @@ const Collaboration = () => {
 
                                         {/* SIMPLE TIMELINE */}
                                         <div className="px-5 py-5 sm:px-6">
-                                            {visibleRecords.length >
+                                            {isLoadingNotes ? (
+                                                <div className="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center">
+                                                    <MessageSquare
+                                                        size={28}
+                                                        className="mx-auto mb-3 text-gray-400"
+                                                    />
+
+                                                    <p className="font-semibold text-gray-700">
+                                                        Loading notes...
+                                                    </p>
+                                                </div>
+                                            ) : visibleRecords.length >
                                             0 ? (
                                                 <div className="space-y-4">
                                                     {visibleRecords.map(
@@ -1084,9 +1360,20 @@ const Collaboration = () => {
                                     <button
                                         type="button"
                                         onClick={handleAssignDoctor}
-                                        className="rounded-xl bg-[#82548C] px-5 py-3 font-semibold text-white hover:bg-[#704578]"
+                                        disabled={
+                                            !selectedDoctorId ||
+                                            isSavingDoctor
+                                        }
+                                        className={`rounded-xl px-5 py-3 font-semibold text-white transition ${
+                                            !selectedDoctorId ||
+                                            isSavingDoctor
+                                                ? "cursor-not-allowed bg-gray-300"
+                                                : "bg-[#82548C] hover:bg-[#704578]"
+                                        }`}
                                     >
-                                        Save Doctor
+                                        {isSavingDoctor
+                                            ? "Saving..."
+                                            : "Save Doctor"}
                                     </button>
                                 </div>
                             </div>
@@ -1129,7 +1416,21 @@ const Collaboration = () => {
                                 </div>
 
                                 <div className="mb-6 max-h-[360px] space-y-2 overflow-y-auto">
-                                    {therapists.map((therapist) => {
+                                    {therapists.length === 0 ? (
+                                        <div className="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center">
+                                            <Users
+                                                size={24}
+                                                className="mx-auto mb-2 text-gray-300"
+                                            />
+                                            <p className="font-semibold text-gray-700">
+                                                No therapists available
+                                            </p>
+                                            <p className="mt-1 text-sm text-gray-500">
+                                                Add a therapist from Center Profile → Staff first.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                    therapists.map((therapist) => {
                                         const isSelected =
                                             selectedTherapistIds.includes(
                                                 therapist.id
@@ -1185,7 +1486,8 @@ const Collaboration = () => {
                                                 </div>
                                             </button>
                                         );
-                                    })}
+                                    })
+                                    )}
                                 </div>
 
                                 <div className="flex flex-col justify-end gap-3 sm:flex-row">
@@ -1206,9 +1508,18 @@ const Collaboration = () => {
                                         onClick={
                                             handleAssignTherapists
                                         }
-                                        className="rounded-xl bg-[#82548C] px-5 py-3 font-semibold text-white hover:bg-[#704578]"
+                                        disabled={
+                                            isSavingTherapists
+                                        }
+                                        className={`rounded-xl px-5 py-3 font-semibold text-white transition ${
+                                            isSavingTherapists
+                                                ? "cursor-not-allowed bg-gray-300"
+                                                : "bg-[#82548C] hover:bg-[#704578]"
+                                        }`}
                                     >
-                                        Save Therapists
+                                        {isSavingTherapists
+                                            ? "Saving..."
+                                            : "Save Therapists"}
                                     </button>
                                 </div>
                             </div>
@@ -1293,14 +1604,20 @@ const Collaboration = () => {
                                     <button
                                         type="button"
                                         onClick={handleAddNote}
-                                        disabled={!noteContent.trim()}
+                                        disabled={
+                                            !noteContent.trim() ||
+                                            isSavingNote
+                                        }
                                         className={`rounded-xl px-5 py-3 font-semibold text-white transition ${
-                                            noteContent.trim()
+                                            noteContent.trim() &&
+                                            !isSavingNote
                                                 ? "bg-[#82548C] hover:bg-[#704578]"
                                                 : "cursor-not-allowed bg-gray-300"
                                         }`}
                                     >
-                                        Add Note
+                                        {isSavingNote
+                                            ? "Saving..."
+                                            : "Add Note"}
                                     </button>
                                 </div>
                             </div>
